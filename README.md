@@ -27,6 +27,9 @@ forge read https://example.com
 
 # Analyze a website for issues
 forge analyze https://example.com
+
+# Generate recommendations
+forge recommend https://example.com
 ```
 
 ---
@@ -43,7 +46,9 @@ forge/
 │   ├── logger/           # Structured logging
 │   ├── shared/           # Reusable utilities and constants
 │   ├── tools/            # External capabilities (website reader, html parser)
-│   └── capabilities/     # Analysis rules and engine
+│   ├── capabilities/     # Analysis rules and engine
+│   ├── plugin-registry/  # Central registry for all extensions
+│   └── recommendation-engine/  # Deterministic recommendation generation
 ├── docs/                 # Architecture and design documentation
 └── tests/                # Repository-level tests
 ```
@@ -59,6 +64,10 @@ Read a website and produce a structured snapshot.
 ### `forge analyze <url>`
 
 Read and analyze a website, producing a list of findings sorted by severity.
+
+### `forge recommend <url>`
+
+Read, analyze, and generate deterministic recommendations for fixing issues.
 
 ---
 
@@ -139,6 +148,59 @@ Analysis engine and rules for WebsiteSnapshot.
 | ROBOTS_NOFOLLOW            | nofollow Directive         | medium   | seo           |
 | MISSING_LANG               | Missing Language           | low      | accessibility |
 | MISSING_JSONLD             | Missing JSON-LD            | info     | technical     |
+
+---
+
+## Sprint 4 — Recommendation Engine + Plugin Registry (v0.4.0)
+
+### Part 1: Sprint 3 Improvements
+
+- ✅ Removed `RecommendationPlaceholder` from Finding (separate concepts)
+- ✅ Stable Finding IDs using deterministic format (e.g., `seo.missing_title`)
+- ✅ Rule Metadata with id, name, version, description, category, defaultSeverity
+- ✅ Capability Manifest with id, name, version, description, supportedPlatforms, requiredTools, supportedInputs, supportedOutputs
+
+### Part 2: Plugin Registry
+
+- ✅ `@forge/plugin-registry` package created
+- ✅ `PluginRegistry` class with register, unregister, get, list, exists, clear methods
+- ✅ Strong typing for plugins with `Plugin` and `CapabilityManifest` interfaces
+- ✅ Duplicate registration protection with `PluginAlreadyRegisteredError`
+- ✅ `PluginNotFoundError` for missing plugins
+
+### Part 3: Recommendation Engine
+
+- ✅ `@forge/recommendation-engine` package created
+- ✅ `generateRecommendations(report)` transforms AnalysisReport to RecommendationReport
+- ✅ Recommendation generators for all core findings
+- ✅ Deterministic, no-AI recommendation generation
+
+**Recommendation Generators Implemented:**
+
+| Finding ID               | Priority   | Difficulty | Impact |
+| ------------------------ | ---------- | ---------- | ------ |
+| seo.missing_title        | critical   | easy       | high   |
+| seo.missing_meta_description | high    | easy       | high   |
+| seo.title_too_short      | low        | easy       | medium |
+| seo.title_too_long       | medium     | easy       | medium |
+| seo.missing_h1           | high       | easy       | high   |
+| seo.multiple_h1          | medium     | medium     | medium |
+| metadata.missing_og      | high       | easy       | high   |
+| seo.missing_canonical    | medium     | easy       | medium |
+| accessibility.missing_lang | low      | easy       | low    |
+| technical.missing_jsonld   | low       | medium     | high   |
+| seo.robots_noindex       | critical   | easy       | high   |
+
+### New Types (Sprint 4)
+
+**Recommendation Types:**
+
+- `Priority` — critical | high | medium | low
+- `Difficulty` — easy | medium | hard
+- `Impact` — high | medium | low
+- `Recommendation` — action with steps, references, impact
+- `RecommendationReport` — recommendations with summary and effort estimates
+- `RecommendationStep` — ordered implementation steps
 
 ---
 

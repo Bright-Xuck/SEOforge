@@ -7,6 +7,7 @@ import { Command } from "commander";
 import { FORGE_NAME, FORGE_VERSION } from "@forge/shared";
 import { readWebsite } from "@forge/tools/website-reader";
 import { analyzeHomepage } from "@forge/capabilities/homepage";
+import { generateRecommendations } from "@forge/recommendation-engine";
 import { WebsiteReadError } from "@forge/core";
 
 const program = new Command();
@@ -85,6 +86,54 @@ program
       for (const finding of report.findings) {
         const severityLabel = finding.severity.toUpperCase().padEnd(8);
         process.stdout.write(`${severityLabel} ${finding.title}\n`);
+      }
+    } catch (error) {
+      const wre = error instanceof WebsiteReadError ? error : null;
+      process.stderr.write(
+        `Error: ${wre?.kind === "invalid-url" ? "Invalid URL" : error instanceof Error ? error.message : "Unknown error"}\n`,
+      );
+      process.exit(1);
+    }
+  });
+
+program
+  .command("recommend")
+  .argument("<url>", "Website URL to analyze for recommendations")
+  .option("--json", "Output recommendations as JSON")
+  .description("Generate recommendations from website analysis")
+  .action(async (url: string, options: { json?: boolean }) => {
+    try {
+      process.stdout.write("Reading...\n");
+      const snapshot = await readWebsite(url);
+
+      process.stdout.write("✓ Downloaded\n");
+      process.stdout.write("✓ Parsed\n");
+      process.stdout.write("Analyzing...\n");
+
+      const report = analyzeHomepage(snapshot);
+
+      process.stdout.write("Generating Recommendations...\n");
+
+      const recReport = generateRecommendations(report);
+
+      process.stdout.write("✓ Recommendations Generated\n\n");
+
+      process.stdout.write("Priority Summary:\n");
+      process.stdout.write(`  Critical: ${recReport.priorityBreakdown.critical}\n`);
+      process.stdout.write(`  High:     ${recReport.priorityBreakdown.high}\n`);
+      process.stdout.write(`  Medium:   ${recReport.priorityBreakdown.medium}\n`);
+      process.stdout.write(`  Low:      ${recReport.priorityBreakdown.low}\n`);
+      process.stdout.write(`\nEstimated Fix Time: ${recReport.estimatedEffort}\n\n`);
+
+      if (options.json) {
+        process.stdout.write(JSON.stringify(recReport, null, 2) + "\n");
+        return;
+      }
+
+      for (const rec of recReport.recommendations) {
+        process.stdout.write(`\n[${rec.priority.toUpperCase()}] ${rec.title}\n`);
+        process.stdout.write(`  ${rec.description}\n`);
+        process.stdout.write(`  Time: ${rec.estimatedTime} | Impact: ${rec.expectedImpact}\n`);
       }
     } catch (error) {
       const wre = error instanceof WebsiteReadError ? error : null;

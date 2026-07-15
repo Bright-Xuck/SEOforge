@@ -52,7 +52,13 @@ export class ForgeError extends Error {
  * Discriminated error kinds for website reading operations.
  */
 export type WebsiteReadErrorKind =
-  "invalid-url" | "dns" | "timeout" | "http" | "redirect-loop" | "non-html" | "network";
+  | "invalid-url"
+  | "dns"
+  | "timeout"
+  | "http"
+  | "redirect-loop"
+  | "non-html"
+  | "network";
 
 /**
  * Typed error for website reading failures.
@@ -213,9 +219,10 @@ export type Category =
   | "technical";
 
 /**
- * Branded type for stable finding codes.
+ * Branded type for stable finding identifiers.
+ * Format: category.finding_name (e.g., "seo.missing_title", "metadata.missing_og")
  */
-export type FindingCode = string & { readonly __brand: "FindingCode" };
+export type FindingId = string & { readonly __brand: "FindingId" };
 
 /**
  * Evidence supporting a finding.
@@ -247,6 +254,20 @@ export type Priority = "critical" | "high" | "medium" | "low";
 export interface RecommendationStep {
   readonly order: number;
   readonly description: string;
+}
+
+/**
+ * Metadata for a rule or capability.
+ */
+export interface RuleMetadata {
+  readonly id: FindingId;
+  readonly name: string;
+  readonly version: string;
+  readonly description: string;
+  readonly category: Category;
+  readonly defaultSeverity: Severity;
+  readonly author?: string;
+  readonly documentationUrl?: string;
 }
 
 /**
@@ -290,10 +311,10 @@ export interface RecommendationReport {
 
 /**
  * A single analysis finding.
+ * The id field is a stable, deterministic identifier (e.g., "seo.missing_title").
  */
 export interface Finding {
-  readonly id: string;
-  readonly code: FindingCode;
+  readonly id: FindingId;
   readonly title: string;
   readonly description: string;
   readonly severity: Severity;
@@ -302,6 +323,7 @@ export interface Finding {
   readonly location?: string;
   readonly confidence: number;
   readonly fixable: boolean;
+  readonly ruleMetadata?: RuleMetadata;
 }
 
 /**
@@ -327,6 +349,35 @@ export interface AnalysisReport {
  * Each rule analyzes a WebsiteSnapshot and returns zero or more findings.
  */
 export interface AnalysisRule {
-  readonly code: FindingCode;
+  readonly metadata: RuleMetadata;
   analyze(snapshot: WebsiteSnapshot): Finding[];
+}
+
+/**
+ * Capability manifest for plugins.
+ */
+export interface CapabilityManifest {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly description: string;
+  readonly supportedPlatforms: string[];
+  readonly requiredTools: string[];
+  readonly supportedInputs: string[];
+  readonly supportedOutputs: string[];
+}
+
+/**
+ * Base plugin interface.
+ */
+export interface Plugin {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly description: string;
+  readonly manifest: CapabilityManifest;
+  readonly supportedPlatforms: string[];
+  readonly requiredTools: string[];
+  readonly supportedInputs: string[];
+  readonly supportedOutputs: string[];
 }

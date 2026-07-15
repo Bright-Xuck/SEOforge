@@ -1,46 +1,11 @@
 // @forge/capabilities/rules/index
 // Registry of all analysis rules with metadata.
 
-import type { AnalysisRule, Finding, FindingCode, Severity, Category } from "@forge/core";
-
-// Rule metadata interface
-export interface RuleMetadata {
-  readonly id: FindingCode;
-  readonly name: string;
-  readonly version: string;
-  readonly description: string;
-  readonly category: Category;
-  readonly defaultSeverity: Severity;
-}
-
-// Helper to create a finding with stable ID
-function createFinding(
-  code: FindingCode,
-  title: string,
-  description: string,
-  severity: Severity,
-  category: Category,
-  location?: string,
-): Finding {
-  return {
-    id: code,
-    code,
-    title,
-    description,
-    severity,
-    category,
-    evidence: location
-      ? [{ source: "analysis", detail: location, value: location }]
-      : [{ source: "analysis", detail: title }],
-    location,
-    confidence: 1.0,
-    fixable: true,
-  };
-}
+import type { AnalysisRule, Finding, FindingId, RuleMetadata } from "@forge/core";
 
 // Metadata objects for each rule (stable, deterministic)
-const META_MISSING_TITLE = {
-  id: "seo.missing_title" as FindingCode,
+const META_MISSING_TITLE: RuleMetadata = {
+  id: "seo.missing_title" as FindingId,
   name: "Missing Title",
   version: "1.0.0",
   description: "Page has no title element.",
@@ -48,8 +13,8 @@ const META_MISSING_TITLE = {
   defaultSeverity: "critical" as const,
 };
 
-const META_TITLE_TOO_SHORT = {
-  id: "seo.title_too_short" as FindingCode,
+const META_TITLE_TOO_SHORT: RuleMetadata = {
+  id: "seo.title_too_short" as FindingId,
   name: "Title Too Short",
   version: "1.0.0",
   description: "Title is under 30 characters for optimal SEO.",
@@ -57,8 +22,8 @@ const META_TITLE_TOO_SHORT = {
   defaultSeverity: "low" as const,
 };
 
-const META_TITLE_TOO_LONG = {
-  id: "seo.title_too_long" as FindingCode,
+const META_TITLE_TOO_LONG: RuleMetadata = {
+  id: "seo.title_too_long" as FindingId,
   name: "Title Too Long",
   version: "1.0.0",
   description: "Title exceeds 60 characters; may truncate in search results.",
@@ -66,8 +31,8 @@ const META_TITLE_TOO_LONG = {
   defaultSeverity: "medium" as const,
 };
 
-const META_TITLE_DUPLICATE_WORDS = {
-  id: "seo.title_duplicate_words" as FindingCode,
+const META_TITLE_DUPLICATE_WORDS: RuleMetadata = {
+  id: "seo.title_duplicate_words" as FindingId,
   name: "Duplicate Words in Title",
   version: "1.0.0",
   description: "Title contains consecutive duplicate words.",
@@ -75,8 +40,8 @@ const META_TITLE_DUPLICATE_WORDS = {
   defaultSeverity: "low" as const,
 };
 
-const META_MISSING_META_DESCRIPTION = {
-  id: "seo.missing_meta_description" as FindingCode,
+const META_MISSING_META_DESCRIPTION: RuleMetadata = {
+  id: "seo.missing_meta_description" as FindingId,
   name: "Missing Meta Description",
   version: "1.0.0",
   description: "Page has no meta description element.",
@@ -84,8 +49,8 @@ const META_MISSING_META_DESCRIPTION = {
   defaultSeverity: "high" as const,
 };
 
-const META_META_DESCRIPTION_TOO_SHORT = {
-  id: "seo.meta_description_too_short" as FindingCode,
+const META_META_DESCRIPTION_TOO_SHORT: RuleMetadata = {
+  id: "seo.meta_description_too_short" as FindingId,
   name: "Meta Description Too Short",
   version: "1.0.0",
   description: "Meta description is under 120 characters.",
@@ -93,8 +58,8 @@ const META_META_DESCRIPTION_TOO_SHORT = {
   defaultSeverity: "low" as const,
 };
 
-const META_META_DESCRIPTION_TOO_LONG = {
-  id: "seo.meta_description_too_long" as FindingCode,
+const META_META_DESCRIPTION_TOO_LONG: RuleMetadata = {
+  id: "seo.meta_description_too_long" as FindingId,
   name: "Meta Description Too Long",
   version: "1.0.0",
   description: "Meta description exceeds 160 characters; may truncate in search.",
@@ -102,8 +67,8 @@ const META_META_DESCRIPTION_TOO_LONG = {
   defaultSeverity: "medium" as const,
 };
 
-const META_MISSING_H1 = {
-  id: "seo.missing_h1" as FindingCode,
+const META_MISSING_H1: RuleMetadata = {
+  id: "seo.missing_h1" as FindingId,
   name: "Missing H1",
   version: "1.0.0",
   description: "Page has no H1 heading element.",
@@ -111,8 +76,8 @@ const META_MISSING_H1 = {
   defaultSeverity: "high" as const,
 };
 
-const META_MULTIPLE_H1 = {
-  id: "seo.multiple_h1" as FindingCode,
+const META_MULTIPLE_H1: RuleMetadata = {
+  id: "seo.multiple_h1" as FindingId,
   name: "Multiple H1",
   version: "1.0.0",
   description: "Page has multiple H1 headings; should have exactly one.",
@@ -120,8 +85,8 @@ const META_MULTIPLE_H1 = {
   defaultSeverity: "medium" as const,
 };
 
-const META_HEADING_HIERARCHY = {
-  id: "seo.heading_hierarchy" as FindingCode,
+const META_HEADING_HIERARCHY: RuleMetadata = {
+  id: "seo.heading_hierarchy" as FindingId,
   name: "Skipped Heading Level",
   version: "1.0.0",
   description: "Heading levels are not sequential in the document.",
@@ -129,8 +94,8 @@ const META_HEADING_HIERARCHY = {
   defaultSeverity: "low" as const,
 };
 
-const META_MISSING_ALT = {
-  id: "accessibility.missing_alt" as FindingCode,
+const META_MISSING_ALT: RuleMetadata = {
+  id: "accessibility.missing_alt" as FindingId,
   name: "Missing Alt Text",
   version: "1.0.0",
   description: "Image missing alt attribute.",
@@ -138,8 +103,8 @@ const META_MISSING_ALT = {
   defaultSeverity: "medium" as const,
 };
 
-const META_EMPTY_ALT = {
-  id: "accessibility.empty_alt" as FindingCode,
+const META_EMPTY_ALT: RuleMetadata = {
+  id: "accessibility.empty_alt" as FindingId,
   name: "Empty Alt Text",
   version: "1.0.0",
   description: "Image has empty alt text (purely decorative).",
@@ -147,8 +112,8 @@ const META_EMPTY_ALT = {
   defaultSeverity: "low" as const,
 };
 
-const META_EMPTY_ANCHOR_TEXT = {
-  id: "seo.empty_anchor_text" as FindingCode,
+const META_EMPTY_ANCHOR_TEXT: RuleMetadata = {
+  id: "seo.empty_anchor_text" as FindingId,
   name: "Empty Anchor Text",
   version: "1.0.0",
   description: "Link has no visible text content.",
@@ -156,8 +121,8 @@ const META_EMPTY_ANCHOR_TEXT = {
   defaultSeverity: "low" as const,
 };
 
-const META_SUSPICIOUS_URLS = {
-  id: "links.suspicious_urls" as FindingCode,
+const META_SUSPICIOUS_URLS: RuleMetadata = {
+  id: "links.suspicious_urls" as FindingId,
   name: "Suspicious URLs",
   version: "1.0.0",
   description: "Links use javascript:, mailto:, tel:, or anchor-only URLs.",
@@ -165,8 +130,8 @@ const META_SUSPICIOUS_URLS = {
   defaultSeverity: "info" as const,
 };
 
-const META_EXTERNAL_LINK_REL = {
-  id: "links.external_link_rel" as FindingCode,
+const META_EXTERNAL_LINK_REL: RuleMetadata = {
+  id: "links.external_link_rel" as FindingId,
   name: "External Link Needs Rel Attribute",
   version: "1.0.0",
   description: "External link should have rel='noopener' or 'nofollow'.",
@@ -174,8 +139,8 @@ const META_EXTERNAL_LINK_REL = {
   defaultSeverity: "info" as const,
 };
 
-const META_MISSING_CANONICAL = {
-  id: "seo.missing_canonical" as FindingCode,
+const META_MISSING_CANONICAL: RuleMetadata = {
+  id: "seo.missing_canonical" as FindingId,
   name: "Missing Canonical",
   version: "1.0.0",
   description: "Page has no canonical URL.",
@@ -183,8 +148,8 @@ const META_MISSING_CANONICAL = {
   defaultSeverity: "medium" as const,
 };
 
-const META_MISSING_OG = {
-  id: "metadata.missing_og" as FindingCode,
+const META_MISSING_OG: RuleMetadata = {
+  id: "metadata.missing_og" as FindingId,
   name: "Missing Open Graph",
   version: "1.0.0",
   description: "Missing Open Graph metadata tags.",
@@ -192,8 +157,8 @@ const META_MISSING_OG = {
   defaultSeverity: "high" as const,
 };
 
-const META_MISSING_TWITTER = {
-  id: "metadata.missing_twitter" as FindingCode,
+const META_MISSING_TWITTER: RuleMetadata = {
+  id: "metadata.missing_twitter" as FindingId,
   name: "Missing Twitter Card",
   version: "1.0.0",
   description: "Missing Twitter Card metadata tags.",
@@ -201,8 +166,8 @@ const META_MISSING_TWITTER = {
   defaultSeverity: "low" as const,
 };
 
-const META_ROBOTS_NOINDEX = {
-  id: "seo.robots_noindex" as FindingCode,
+const META_ROBOTS_NOINDEX: RuleMetadata = {
+  id: "seo.robots_noindex" as FindingId,
   name: "noindex Directive",
   version: "1.0.0",
   description: "Page blocks indexing via robots meta tag.",
@@ -210,8 +175,8 @@ const META_ROBOTS_NOINDEX = {
   defaultSeverity: "critical" as const,
 };
 
-const META_ROBOTS_NOFOLLOW = {
-  id: "seo.robots_nofollow" as FindingCode,
+const META_ROBOTS_NOFOLLOW: RuleMetadata = {
+  id: "seo.robots_nofollow" as FindingId,
   name: "nofollow Directive",
   version: "1.0.0",
   description: "Page blocks link following via robots meta tag.",
@@ -219,8 +184,8 @@ const META_ROBOTS_NOFOLLOW = {
   defaultSeverity: "medium" as const,
 };
 
-const META_MISSING_LANG = {
-  id: "accessibility.missing_lang" as FindingCode,
+const META_MISSING_LANG: RuleMetadata = {
+  id: "accessibility.missing_lang" as FindingId,
   name: "Missing Language",
   version: "1.0.0",
   description: "HTML element missing lang attribute.",
@@ -228,8 +193,8 @@ const META_MISSING_LANG = {
   defaultSeverity: "low" as const,
 };
 
-const META_MISSING_JSONLD = {
-  id: "technical.missing_jsonld" as FindingCode,
+const META_MISSING_JSONLD: RuleMetadata = {
+  id: "technical.missing_jsonld" as FindingId,
   name: "Missing JSON-LD",
   version: "1.0.0",
   description: "Page has no structured data (JSON-LD).",
@@ -238,8 +203,8 @@ const META_MISSING_JSONLD = {
 };
 
 // Meta for placeholder rules
-const META_BROKEN_IMAGES = {
-  id: "links.broken_images" as FindingCode,
+const META_BROKEN_IMAGES: RuleMetadata = {
+  id: "links.broken_images" as FindingId,
   name: "Broken Images",
   version: "1.0.0",
   description: "Image sources return HTTP errors.",
@@ -247,8 +212,8 @@ const META_BROKEN_IMAGES = {
   defaultSeverity: "medium" as const,
 };
 
-const META_BROKEN_INTERNAL_LINKS = {
-  id: "links.broken_internal_links" as FindingCode,
+const META_BROKEN_INTERNAL_LINKS: RuleMetadata = {
+  id: "links.broken_internal_links" as FindingId,
   name: "Broken Internal Links",
   version: "1.0.0",
   description: "Internal links return HTTP errors.",
@@ -256,8 +221,8 @@ const META_BROKEN_INTERNAL_LINKS = {
   defaultSeverity: "medium" as const,
 };
 
-const META_INVALID_CANONICAL = {
-  id: "seo.invalid_canonical" as FindingCode,
+const META_INVALID_CANONICAL: RuleMetadata = {
+  id: "seo.invalid_canonical" as FindingId,
   name: "Invalid Canonical",
   version: "1.0.0",
   description: "Canonical URL is malformed or points to different domain.",
@@ -265,8 +230,8 @@ const META_INVALID_CANONICAL = {
   defaultSeverity: "medium" as const,
 };
 
-const META_MULTIPLE_CANONICAL = {
-  id: "seo.multiple_canonical" as FindingCode,
+const META_MULTIPLE_CANONICAL: RuleMetadata = {
+  id: "seo.multiple_canonical" as FindingId,
   name: "Multiple Canonicals",
   version: "1.0.0",
   description: "Multiple canonical link elements found.",
@@ -274,8 +239,8 @@ const META_MULTIPLE_CANONICAL = {
   defaultSeverity: "low" as const,
 };
 
-const META_ROBOTS_CONFLICT = {
-  id: "seo.robots_conflict" as FindingCode,
+const META_ROBOTS_CONFLICT: RuleMetadata = {
+  id: "seo.robots_conflict" as FindingId,
   name: "Robots Conflict",
   version: "1.0.0",
   description: "Conflicting robot directives present.",
@@ -283,91 +248,112 @@ const META_ROBOTS_CONFLICT = {
   defaultSeverity: "low" as const,
 };
 
+// Helper to create a finding with stable ID
+function createFinding(
+  meta: RuleMetadata,
+  location?: string,
+): Finding {
+  return {
+    id: meta.id,
+    title: meta.name,
+    description: meta.description,
+    severity: meta.defaultSeverity,
+    category: meta.category,
+    evidence: location
+      ? [{ source: "analysis", detail: location, value: location }]
+      : [{ source: "analysis", detail: meta.name }],
+    location,
+    confidence: 1.0,
+    fixable: true,
+    ruleMetadata: meta,
+  };
+}
+
 // Title rules
 export const MISSING_TITLE: AnalysisRule = {
-  code: META_MISSING_TITLE.id,
+  metadata: META_MISSING_TITLE,
   analyze: (s) =>
     s.pageTitle.trim() === ""
-      ? [createFinding(META_MISSING_TITLE.id, META_MISSING_TITLE.name, META_MISSING_TITLE.description, META_MISSING_TITLE.defaultSeverity, META_MISSING_TITLE.category, "head > title")]
+      ? [createFinding(META_MISSING_TITLE, "head > title")]
       : [],
 };
 
 export const TITLE_TOO_SHORT: AnalysisRule = {
-  code: META_TITLE_TOO_SHORT.id,
+  metadata: META_TITLE_TOO_SHORT,
   analyze: (s) =>
     s.pageTitle.trim() !== "" && s.pageTitle.length < 30
-      ? [createFinding(META_TITLE_TOO_SHORT.id, META_TITLE_TOO_SHORT.name, META_TITLE_TOO_SHORT.description, META_TITLE_TOO_SHORT.defaultSeverity, META_TITLE_TOO_SHORT.category, "head > title")]
+      ? [createFinding(META_TITLE_TOO_SHORT, "head > title")]
       : [],
 };
 
 export const TITLE_TOO_LONG: AnalysisRule = {
-  code: META_TITLE_TOO_LONG.id,
+  metadata: META_TITLE_TOO_LONG,
   analyze: (s) =>
     s.pageTitle.trim() !== "" && s.pageTitle.length > 60
-      ? [createFinding(META_TITLE_TOO_LONG.id, META_TITLE_TOO_LONG.name, META_TITLE_TOO_LONG.description, META_TITLE_TOO_LONG.defaultSeverity, META_TITLE_TOO_LONG.category, "head > title")]
+      ? [createFinding(META_TITLE_TOO_LONG, "head > title")]
       : [],
 };
 
 export const TITLE_DUPLICATE_WORDS: AnalysisRule = {
-  code: META_TITLE_DUPLICATE_WORDS.id,
+  metadata: META_TITLE_DUPLICATE_WORDS,
   analyze: (s) => {
     if (s.pageTitle.trim() === "") return [];
     const words = s.pageTitle.toLowerCase().split(/\s+/);
     const hasDuplicates = words.some((w, i) => i > 0 && w === words[i - 1]);
     return hasDuplicates
-      ? [createFinding(META_TITLE_DUPLICATE_WORDS.id, META_TITLE_DUPLICATE_WORDS.name, META_TITLE_DUPLICATE_WORDS.description, META_TITLE_DUPLICATE_WORDS.defaultSeverity, META_TITLE_DUPLICATE_WORDS.category, "head > title")]
+      ? [createFinding(META_TITLE_DUPLICATE_WORDS, "head > title")]
       : [];
   },
 };
 
 // Meta description rules
 export const MISSING_META_DESCRIPTION: AnalysisRule = {
-  code: META_MISSING_META_DESCRIPTION.id,
+  metadata: META_MISSING_META_DESCRIPTION,
   analyze: (s) =>
     s.metaDescription.trim() === ""
-      ? [createFinding(META_MISSING_META_DESCRIPTION.id, META_MISSING_META_DESCRIPTION.name, META_MISSING_META_DESCRIPTION.description, META_MISSING_META_DESCRIPTION.defaultSeverity, META_MISSING_META_DESCRIPTION.category, "head > meta[name='description']")]
+      ? [createFinding(META_MISSING_META_DESCRIPTION, "head > meta[name='description']")]
       : [],
 };
 
 export const META_DESCRIPTION_TOO_SHORT: AnalysisRule = {
-  code: META_META_DESCRIPTION_TOO_SHORT.id,
+  metadata: META_META_DESCRIPTION_TOO_SHORT,
   analyze: (s) =>
     s.metaDescription.trim() !== "" && s.metaDescription.length < 120
-      ? [createFinding(META_META_DESCRIPTION_TOO_SHORT.id, META_META_DESCRIPTION_TOO_SHORT.name, META_META_DESCRIPTION_TOO_SHORT.description, META_META_DESCRIPTION_TOO_SHORT.defaultSeverity, META_META_DESCRIPTION_TOO_SHORT.category, "head > meta[name='description']")]
+      ? [createFinding(META_META_DESCRIPTION_TOO_SHORT, "head > meta[name='description']")]
       : [],
 };
 
 export const META_DESCRIPTION_TOO_LONG: AnalysisRule = {
-  code: META_META_DESCRIPTION_TOO_LONG.id,
+  metadata: META_META_DESCRIPTION_TOO_LONG,
   analyze: (s) =>
     s.metaDescription.trim() !== "" && s.metaDescription.length > 160
-      ? [createFinding(META_META_DESCRIPTION_TOO_LONG.id, META_META_DESCRIPTION_TOO_LONG.name, META_META_DESCRIPTION_TOO_LONG.description, META_META_DESCRIPTION_TOO_LONG.defaultSeverity, META_META_DESCRIPTION_TOO_LONG.category, "head > meta[name='description']")]
+      ? [createFinding(META_META_DESCRIPTION_TOO_LONG, "head > meta[name='description']")]
       : [],
 };
 
 // Heading rules
 export const MISSING_H1: AnalysisRule = {
-  code: META_MISSING_H1.id,
+  metadata: META_MISSING_H1,
   analyze: (s) => {
     const h1Count = s.headings.filter((h) => h.level === 1).length;
     return h1Count === 0
-      ? [createFinding(META_MISSING_H1.id, META_MISSING_H1.name, META_MISSING_H1.description, META_MISSING_H1.defaultSeverity, META_MISSING_H1.category, "body")]
+      ? [createFinding(META_MISSING_H1, "body")]
       : [];
   },
 };
 
 export const MULTIPLE_H1: AnalysisRule = {
-  code: META_MULTIPLE_H1.id,
+  metadata: META_MULTIPLE_H1,
   analyze: (s) => {
     const h1Count = s.headings.filter((h) => h.level === 1).length;
     return h1Count > 1
-      ? [createFinding(META_MULTIPLE_H1.id, META_MULTIPLE_H1.name, META_MULTIPLE_H1.description, META_MULTIPLE_H1.defaultSeverity, META_MULTIPLE_H1.category)]
+      ? [createFinding(META_MULTIPLE_H1)]
       : [];
   },
 };
 
 export const HEADING_HIERARCHY: AnalysisRule = {
-  code: META_HEADING_HIERARCHY.id,
+  metadata: META_HEADING_HIERARCHY,
   analyze: (s) => {
     const findings: Finding[] = [];
     const h1Count = s.headings.filter((h) => h.level === 1).length;
@@ -377,14 +363,7 @@ export const HEADING_HIERARCHY: AnalysisRule = {
       if (h.level === 1) continue;
       if (h.level > expectedLevel) {
         findings.push(
-          createFinding(
-            META_HEADING_HIERARCHY.id,
-            META_HEADING_HIERARCHY.name,
-            META_HEADING_HIERARCHY.description,
-            META_HEADING_HIERARCHY.defaultSeverity,
-            META_HEADING_HIERARCHY.category,
-            `h${h.level}`,
-          ),
+          createFinding(META_HEADING_HIERARCHY, `h${h.level}`),
         );
       }
       expectedLevel = h.level;
@@ -396,24 +375,24 @@ export const HEADING_HIERARCHY: AnalysisRule = {
 
 // Image rules
 export const MISSING_ALT: AnalysisRule = {
-  code: META_MISSING_ALT.id,
+  metadata: META_MISSING_ALT,
   analyze: (s) =>
     s.images
       .map((img, i) =>
         img.alt === undefined || img.alt === null
-          ? createFinding(META_MISSING_ALT.id, META_MISSING_ALT.name, META_MISSING_ALT.description, META_MISSING_ALT.defaultSeverity, META_MISSING_ALT.category, `img:nth-child(${i + 1})`)
+          ? createFinding(META_MISSING_ALT, `img:nth-child(${i + 1})`)
           : null,
       )
       .filter((f): f is Finding => f !== null),
 };
 
 export const EMPTY_ALT: AnalysisRule = {
-  code: META_EMPTY_ALT.id,
+  metadata: META_EMPTY_ALT,
   analyze: (s) =>
     s.images
       .map((img, i) =>
         img.alt === ""
-          ? createFinding(META_EMPTY_ALT.id, META_EMPTY_ALT.name, META_EMPTY_ALT.description, META_EMPTY_ALT.defaultSeverity, META_EMPTY_ALT.category, `img:nth-child(${i + 1})`)
+          ? createFinding(META_EMPTY_ALT, `img:nth-child(${i + 1})`)
           : null,
       )
       .filter((f): f is Finding => f !== null),
@@ -421,34 +400,34 @@ export const EMPTY_ALT: AnalysisRule = {
 
 // Link rules
 export const EMPTY_ANCHOR_TEXT: AnalysisRule = {
-  code: META_EMPTY_ANCHOR_TEXT.id,
+  metadata: META_EMPTY_ANCHOR_TEXT,
   analyze: (s) =>
     s.links
       .map((link, i) =>
         link.text.trim() === ""
-          ? createFinding(META_EMPTY_ANCHOR_TEXT.id, META_EMPTY_ANCHOR_TEXT.name, META_EMPTY_ANCHOR_TEXT.description, META_EMPTY_ANCHOR_TEXT.defaultSeverity, META_EMPTY_ANCHOR_TEXT.category, `a:nth-child(${i + 1})`)
+          ? createFinding(META_EMPTY_ANCHOR_TEXT, `a:nth-child(${i + 1})`)
           : null,
       )
       .filter((f): f is Finding => f !== null),
 };
 
 export const SUSPICIOUS_URLS: AnalysisRule = {
-  code: META_SUSPICIOUS_URLS.id,
+  metadata: META_SUSPICIOUS_URLS,
   analyze: (s) => {
     const suspicious = s.links.filter((l) => /javascript:|mailto:|tel:|^#/i.test(l.href));
     return suspicious.length > 0
-      ? [createFinding(META_SUSPICIOUS_URLS.id, META_SUSPICIOUS_URLS.name, META_SUSPICIOUS_URLS.description, META_SUSPICIOUS_URLS.defaultSeverity, META_SUSPICIOUS_URLS.category)]
+      ? [createFinding(META_SUSPICIOUS_URLS)]
       : [];
   },
 };
 
 export const EXTERNAL_LINK_REL: AnalysisRule = {
-  code: META_EXTERNAL_LINK_REL.id,
+  metadata: META_EXTERNAL_LINK_REL,
   analyze: (s) =>
     s.links
       .map((link, i) =>
         !link.isInternal
-          ? createFinding(META_EXTERNAL_LINK_REL.id, META_EXTERNAL_LINK_REL.name, META_EXTERNAL_LINK_REL.description, META_EXTERNAL_LINK_REL.defaultSeverity, META_EXTERNAL_LINK_REL.category, `a:nth-child(${i + 1})`)
+          ? createFinding(META_EXTERNAL_LINK_REL, `a:nth-child(${i + 1})`)
           : null,
       )
       .filter((f): f is Finding => f !== null),
@@ -456,98 +435,98 @@ export const EXTERNAL_LINK_REL: AnalysisRule = {
 
 // Canonical rules
 export const MISSING_CANONICAL: AnalysisRule = {
-  code: META_MISSING_CANONICAL.id,
+  metadata: META_MISSING_CANONICAL,
   analyze: (s) =>
     s.canonicalUrl.trim() === ""
-      ? [createFinding(META_MISSING_CANONICAL.id, META_MISSING_CANONICAL.name, META_MISSING_CANONICAL.description, META_MISSING_CANONICAL.defaultSeverity, META_MISSING_CANONICAL.category, "head > link[rel='canonical']")]
+      ? [createFinding(META_MISSING_CANONICAL, "head > link[rel='canonical']")]
       : [],
 };
 
 // Open Graph rules
 export const MISSING_OG: AnalysisRule = {
-  code: META_MISSING_OG.id,
+  metadata: META_MISSING_OG,
   analyze: (s) => {
     const missing: string[] = [];
     if (!s.openGraph.title) missing.push("og:title");
     if (!s.openGraph.description) missing.push("og:description");
     if (!s.openGraph.image) missing.push("og:image");
     return missing.length > 0
-      ? [createFinding(META_MISSING_OG.id, META_MISSING_OG.name, `${META_MISSING_OG.description} Missing: ${missing.join(", ")}.`, META_MISSING_OG.defaultSeverity, META_MISSING_OG.category)]
+      ? [createFinding(META_MISSING_OG, `Missing: ${missing.join(", ")}.`)]
       : [];
   },
 };
 
 // Twitter Card rules
 export const MISSING_TWITTER: AnalysisRule = {
-  code: META_MISSING_TWITTER.id,
+  metadata: META_MISSING_TWITTER,
   analyze: (s) => {
     const missing: string[] = [];
     if (!s.twitterCard.title) missing.push("twitter:title");
     if (!s.twitterCard.description) missing.push("twitter:description");
     return missing.length > 0
-      ? [createFinding(META_MISSING_TWITTER.id, META_MISSING_TWITTER.name, `${META_MISSING_TWITTER.description} Missing: ${missing.join(", ")}.`, META_MISSING_TWITTER.defaultSeverity, META_MISSING_TWITTER.category)]
+      ? [createFinding(META_MISSING_TWITTER, `Missing: ${missing.join(", ")}.`)]
       : [];
   },
 };
 
 // Robots rules
 export const ROBOTS_NOINDEX: AnalysisRule = {
-  code: META_ROBOTS_NOINDEX.id,
+  metadata: META_ROBOTS_NOINDEX,
   analyze: (s) =>
     s.robots.noindex
-      ? [createFinding(META_ROBOTS_NOINDEX.id, META_ROBOTS_NOINDEX.name, META_ROBOTS_NOINDEX.description, META_ROBOTS_NOINDEX.defaultSeverity, META_ROBOTS_NOINDEX.category, "head > meta[name='robots']")]
+      ? [createFinding(META_ROBOTS_NOINDEX, "head > meta[name='robots']")]
       : [],
 };
 
 export const ROBOTS_NOFOLLOW: AnalysisRule = {
-  code: META_ROBOTS_NOFOLLOW.id,
+  metadata: META_ROBOTS_NOFOLLOW,
   analyze: (s) =>
     s.robots.nofollow
-      ? [createFinding(META_ROBOTS_NOFOLLOW.id, META_ROBOTS_NOFOLLOW.name, META_ROBOTS_NOFOLLOW.description, META_ROBOTS_NOFOLLOW.defaultSeverity, META_ROBOTS_NOFOLLOW.category, "head > meta[name='robots']")]
+      ? [createFinding(META_ROBOTS_NOFOLLOW, "head > meta[name='robots']")]
       : [],
 };
 
 // Language rule
 export const MISSING_LANG: AnalysisRule = {
-  code: META_MISSING_LANG.id,
+  metadata: META_MISSING_LANG,
   analyze: (s) =>
     s.language.trim() === ""
-      ? [createFinding(META_MISSING_LANG.id, META_MISSING_LANG.name, META_MISSING_LANG.description, META_MISSING_LANG.defaultSeverity, META_MISSING_LANG.category, "html")]
+      ? [createFinding(META_MISSING_LANG, "html")]
       : [],
 };
 
 // JSON-LD rule
 export const MISSING_JSONLD: AnalysisRule = {
-  code: META_MISSING_JSONLD.id,
+  metadata: META_MISSING_JSONLD,
   analyze: (s) =>
     s.jsonLd.length === 0
-      ? [createFinding(META_MISSING_JSONLD.id, META_MISSING_JSONLD.name, META_MISSING_JSONLD.description, META_MISSING_JSONLD.defaultSeverity, META_MISSING_JSONLD.category)]
+      ? [createFinding(META_MISSING_JSONLD)]
       : [],
 };
 
 // Placeholder rules (cannot be determined without live checks)
 export const BROKEN_IMAGES: AnalysisRule = {
-  code: META_BROKEN_IMAGES.id,
+  metadata: META_BROKEN_IMAGES,
   analyze: () => [],
 };
 
 export const BROKEN_INTERNAL_LINKS: AnalysisRule = {
-  code: META_BROKEN_INTERNAL_LINKS.id,
+  metadata: META_BROKEN_INTERNAL_LINKS,
   analyze: () => [],
 };
 
 export const INVALID_CANONICAL: AnalysisRule = {
-  code: META_INVALID_CANONICAL.id,
+  metadata: META_INVALID_CANONICAL,
   analyze: () => [],
 };
 
 export const MULTIPLE_CANONICAL: AnalysisRule = {
-  code: META_MULTIPLE_CANONICAL.id,
+  metadata: META_MULTIPLE_CANONICAL,
   analyze: () => [],
 };
 
 export const ROBOTS_CONFLICT: AnalysisRule = {
-  code: META_ROBOTS_CONFLICT.id,
+  metadata: META_ROBOTS_CONFLICT,
   analyze: () => [],
 };
 
@@ -582,8 +561,8 @@ export const ALL_RULES: readonly AnalysisRule[] = [
   MISSING_JSONLD,
 ];
 
-// Export metadata by code lookup
-export const RULE_METADATA: Record<FindingCode, RuleMetadata> = {
+// Export metadata by id lookup
+export const RULE_METADATA: Record<FindingId, RuleMetadata> = {
   [META_MISSING_TITLE.id]: META_MISSING_TITLE,
   [META_TITLE_TOO_SHORT.id]: META_TITLE_TOO_SHORT,
   [META_TITLE_TOO_LONG.id]: META_TITLE_TOO_LONG,
