@@ -9,7 +9,7 @@
 
 # Purpose
 
-Forge exists to become the world's most capable AI platform for understanding, improving, operating, and maintaining websites.
+Forge exists to become the world's most capable autonomous Website Operations Platform for continuously improving websites through deterministic automation, provider integrations, and AI-assisted reasoning.
 
 Forge is not an SEO tool.
 

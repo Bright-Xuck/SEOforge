@@ -19,6 +19,7 @@
     "clean": "del /q dist 2>nul || rmdir /s /q dist"
   },
   "dependencies": {
+    "@forge/action-engine": "workspace:*",
     "@forge/capabilities": "workspace:*",
     "@forge/config": "workspace:*",
     "@forge/core": "workspace:*",

@@ -30,6 +30,9 @@ forge analyze https://example.com
 
 # Generate recommendations
 forge recommend https://example.com
+
+# Generate execution plan
+forge plan https://example.com
 ```
 
 ---
@@ -48,7 +51,8 @@ forge/
 │   ├── tools/            # External capabilities (website reader, html parser)
 │   ├── capabilities/     # Analysis rules and engine
 │   ├── plugin-registry/  # Central registry for all extensions
-│   └── recommendation-engine/  # Deterministic recommendation generation
+│   ├── recommendation-engine/  # Deterministic recommendation generation
+│   └── action-engine/    # Execution planning and approval management
 ├── docs/                 # Architecture and design documentation
 └── tests/                # Repository-level tests
 ```
@@ -68,6 +72,10 @@ Read and analyze a website, producing a list of findings sorted by severity.
 ### `forge recommend <url>`
 
 Read, analyze, and generate deterministic recommendations for fixing issues.
+
+### `forge plan <url>`
+
+Read, analyze, generate recommendations, and produce an execution plan with risk assessment and approval queue.
 
 ---
 
@@ -102,6 +110,39 @@ Analysis engine and rules for WebsiteSnapshot.
 - `analyzeHomepage(snapshot)` — Homepage-specific analysis (via `./homepage` subpath)
 - Rule constants for individual rule testing
 
+### `@forge/plugin-registry`
+
+Central registry for all extensions in Forge.
+
+**Exports:**
+
+- `PluginRegistry` — Registry with register, unregister, get, list, exists, clear methods
+- `Plugin` — Interface for all plugin types
+- `CapabilityManifest` — Self-describing capability metadata
+
+### `@forge/recommendation-engine`
+
+Deterministic recommendation generation from analysis findings.
+
+**Exports:**
+
+- `generateRecommendations(report)` — Transform AnalysisReport to RecommendationReport
+- Recommendation generator types and interfaces
+
+### `@forge/action-engine`
+
+Execution planning and approval management for Sprint 5.
+
+**Exports:**
+
+- `generateExecutionPlan(report)` — Generate execution plan from recommendation report
+- `ApprovalQueue` — In-memory approval queue implementation
+- `getRiskLevel(findingId)` — Determine risk level for a finding
+- `getActionType(findingId)` — Determine action type for a finding
+- `isAutomatable(risk)` — Check if action can be auto-executed
+- `requiresApproval(risk)` — Check if action requires approval
+- `Action`, `ExecutionPlan`, `RiskLevel`, `ActionType` types
+
 ---
 
 ## Sprint 2 — Website Reader Foundation (v0.2.0)
@@ -115,10 +156,10 @@ Analysis engine and rules for WebsiteSnapshot.
 
 ## Sprint 3 — Analysis Engine (v0.3.0)
 
-- ✅ `@forge/core` extended with `Severity`, `Category`, `Finding`, `AnalysisReport`, `AnalysisRule`, `Evidence`, `RecommendationPlaceholder`
+- ✅ `@forge/core` extended with `Severity`, `Category`, `Finding`, `AnalysisReport`, `AnalysisRule`, `Evidence`
 - ✅ `@forge/capabilities` package created
 - ✅ `homepage-analysis` capability implemented
-- ✅ 26 analysis rules implemented (deterministic, no AI)
+- ✅ 21 analysis rules implemented (deterministic, no AI)
 - ✅ CLI extended with `forge analyze` command
 - ✅ Unit tests for analysis engine and rules (8 tests)
 
@@ -201,6 +242,39 @@ Analysis engine and rules for WebsiteSnapshot.
 - `Recommendation` — action with steps, references, impact
 - `RecommendationReport` — recommendations with summary and effort estimates
 - `RecommendationStep` — ordered implementation steps
+
+---
+
+## Sprint 5 — Action Engine Foundation (v0.5.0)
+
+### Action Engine Package
+
+- ✅ `@forge/action-engine` package created
+- ✅ Action types defined: `Action`, `ExecutionPlan`, `RiskLevel`, `ActionType`, `ActionStatus`
+- ✅ Risk assessment with Policy Engine
+- ✅ Action-to-recommendation mapping
+- ✅ Approval Queue for manual review workflow
+- ✅ CLI extended with `forge plan` command
+
+### Risk Classification
+
+Actions are classified by risk level:
+
+| Risk Level | Automatable | Requires Approval | Examples |
+| ---------- | ----------- | ----------------- | -------- |
+| safe       | ✅          | ❌               | Adding title, meta description, Open Graph |
+| moderate   | ❌          | ✅               | Adding canonical, fixing heading hierarchy |
+| high       | ❌          | ✅               | Title length adjustments, adding alt text |
+| critical   | ❌          | ✅               | Removing noindex directive |
+
+### Execution Plan
+
+The execution plan includes:
+
+- Actions derived from recommendations
+- Risk summary breakdown
+- Approval queue for non-automated actions
+- Estimated duration calculation
 
 ---
 

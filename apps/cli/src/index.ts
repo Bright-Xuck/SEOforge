@@ -8,13 +8,15 @@ import { FORGE_NAME, FORGE_VERSION } from "@forge/shared";
 import { readWebsite } from "@forge/tools/website-reader";
 import { analyzeHomepage } from "@forge/capabilities/homepage";
 import { generateRecommendations } from "@forge/recommendation-engine";
+import { generateExecutionPlan } from "@forge/action-engine";
+import type { Action } from "@forge/action-engine";
 import { WebsiteReadError } from "@forge/core";
 
 const program = new Command();
 
 program
   .name(FORGE_NAME.toLowerCase())
-  .description(`${FORGE_NAME} CLI — AI Operating System for Websites`)
+  .description(`${FORGE_NAME} CLI — Autonomous Website Operations Platform`)
   .version(FORGE_VERSION);
 
 program
@@ -134,6 +136,65 @@ program
         process.stdout.write(`\n[${rec.priority.toUpperCase()}] ${rec.title}\n`);
         process.stdout.write(`  ${rec.description}\n`);
         process.stdout.write(`  Time: ${rec.estimatedTime} | Impact: ${rec.expectedImpact}\n`);
+      }
+    } catch (error) {
+      const wre = error instanceof WebsiteReadError ? error : null;
+      process.stderr.write(
+        `Error: ${wre?.kind === "invalid-url" ? "Invalid URL" : error instanceof Error ? error.message : "Unknown error"}\n`,
+      );
+      process.exit(1);
+    }
+  });
+
+program
+  .command("plan")
+  .argument("<url>", "Website URL to generate execution plan for")
+  .option("--json", "Output execution plan as JSON")
+  .description("Generate execution plan from website analysis")
+  .action(async (url: string, options: { json?: boolean }) => {
+    try {
+      process.stdout.write("Reading...\n");
+      const snapshot = await readWebsite(url);
+
+      process.stdout.write("✓ Downloaded\n");
+      process.stdout.write("✓ Parsed\n");
+      process.stdout.write("Analyzing...\n");
+
+      const report = analyzeHomepage(snapshot);
+
+      process.stdout.write("Generating Recommendations...\n");
+      const recReport = generateRecommendations(report);
+
+      process.stdout.write("Generating Execution Plan...\n");
+      const plan = generateExecutionPlan(recReport);
+
+      process.stdout.write("✓ Execution Plan Generated\n\n");
+
+      process.stdout.write("Risk Summary:\n");
+      process.stdout.write(`  Safe:     ${plan.riskSummary.safe}\n`);
+      process.stdout.write(`  Moderate: ${plan.riskSummary.moderate}\n`);
+      process.stdout.write(`  High:     ${plan.riskSummary.high}\n`);
+      process.stdout.write(`  Critical: ${plan.riskSummary.critical}\n\n`);
+
+      process.stdout.write(`Actions: ${plan.summary.total}\n`);
+      process.stdout.write(`  Automatable:     ${plan.summary.automatable}\n`);
+      process.stdout.write(`  Requires Approval: ${plan.summary.requiresApproval}\n`);
+      process.stdout.write(`\nEstimated Duration: ${plan.estimatedDuration}\n\n`);
+
+      if (options.json) {
+        process.stdout.write(JSON.stringify(plan, null, 2) + "\n");
+        return;
+      }
+
+      if (plan.approvalQueue.length > 0) {
+        process.stdout.write("Actions Requiring Approval:\n");
+        for (const actionId of plan.approvalQueue) {
+          const action = plan.actions.find((a: Action) => a.id === actionId);
+          if (action) {
+            process.stdout.write(`\n[${action.risk.toUpperCase()}] ${action.title}\n`);
+            process.stdout.write(`  ${action.description}\n`);
+          }
+        }
       }
     } catch (error) {
       const wre = error instanceof WebsiteReadError ? error : null;

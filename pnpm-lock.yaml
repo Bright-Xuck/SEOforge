@@ -38,6 +38,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@forge/action-engine':
+        specifier: workspace:*
+        version: link:../../packages/action-engine
       '@forge/capabilities':
         specifier: workspace:*
         version: link:../../packages/capabilities
@@ -62,6 +65,12 @@ importers:
       commander:
         specifier: ^15.0.0
         version: 15.0.0
+
+  packages/action-engine:
+    dependencies:
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/capabilities:
     dependencies:

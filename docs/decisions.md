@@ -576,7 +576,258 @@ Forge never produces unexplained recommendations.
 
 ---
 
-## Future Decisions
+## ADR-0018
+
+## Title
+
+Action Engine for Execution Planning
+
+## Status
+
+Accepted
+
+## Date
+
+2026-07-15
+
+## Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+Recommendations identify issues but do not specify how to execute fixes. Forge needs an execution planning layer that transforms recommendations into concrete, testable actions with risk classification and rollback capability.
+
+---
+
+### Decision
+
+Create `@forge/action-engine` package with:
+
+- `Action` model containing all execution metadata
+- `ExecutionPlan` model grouping actions with summary
+- Deterministic mapping from Recommendation to Action
+- Risk classification based on action type
+- No execution - planning only (consistent with Sprint 5 scope)
+
+---
+
+### Consequences
+
+Positive:
+
+- Clear separation between recommendations and execution
+- Deterministic planning enables testing without side effects
+- Risk classification supports approval workflows
+
+Negative:
+
+- Additional abstraction layer to maintain
+
+---
+
+# ADR-0019
+
+## Title
+
+Automation Policy Engine
+
+## Status
+
+Accepted
+
+## Date
+
+2026-07-15
+
+## Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+Different actions have different risk levels. Some actions (missing alt text, meta description) are safe to auto-execute. Others (slug changes, content rewrites) require human approval. A deterministic policy engine is needed to classify risk.
+
+---
+
+### Decision
+
+Create a policy engine with:
+
+- Configurable risk rules per finding type
+- Default policies that can be overridden
+- Safe: Missing Alt Text, Missing Meta Description, Missing Open Graph
+- Moderate: Missing Canonical, Empty Anchor Text
+- High: Title modifications
+- Critical: Content rewrites, slug changes
+- Policies declared in JSON format
+
+---
+
+### Consequences
+
+Positive:
+
+- Deterministic, testable risk classification
+- Configurable policies
+- Clear approval boundaries
+
+Negative:
+
+- Policies must be maintained as new action types are added
+
+---
+
+# ADR-0020
+
+## Title
+
+Approval Queue System
+
+## Status
+
+Accepted
+
+## Date
+
+2026-07-15
+
+## Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+High-risk actions require human review before execution. A persistent, auditable approval queue is needed to track pending, approved, rejected, and expired actions.
+
+---
+
+### Decision
+
+Create an approval queue with:
+
+- `ApprovalItem` model with action reference, reason, risk level
+- Status tracking: pending, approved, rejected, expired
+- Optional preview field for user review
+- In-memory implementation (persistence comes later)
+
+---
+
+### Consequences
+
+Positive:
+
+- Clear audit trail
+- User control over risky actions
+- Configurable timeouts
+
+Negative:
+
+- Additional user interaction step
+
+---
+
+# ADR-0021
+
+## Title
+
+Project Memory Models
+
+## Status
+
+Accepted
+
+## Date
+
+2026-07-15
+
+## Owner
+
+Bright Ndode
+
+---
+
+### Decision
+
+Create project memory types only (no implementation in Sprint 5):
+
+- `ProjectContext`: site settings, brand voice, target audience, goals
+- `WebsiteMemory`: crawl history, analysis history, recommendation history
+
+---
+
+### Consequences
+
+Positive:
+
+- Enables future learning features
+- Type safety across memory operations
+- Clear data model for memory layer
+
+Negative:
+
+- Types may evolve as requirements clarify
+
+---
+
+# ADR-0022
+
+## Title
+
+Action Provider Extension
+
+## Status
+
+Accepted
+
+## Date
+
+2026-07-15
+
+## Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+The plugin registry needs to support action providers - plugins that can execute specific action types on specific platforms (WordPress, Shopify, etc.).
+
+---
+
+### Decision
+
+Add `ActionProvider` interface to plugin registry:
+
+- `supportedActions` array declaring capabilities
+- `supportedPlatforms` array for target platforms
+- Version information
+- Integrated with existing `Plugin` interface
+
+---
+
+### Consequences
+
+Positive:
+
+- Unified plugin system
+- Clear action-provider mapping
+- Platform independence preserved
+
+Negative:
+
+- Slight increase in plugin interface complexity
+
+---
+
+# Future Decisions
 
 Examples of future ADRs include:
 
@@ -591,7 +842,6 @@ Examples of future ADRs include:
 - Multi-user Support
 - Distributed Execution
 
----
 
 ## ADR-0016
 
