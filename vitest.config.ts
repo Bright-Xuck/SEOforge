@@ -5,5 +5,10 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["packages/*/src/**/*.test.ts", "packages/*/src/**/*.spec.ts"],
+    coverage: {
+      provider: "v8",
+      include: ["packages/*/src/**"],
+      exclude: ["**/*.test.ts", "**/*.spec.ts", "**/fixtures/**"],
+    },
   },
 });

@@ -316,6 +316,8 @@ Prompts are versioned artifacts with their own tests (given fixture input, does 
 
 ## 10. Plugin-First Folder Structure
 
+> **Note:** This section shows a strategic sketch of the eventual folder structure. For the authoritative build-time package layout, see `project-structure.md`. The mapping from conceptual names here to actual packages is documented in ADR-0017.
+
 ```
 forge/
 ├── apps/

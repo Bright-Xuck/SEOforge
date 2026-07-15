@@ -23,6 +23,7 @@
     "@forge/core": "workspace:*",
     "@forge/logger": "workspace:*",
     "@forge/shared": "workspace:*",
+    "@forge/tools": "workspace:*",
     "commander": "^15.0.0"
   }
 }

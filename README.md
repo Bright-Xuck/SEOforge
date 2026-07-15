@@ -23,7 +23,10 @@ pnpm install
 pnpm build
 
 # Run the CLI
-node apps/cli/dist/index.js
+forge read https://example.com
+
+# Test with JSON output
+forge read https://example.com --json
 ```
 
 ---
@@ -38,7 +41,8 @@ forge/
 │   ├── core/             # Domain models, interfaces, base contracts
 │   ├── config/           # Configuration loading and validation
 │   ├── logger/           # Structured logging
-│   └── shared/           # Reusable utilities and constants
+│   ├── shared/           # Reusable utilities and constants
+│   └── tools/            # External capabilities (website reader, html parser)
 ├── docs/                 # Architecture and design documentation
 ├── tests/                # Repository-level tests
 └── scripts/              # Development utilities
@@ -52,7 +56,7 @@ forge/
 | ------------------- | ----------------------- |
 | `pnpm build`        | Build all packages      |
 | `pnpm dev`          | Watch mode              |
-| `pnpm test`         | Run tests               |
+| `pnpm test`         | Run tests (26 tests)    |
 | `pnpm lint`         | Lint all packages       |
 | `pnpm format`       | Format all files        |
 | `pnpm format:check` | Check formatting        |
@@ -67,17 +71,56 @@ forge/
 
 Core domain models, interfaces, and base contracts. Platform-independent with no runtime dependencies.
 
+Includes `WebsiteSnapshot` model and `WebsiteReadError` for website reading operations.
+
 ### `@forge/config`
 
 Configuration loading from environment variables with validation. Missing required variables fail immediately.
 
 ### `@forge/logger`
 
-Structured JSON logging with configurable levels, timestamps, and output streams. Every package uses this logger.
+Structured JSON logging with configurable levels, timestamps, and output streams. Every package uses this logger. Never use `console.log`.
 
 ### `@forge/shared`
 
 Reusable constants and pure utility functions. No business logic, providers, or AI.
+
+### `@forge/tools`
+
+External capabilities package containing:
+
+- `@forge/tools/html-parser` — Deterministic HTML parsing using Cheerio. Extracts title, meta description, headings, links, images, scripts, stylesheets, Open Graph, Twitter Cards, and JSON-LD.
+- `@forge/tools/website-reader` — Reads a URL and returns a structured `WebsiteSnapshot`. Handles redirects, validates content type, and maps errors to typed `WebsiteReadError`.
+
+---
+
+## CLI Commands
+
+### `forge read <url>`
+
+Read a website and produce a structured snapshot.
+
+```bash
+# Human-readable output
+$ forge read https://example.com
+Reading...
+✓ Downloaded
+✓ Parsed
+✓ Snapshot Created
+
+Summary:
+  Title:        Example Domain
+  Description:
+  H1 Count:     1
+  Links:        1
+  Images:       0
+  Canonical:    https://example.com/
+  Response:     200
+
+# JSON output (omits raw HTML)
+$ forge read https://example.com --json
+{"originalUrl":"https://example.com","finalUrl":"https://example.com",...}
+```
 
 ---
 
@@ -112,6 +155,16 @@ Lower layers never depend on higher layers. Core is platform-independent. Busine
 - kebab-case for files and folders
 - PascalCase for classes and interfaces
 - camelCase for functions and variables
+
+---
+
+## Sprint 2 — Website Reader Foundation (v0.2.0)
+
+- ✅ `@forge/core` extended with `WebsiteSnapshot` and `WebsiteReadError`
+- ✅ `@forge/tools` package created with `html-parser` and `website-reader`
+- ✅ CLI extended with `forge read` command
+- ✅ Unit tests with fixture HTML files (26 total tests)
+- ✅ Build verification: lint, typecheck, format, test all pass
 
 ---
 

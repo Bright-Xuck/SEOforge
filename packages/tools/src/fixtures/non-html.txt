@@ -1,0 +1,1 @@
+This is not HTML. It is plain text content for testing non-HTML response handling.

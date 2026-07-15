@@ -601,7 +601,9 @@ Reconcile Package Structure Between architecture.md and project-structure.md
 
 ### Status
 
-Accepted
+Superseded
+
+Resolved By: ADR-0017
 
 ### Date
 
@@ -643,7 +645,73 @@ Negative: The repository must undergo a structural reconciliation pass before Sp
 
 ### Future Review
 
-This decision must be resolved before Sprint 2 begins.
+Resolved by ADR-0017.
+
+---
+
+## ADR-0017
+
+### Title
+
+Adopt project-structure.md as the Single Source of Truth for Package Layout
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-15
+
+### Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+ADR-0016 identified a conflict between `architecture.md` (which uses conceptual names like `domain`, `crawler`, `uwm`, `apps/web`) and `project-structure.md` (which uses implementation names like `core`, `tools`, `apps/cli`). Sprint 1 was built to `project-structure.md`. Sprint 2 requires a resolved, consistent structure before adding `packages/tools`.
+
+---
+
+### Decision
+
+`project-structure.md` is the authoritative document for all package layout, folder organization, and dependency boundary decisions. `architecture.md` remains authoritative for conceptual design (UWM, Skill contract, Orchestrator, Explainability, provider independence) but its package names are strategic sketches that map onto the real layout as follows:
+
+| architecture.md concept             | Actual package (project-structure.md)                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------ |
+| `domain`                            | `packages/core`                                                                |
+| `crawler`                           | `packages/tools/website-reader`                                                |
+| `uwm`                               | `packages/core` (UWM types live in core until a separate package is justified) |
+| `ai-providers` / `vision-providers` | `packages/ai` (future)                                                         |
+| `skills`                            | `packages/skills` (future)                                                     |
+| `application` (Orchestrator)        | `packages/workflows` (future)                                                  |
+| `prompts`                           | top-level `prompts/` (both agree)                                              |
+
+No existing packages are renamed. Future packages follow `project-structure.md` naming.
+
+---
+
+### Alternatives Considered
+
+Adopting `architecture.md`'s structure. Rejected because Sprint 1 is already built to `project-structure.md` and renaming would create churn without value.
+
+Creating a third merged document. Rejected as unnecessary overhead — the mapping table above resolves the ambiguity.
+
+---
+
+### Consequences
+
+Positive: Clear, single authority for package layout. No renames needed. Sprint 2 can proceed.
+
+Negative: Developers must cross-reference the mapping table when reading `architecture.md`'s strategic sketches.
+
+---
+
+### Future Review
+
+Revisit if a package's responsibility grows to justify splitting (e.g., if `packages/core` becomes too large, extract UWM types into a dedicated package).
 
 ---
 
