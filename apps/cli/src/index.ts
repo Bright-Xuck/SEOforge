@@ -6,6 +6,7 @@
 import { Command } from "commander";
 import { FORGE_NAME, FORGE_VERSION } from "@forge/shared";
 import { readWebsite } from "@forge/tools/website-reader";
+import { analyzeHomepage } from "@forge/capabilities/homepage";
 import { WebsiteReadError } from "@forge/core";
 
 const program = new Command();
@@ -41,12 +42,50 @@ program
       process.stdout.write(`  Title:        ${snapshot.pageTitle}\n`);
       process.stdout.write(`  Description:  ${snapshot.metaDescription}\n`);
       process.stdout.write(
-        `  H1 Count:     ${snapshot.headings.filter((h: { level: number }) => h.level === 1).length}\n`,
+        `  H1 Count:     ${snapshot.headings.filter((h) => h.level === 1).length}\n`,
       );
       process.stdout.write(`  Links:        ${snapshot.links.length}\n`);
       process.stdout.write(`  Images:       ${snapshot.images.length}\n`);
       process.stdout.write(`  Canonical:    ${snapshot.canonicalUrl || "(none)"}\n`);
       process.stdout.write(`  Response:     ${snapshot.statusCode}\n`);
+    } catch (error) {
+      const wre = error instanceof WebsiteReadError ? error : null;
+      process.stderr.write(
+        `Error: ${wre?.kind === "invalid-url" ? "Invalid URL" : error instanceof Error ? error.message : "Unknown error"}\n`,
+      );
+      process.exit(1);
+    }
+  });
+
+program
+  .command("analyze")
+  .argument("<url>", "Website URL to analyze")
+  .option("--json", "Output report as JSON")
+  .description("Read and analyze a website for issues")
+  .action(async (url: string, options: { json?: boolean }) => {
+    try {
+      process.stdout.write("Reading...\n");
+      const snapshot = await readWebsite(url);
+
+      process.stdout.write("✓ Downloaded\n");
+      process.stdout.write("✓ Parsed\n");
+      process.stdout.write("Analyzing...\n");
+
+      const report = analyzeHomepage(snapshot);
+
+      process.stdout.write("✓ Analysis Complete\n\n");
+
+      if (options.json) {
+        process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+        return;
+      }
+
+      process.stdout.write(`Issues Found: ${report.summary.total}\n\n`);
+
+      for (const finding of report.findings) {
+        const severityLabel = finding.severity.toUpperCase().padEnd(8);
+        process.stdout.write(`${severityLabel} ${finding.title}\n`);
+      }
     } catch (error) {
       const wre = error instanceof WebsiteReadError ? error : null;
       process.stderr.write(

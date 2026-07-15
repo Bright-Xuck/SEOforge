@@ -37,6 +37,9 @@ importers:
 
   apps/cli:
     dependencies:
+      "@forge/capabilities":
+        specifier: workspace:*
+        version: link:../../packages/capabilities
       "@forge/config":
         specifier: workspace:*
         version: link:../../packages/config
@@ -55,6 +58,12 @@ importers:
       commander:
         specifier: ^15.0.0
         version: 15.0.0
+
+  packages/capabilities:
+    dependencies:
+      "@forge/core":
+        specifier: workspace:*
+        version: link:../core
 
   packages/config:
     dependencies:

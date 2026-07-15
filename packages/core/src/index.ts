@@ -193,3 +193,140 @@ export interface LogEntry {
   readonly websiteId?: string;
   readonly taskId?: string;
 }
+
+/**
+ * Finding severity levels for analysis findings.
+ */
+export type Severity = "info" | "low" | "medium" | "high" | "critical";
+
+/**
+ * Finding categories for analysis findings.
+ */
+export type Category =
+  | "seo"
+  | "accessibility"
+  | "performance"
+  | "content"
+  | "metadata"
+  | "links"
+  | "images"
+  | "technical";
+
+/**
+ * Branded type for stable finding codes.
+ */
+export type FindingCode = string & { readonly __brand: "FindingCode" };
+
+/**
+ * Evidence supporting a finding.
+ */
+export interface Evidence {
+  readonly source: string;
+  readonly detail: string;
+  readonly value?: string;
+}
+
+/**
+ * Difficulty levels for recommendations.
+ */
+export type Difficulty = "easy" | "medium" | "hard";
+
+/**
+ * Impact levels for recommendations.
+ */
+export type Impact = "high" | "medium" | "low";
+
+/**
+ * Priority levels for recommendations.
+ */
+export type Priority = "critical" | "high" | "medium" | "low";
+
+/**
+ * A single recommendation step.
+ */
+export interface RecommendationStep {
+  readonly order: number;
+  readonly description: string;
+}
+
+/**
+ * A single recommendation generated from a finding.
+ */
+export interface Recommendation {
+  readonly id: string;
+  readonly findingId: string;
+  readonly title: string;
+  readonly description: string;
+  readonly reason: string;
+  readonly priority: Priority;
+  readonly difficulty: Difficulty;
+  readonly estimatedTime: string;
+  readonly expectedImpact: Impact;
+  readonly implementationSteps: RecommendationStep[];
+  readonly references: string[];
+  readonly automatable: boolean;
+  readonly manualReviewRequired: boolean;
+}
+
+/**
+ * Summary of recommendations by priority.
+ */
+export interface RecommendationSummary {
+  readonly total: number;
+  readonly byPriority: Record<Priority, number>;
+}
+
+/**
+ * Recommendation report generated from analysis findings.
+ */
+export interface RecommendationReport {
+  readonly url: string;
+  readonly generatedAt: string;
+  readonly recommendations: Recommendation[];
+  readonly summary: RecommendationSummary;
+  readonly estimatedEffort: string;
+  readonly priorityBreakdown: Record<Priority, number>;
+}
+
+/**
+ * A single analysis finding.
+ */
+export interface Finding {
+  readonly id: string;
+  readonly code: FindingCode;
+  readonly title: string;
+  readonly description: string;
+  readonly severity: Severity;
+  readonly category: Category;
+  readonly evidence: Evidence[];
+  readonly location?: string;
+  readonly confidence: number;
+  readonly fixable: boolean;
+}
+
+/**
+ * Summary of findings by severity.
+ */
+export interface FindingsSummary {
+  readonly total: number;
+  readonly bySeverity: Record<Severity, number>;
+}
+
+/**
+ * Complete analysis report for a website snapshot.
+ */
+export interface AnalysisReport {
+  readonly url: string;
+  readonly analyzedAt: string;
+  readonly findings: Finding[];
+  readonly summary: FindingsSummary;
+}
+
+/**
+ * Interface for analysis rules.
+ * Each rule analyzes a WebsiteSnapshot and returns zero or more findings.
+ */
+export interface AnalysisRule {
+  readonly code: FindingCode;
+  analyze(snapshot: WebsiteSnapshot): Finding[];
+}

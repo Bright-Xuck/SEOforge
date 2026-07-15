@@ -1,0 +1,25 @@
+{
+  "name": "@forge/capabilities",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./homepage": {
+      "types": "./dist/homepage-analysis/index.d.ts",
+      "import": "./dist/homepage-analysis/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "del /q dist 2>nul || rmdir /s /q dist"
+  },
+  "dependencies": {
+    "@forge/core": "workspace:*"
+  }
+}

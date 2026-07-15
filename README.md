@@ -22,11 +22,11 @@ pnpm install
 # Build all packages
 pnpm build
 
-# Run the CLI
+# Read a website
 forge read https://example.com
 
-# Test with JSON output
-forge read https://example.com --json
+# Analyze a website for issues
+forge analyze https://example.com
 ```
 
 ---
@@ -42,55 +42,11 @@ forge/
 │   ├── config/           # Configuration loading and validation
 │   ├── logger/           # Structured logging
 │   ├── shared/           # Reusable utilities and constants
-│   └── tools/            # External capabilities (website reader, html parser)
+│   ├── tools/            # External capabilities (website reader, html parser)
+│   └── capabilities/     # Analysis rules and engine
 ├── docs/                 # Architecture and design documentation
-├── tests/                # Repository-level tests
-└── scripts/              # Development utilities
+└── tests/                # Repository-level tests
 ```
-
----
-
-## Commands
-
-| Command             | Description             |
-| ------------------- | ----------------------- |
-| `pnpm build`        | Build all packages      |
-| `pnpm dev`          | Watch mode              |
-| `pnpm test`         | Run tests (26 tests)    |
-| `pnpm lint`         | Lint all packages       |
-| `pnpm format`       | Format all files        |
-| `pnpm format:check` | Check formatting        |
-| `pnpm typecheck`    | Type-check all packages |
-| `pnpm clean`        | Remove build outputs    |
-
----
-
-## Packages
-
-### `@forge/core`
-
-Core domain models, interfaces, and base contracts. Platform-independent with no runtime dependencies.
-
-Includes `WebsiteSnapshot` model and `WebsiteReadError` for website reading operations.
-
-### `@forge/config`
-
-Configuration loading from environment variables with validation. Missing required variables fail immediately.
-
-### `@forge/logger`
-
-Structured JSON logging with configurable levels, timestamps, and output streams. Every package uses this logger. Never use `console.log`.
-
-### `@forge/shared`
-
-Reusable constants and pure utility functions. No business logic, providers, or AI.
-
-### `@forge/tools`
-
-External capabilities package containing:
-
-- `@forge/tools/html-parser` — Deterministic HTML parsing using Cheerio. Extracts title, meta description, headings, links, images, scripts, stylesheets, Open Graph, Twitter Cards, and JSON-LD.
-- `@forge/tools/website-reader` — Reads a URL and returns a structured `WebsiteSnapshot`. Handles redirects, validates content type, and maps errors to typed `WebsiteReadError`.
 
 ---
 
@@ -100,61 +56,42 @@ External capabilities package containing:
 
 Read a website and produce a structured snapshot.
 
-```bash
-# Human-readable output
-$ forge read https://example.com
-Reading...
-✓ Downloaded
-✓ Parsed
-✓ Snapshot Created
+### `forge analyze <url>`
 
-Summary:
-  Title:        Example Domain
-  Description:
-  H1 Count:     1
-  Links:        1
-  Images:       0
-  Canonical:    https://example.com/
-  Response:     200
-
-# JSON output (omits raw HTML)
-$ forge read https://example.com --json
-{"originalUrl":"https://example.com","finalUrl":"https://example.com",...}
-```
+Read and analyze a website, producing a list of findings sorted by severity.
 
 ---
 
-## Architecture
+## Packages
 
-Forge follows a layered architecture where dependency direction flows inward:
+### `@forge/core`
 
-```
-Apps → Workflows → Skills → Tools → Providers → Core
-```
+Core domain models and base contracts. Platform-independent with no runtime dependencies.
 
-Lower layers never depend on higher layers. Core is platform-independent. Business logic never depends on implementations.
+**Analysis types:**
 
----
+- `Severity` — info | low | medium | high | critical
+- `Category` — seo | accessibility | performance | content | metadata | links | images | technical
+- `Finding` — structured finding with evidence, confidence, fixable flag
+- `AnalysisReport` — collection of findings with summary counts
+- `AnalysisRule` — interface for deterministic analysis rules
 
-## Development
+### `@forge/tools`
 
-### Adding a new package
+External capabilities package containing:
 
-1. Create the package directory under `packages/`
-2. Add `package.json` with `@forge/{name}` scope
-3. Add `tsconfig.json` extending `../../tsconfig.base.json`
-4. Create `src/index.ts` as the single public entry point
-5. Add the package to any dependent `package.json` files
+- `@forge/tools/html-parser` — Deterministic HTML parsing using Cheerio
+- `@forge/tools/website-reader` — Reads a URL and returns a structured WebsiteSnapshot
 
-### Code standards
+### `@forge/capabilities`
 
-- TypeScript strict mode
-- No `any`, `@ts-ignore`, or `@ts-nocheck`
-- Maximum 300 lines per file (500 hard limit)
-- Maximum 40 lines per function
-- kebab-case for files and folders
-- PascalCase for classes and interfaces
-- camelCase for functions and variables
+Analysis engine and rules for WebsiteSnapshot.
+
+**Exports:**
+
+- `analyzeWebsite(snapshot)` — Run all rules, return AnalysisReport
+- `analyzeHomepage(snapshot)` — Homepage-specific analysis (via `./homepage` subpath)
+- Rule constants for individual rule testing
 
 ---
 
@@ -164,7 +101,44 @@ Lower layers never depend on higher layers. Core is platform-independent. Busine
 - ✅ `@forge/tools` package created with `html-parser` and `website-reader`
 - ✅ CLI extended with `forge read` command
 - ✅ Unit tests with fixture HTML files (26 total tests)
-- ✅ Build verification: lint, typecheck, format, test all pass
+
+---
+
+## Sprint 3 — Analysis Engine (v0.3.0)
+
+- ✅ `@forge/core` extended with `Severity`, `Category`, `Finding`, `AnalysisReport`, `AnalysisRule`, `Evidence`, `RecommendationPlaceholder`
+- ✅ `@forge/capabilities` package created
+- ✅ `homepage-analysis` capability implemented
+- ✅ 26 analysis rules implemented (deterministic, no AI)
+- ✅ CLI extended with `forge analyze` command
+- ✅ Unit tests for analysis engine and rules (8 tests)
+
+**Rules implemented:**
+
+| Code                       | Title                      | Severity | Category      |
+| -------------------------- | -------------------------- | -------- | ------------- |
+| MISSING_TITLE              | Missing Title              | critical | seo           |
+| TITLE_TOO_SHORT            | Title Too Short            | low      | seo           |
+| TITLE_TOO_LONG             | Title Too Long             | medium   | seo           |
+| TITLE_DUPLICATE_WORDS      | Duplicate Words in Title   | low      | seo           |
+| MISSING_META_DESCRIPTION   | Missing Meta Description   | high     | seo           |
+| META_DESCRIPTION_TOO_SHORT | Meta Description Too Short | low      | seo           |
+| META_DESCRIPTION_TOO_LONG  | Meta Description Too Long  | medium   | seo           |
+| MISSING_H1                 | Missing H1                 | high     | seo           |
+| MULTIPLE_H1                | Multiple H1                | medium   | seo           |
+| HEADING_HIERARCHY          | Skipped Heading Level      | low      | seo           |
+| MISSING_ALT                | Missing Alt Text           | medium   | accessibility |
+| EMPTY_ALT                  | Empty Alt Text             | low      | accessibility |
+| EMPTY_ANCHOR_TEXT          | Empty Anchor Text          | low      | seo           |
+| SUSPICIOUS_URLS            | Suspicious URLs            | info     | links         |
+| EXTERNAL_LINK_REL          | External Link Needs Rel    | info     | links         |
+| MISSING_CANONICAL          | Missing Canonical          | medium   | seo           |
+| MISSING_OG                 | Missing Open Graph         | high     | metadata      |
+| MISSING_TWITTER            | Missing Twitter Card       | low      | metadata      |
+| ROBOTS_NOINDEX             | noindex Directive          | critical | seo           |
+| ROBOTS_NOFOLLOW            | nofollow Directive         | medium   | seo           |
+| MISSING_LANG               | Missing Language           | low      | accessibility |
+| MISSING_JSONLD             | Missing JSON-LD            | info     | technical     |
 
 ---
 
