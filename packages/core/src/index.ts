@@ -76,6 +76,33 @@ export class WebsiteReadError extends ForgeError {
 }
 
 /**
+ * Discriminated error kinds for provider operations.
+ */
+export type ProviderErrorKind =
+  | "authentication"
+  | "connection"
+  | "unauthorized"
+  | "not-found"
+  | "rate-limit"
+  | "server"
+  | "invalid-response";
+
+/**
+ * Typed error for provider operations.
+ */
+export class ProviderError extends ForgeError {
+  public readonly kind: ProviderErrorKind;
+  public readonly statusCode?: number;
+
+  constructor(kind: ProviderErrorKind, message: string, cause?: unknown, statusCode?: number) {
+    super(`PROVIDER_${kind.toUpperCase().replace("-", "_")}`, message, cause);
+    this.name = "ProviderError";
+    this.kind = kind;
+    this.statusCode = statusCode;
+  }
+}
+
+/**
  * A single heading element from a page.
  */
 export interface Heading {
@@ -380,4 +407,289 @@ export interface Plugin {
   readonly requiredTools: string[];
   readonly supportedInputs: string[];
   readonly supportedOutputs: string[];
+  readonly supportedActions?: string[];
+}
+
+// =============================================================================
+// PROVIDER INTERFACES
+// =============================================================================
+
+/**
+ * Connection configuration for WordPress authentication.
+ */
+export interface WordPressConnectionConfig {
+  readonly siteUrl: string;
+  readonly username: string;
+  readonly applicationPassword: string;
+  readonly apiVersion?: string;
+  readonly providerVersion?: string;
+  readonly connectionStatus?: "connected" | "disconnected" | "error";
+}
+
+/**
+ * WordPress post model.
+ */
+export interface WordPressPost {
+  readonly id: number;
+  readonly title: string;
+  readonly content: string;
+  readonly excerpt: string;
+  readonly slug: string;
+  readonly status: string;
+  readonly type: string;
+  readonly link: string;
+  readonly date: string;
+  readonly modified: string;
+  readonly featuredMedia: number;
+}
+
+/**
+ * WordPress page model.
+ */
+export interface WordPressPage {
+  readonly id: number;
+  readonly title: string;
+  readonly content: string;
+  readonly excerpt: string;
+  readonly slug: string;
+  readonly status: string;
+  readonly type: string;
+  readonly link: string;
+  readonly date: string;
+  readonly modified: string;
+  readonly featuredMedia: number;
+}
+
+/**
+ * WordPress media model.
+ */
+export interface WordPressMedia {
+  readonly id: number;
+  readonly title: string;
+  readonly caption: string;
+  readonly altText: string;
+  readonly url: string;
+  readonly sourceUrl: string;
+  readonly mimeType: string;
+  readonly mediaType: string;
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * WordPress category model.
+ */
+export interface WordPressCategory {
+  readonly id: number;
+  readonly name: string;
+  readonly slug: string;
+  readonly description: string;
+  readonly count: number;
+}
+
+/**
+ * WordPress tag model.
+ */
+export interface WordPressTag {
+  readonly id: number;
+  readonly name: string;
+  readonly slug: string;
+  readonly description: string;
+  readonly count: number;
+}
+
+/**
+ * WordPress site settings model.
+ */
+export interface WordPressSettings {
+  readonly title: string;
+  readonly description: string;
+  readonly url: string;
+  readonly email: string;
+  readonly timezone: string;
+  readonly dateFormat: string;
+  readonly timeFormat: string;
+  readonly language: string;
+}
+
+/**
+ * WordPress site info model.
+ */
+export interface WordPressSiteInfo {
+  readonly name: string;
+  readonly description: string;
+  readonly url: string;
+  readonly home: string;
+  readonly wpVersion: string;
+  readonly theme: WordPressThemeInfo;
+  readonly plugins: WordPressPluginInfo[];
+}
+
+/**
+ * WordPress theme information.
+ */
+export interface WordPressThemeInfo {
+  readonly name: string;
+  readonly version: string;
+  readonly stylesheet: string;
+}
+
+/**
+ * WordPress plugin information.
+ */
+export interface WordPressPluginInfo {
+  readonly name: string;
+  readonly version: string;
+  readonly status: string;
+}
+
+/**
+ * Capability descriptor for WordPress.
+ */
+export interface CapabilityDescriptor {
+  readonly supportsMedia: boolean;
+  readonly supportsMenus: boolean;
+  readonly supportsPlugins: boolean;
+  readonly supportsCustomPostTypes: boolean;
+  readonly supportsTaxonomies: boolean;
+  readonly supportsFeaturedImages: boolean;
+  readonly supportsApplicationPasswords: boolean;
+}
+
+/**
+ * Paginated response wrapper.
+ */
+export interface PaginatedResponse<T> {
+  readonly data: T[];
+  readonly totalItems: number;
+  readonly totalPages: number;
+  readonly currentPage: number;
+}
+
+/**
+ * Request options for WordPress API.
+ */
+export interface WordPressRequestOptions {
+  readonly page?: number;
+  readonly perPage?: number;
+  readonly search?: string;
+  readonly status?: string;
+}
+
+/**
+ * Base provider interface.
+ * All providers must implement this to be registered.
+ */
+export interface IProvider {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly description: string;
+}
+
+/**
+ * Authentication provider interface.
+ */
+export interface IAuthenticationProvider extends IProvider {
+  /**
+   * Test connection credentials.
+   * Returns true if credentials are valid.
+   */
+  testConnection(): Promise<boolean>;
+}
+
+/**
+ * Website provider interface.
+ * Read-access to website structure and information.
+ */
+export interface IWebsiteProvider extends IProvider {
+  /**
+   * Get general site information.
+   */
+  getSiteInfo(): Promise<WordPressSiteInfo>;
+}
+
+/**
+ * Content provider interface.
+ * Read-access to posts and pages.
+ */
+export interface IContentProvider extends IProvider {
+  /**
+   * Get all posts.
+   */
+  getPosts(options?: WordPressRequestOptions): Promise<PaginatedResponse<WordPressPost>>;
+
+  /**
+   * Get a single post by ID.
+   */
+  getPost(id: number): Promise<WordPressPost | null>;
+
+  /**
+   * Get all pages.
+   */
+  getPages(options?: WordPressRequestOptions): Promise<PaginatedResponse<WordPressPage>>;
+
+  /**
+   * Get a single page by ID.
+   */
+  getPage(id: number): Promise<WordPressPage | null>;
+}
+
+/**
+ * Media provider interface.
+ * Read-access to media library.
+ */
+export interface IMediaProvider extends IProvider {
+  /**
+   * Get all media items.
+   */
+  getMedia(options?: WordPressRequestOptions): Promise<PaginatedResponse<WordPressMedia>>;
+
+  /**
+   * Get a single media item by ID.
+   */
+  getMediaItem(id: number): Promise<WordPressMedia | null>;
+}
+
+/**
+ * Metadata provider interface.
+ */
+export interface IMetadataProvider extends IProvider {
+  /**
+   * Get site settings.
+   */
+  getSettings(): Promise<WordPressSettings>;
+}
+
+/**
+ * Taxonomy provider interface.
+ * Read-access to categories and tags.
+ */
+export interface ITaxonomyProvider extends IProvider {
+  /**
+   * Get all categories.
+   */
+  getCategories(): Promise<WordPressCategory[]>;
+
+  /**
+   * Get all tags.
+   */
+  getTags(): Promise<WordPressTag[]>;
+}
+
+/**
+ * Full WordPress provider interface.
+ * Combines all capability interfaces.
+ */
+export interface IWordPressProvider
+  extends IWebsiteProvider,
+    IContentProvider,
+    IMediaProvider,
+    IMetadataProvider,
+    ITaxonomyProvider,
+    IAuthenticationProvider {
+  /**
+   * Detect capabilities of the WordPress site.
+   */
+  detectCapabilities(): Promise<CapabilityDescriptor>;
 }

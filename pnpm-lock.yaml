@@ -53,6 +53,9 @@ importers:
       '@forge/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@forge/providers-wordpress':
+        specifier: workspace:*
+        version: link:../../packages/providers-wordpress
       '@forge/recommendation-engine':
         specifier: workspace:*
         version: link:../../packages/recommendation-engine
@@ -100,6 +103,15 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/providers-wordpress:
+    dependencies:
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@forge/plugin-registry':
+        specifier: workspace:*
+        version: link:../plugin-registry
 
   packages/recommendation-engine:
     dependencies:

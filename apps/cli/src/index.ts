@@ -9,6 +9,7 @@ import { readWebsite } from "@forge/tools/website-reader";
 import { analyzeHomepage } from "@forge/capabilities/homepage";
 import { generateRecommendations } from "@forge/recommendation-engine";
 import { generateExecutionPlan } from "@forge/action-engine";
+import { createWordPressProvider, WORDPRESS_PROVIDER_METADATA } from "@forge/providers-wordpress";
 import type { Action } from "@forge/action-engine";
 import { WebsiteReadError } from "@forge/core";
 
@@ -200,6 +201,222 @@ program
       const wre = error instanceof WebsiteReadError ? error : null;
       process.stderr.write(
         `Error: ${wre?.kind === "invalid-url" ? "Invalid URL" : error instanceof Error ? error.message : "Unknown error"}\n`,
+      );
+      process.exit(1);
+    }
+  });
+
+// WordPress provider commands
+program
+  .command("wp")
+  .description("WordPress provider commands")
+  .addCommand(
+    new Command("test")
+      .argument("<site>", "WordPress site URL")
+      .argument("<username>", "WordPress username")
+      .argument("<password>", "WordPress application password")
+      .option("--json", "Output result as JSON")
+      .description("Test WordPress connection")
+      .action(async (site: string, username: string, password: string, options: { json?: boolean }) => {
+        try {
+          const provider = createWordPressProvider({
+            siteUrl: site,
+            username,
+            applicationPassword: password,
+          });
+
+          const connected = await provider.testConnection();
+
+          if (options.json) {
+            process.stdout.write(JSON.stringify({ connected }, null, 2) + "\n");
+            return;
+          }
+
+          if (connected) {
+            process.stdout.write("✓ Connected to WordPress site successfully\n");
+          } else {
+            process.stdout.write("✗ Failed to connect to WordPress site\n");
+            process.exit(1);
+          }
+        } catch (error) {
+          process.stderr.write(
+            `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
+          );
+          process.exit(1);
+        }
+      }),
+  )
+  .addCommand(
+    new Command("info")
+      .argument("<site>", "WordPress site URL")
+      .argument("<username>", "WordPress username")
+      .argument("<password>", "WordPress application password")
+      .option("--json", "Output result as JSON")
+      .description("Get WordPress site information")
+      .action(async (site: string, username: string, password: string, options: { json?: boolean }) => {
+        try {
+          const provider = createWordPressProvider({
+            siteUrl: site,
+            username,
+            applicationPassword: password,
+          });
+
+          const info = await provider.getSiteInfo();
+
+          if (options.json) {
+            process.stdout.write(JSON.stringify(info, null, 2) + "\n");
+            return;
+          }
+
+          process.stdout.write(`Site: ${info.name}\n`);
+          process.stdout.write(`URL: ${info.url}\n`);
+          process.stdout.write(`WordPress Version: ${info.wpVersion || "Unknown"}\n`);
+          process.stdout.write(`Theme: ${info.theme.name} (${info.theme.version})\n`);
+          process.stdout.write(`Plugins: ${info.plugins.length}\n`);
+        } catch (error) {
+          process.stderr.write(
+            `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
+          );
+          process.exit(1);
+        }
+      }),
+  )
+  .addCommand(
+    new Command("capabilities")
+      .argument("<site>", "WordPress site URL")
+      .argument("<username>", "WordPress username")
+      .argument("<password>", "WordPress application password")
+      .option("--json", "Output result as JSON")
+      .description("Detect WordPress site capabilities")
+      .action(async (site: string, username: string, password: string, options: { json?: boolean }) => {
+        try {
+          const provider = createWordPressProvider({
+            siteUrl: site,
+            username,
+            applicationPassword: password,
+          });
+
+          const capabilities = await provider.detectCapabilities();
+
+          if (options.json) {
+            process.stdout.write(JSON.stringify(capabilities, null, 2) + "\n");
+            return;
+          }
+
+          process.stdout.write("Capabilities:\n");
+          process.stdout.write(`  Media Support: ${capabilities.supportsMedia ? "✓" : "✗"}\n`);
+          process.stdout.write(`  Menu Support: ${capabilities.supportsMenus ? "✓" : "✗"}\n`);
+          process.stdout.write(`  Plugin Access: ${capabilities.supportsPlugins ? "✓" : "✗"}\n`);
+          process.stdout.write(`  Featured Images: ${capabilities.supportsFeaturedImages ? "✓" : "✗"}\n`);
+        } catch (error) {
+          process.stderr.write(
+            `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
+          );
+          process.exit(1);
+        }
+      }),
+  );
+
+// Sprint 6: Connection management commands
+program
+  .command("connect")
+  .description("Connect to a website provider")
+  .addCommand(
+    new Command("wordpress")
+      .description("Connect to a WordPress site")
+      .action(async () => {
+        process.stdout.write("WordPress Connection Wizard\n\n");
+
+        // Note: In production, this would use readline for interactive input
+        // For now, display instructions for manual connection
+        process.stdout.write("To connect to a WordPress site, provide credentials:\n\n");
+        process.stdout.write("  forge wp test <site> <username> <password>\n\n");
+        process.stdout.write("Requirements:\n");
+        process.stdout.write("  - Application Passwords must be enabled on your WordPress site\n");
+        process.stdout.write("  - Generate an application password in: Users → Profile → Application Passwords\n");
+      }),
+  );
+
+// Sprint 6: Provider info command
+program
+  .command("provider")
+  .description("Show provider information")
+  .action(() => {
+    const metadata = WORDPRESS_PROVIDER_METADATA;
+    process.stdout.write("Registered Providers:\n\n");
+    process.stdout.write(`${metadata.name} v${metadata.version}\n`);
+    process.stdout.write(`  ${metadata.description}\n\n`);
+    process.stdout.write("Capabilities:\n");
+    process.stdout.write("  - Posts (read)\n");
+    process.stdout.write("  - Pages (read)\n");
+    process.stdout.write("  - Media (read)\n");
+    process.stdout.write("  - Categories (read)\n");
+    process.stdout.write("  - Tags (read)\n");
+    process.stdout.write("  - Settings (read)\n");
+    process.stdout.write("  - Site Info (read)\n");
+    process.stdout.write("  - Authentication (test)\n");
+  });
+
+// Sprint 6: Fetch command - download from WordPress provider
+program
+  .command("fetch")
+  .argument("<site>", "WordPress site URL")
+  .argument("<username>", "WordPress username")
+  .argument("<password>", "WordPress application password")
+  .option("--json", "Output as JSON")
+  .description("Fetch website data from WordPress")
+  .action(async (site: string, username: string, password: string, options: { json?: boolean }) => {
+    try {
+      process.stdout.write("Connecting to WordPress...\n");
+      const provider = createWordPressProvider({
+        siteUrl: site,
+        username,
+        applicationPassword: password,
+      });
+
+      const connected = await provider.testConnection();
+      if (!connected) {
+        process.stdout.write("✗ Connection failed\n");
+        process.exit(1);
+      }
+
+      process.stdout.write("✓ Connected\n");
+      process.stdout.write("Fetching data...\n");
+
+      const [posts, pages, media, categories, tags, settings] = await Promise.all([
+        provider.getPosts({ perPage: 100 }),
+        provider.getPages({ perPage: 100 }),
+        provider.getMedia({ perPage: 100 }),
+        provider.getCategories(),
+        provider.getTags(),
+        provider.getSettings().catch(() => null),
+      ]);
+
+      process.stdout.write("✓ Data fetched\n\n");
+
+      const summary = {
+        posts: posts.totalItems,
+        pages: pages.totalItems,
+        media: media.totalItems,
+        categories: categories.length,
+        tags: tags.length,
+        hasSettings: !!settings,
+      };
+
+      if (options.json) {
+        process.stdout.write(JSON.stringify(summary, null, 2) + "\n");
+        return;
+      }
+
+      process.stdout.write("Fetch Summary:\n");
+      process.stdout.write(`  Posts:      ${summary.posts}\n`);
+      process.stdout.write(`  Pages:      ${summary.pages}\n`);
+      process.stdout.write(`  Media:      ${summary.media}\n`);
+      process.stdout.write(`  Categories: ${summary.categories}\n`);
+      process.stdout.write(`  Tags:       ${summary.tags}\n`);
+    } catch (error) {
+      process.stderr.write(
+        `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
       );
       process.exit(1);
     }
