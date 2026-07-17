@@ -36,6 +36,25 @@ Forge now separates slow-changing knowledge from event history.
 - Project Profile combines both for downstream consumers.
 - Change Detection compares snapshots to surface deltas between runs.
 
+## Sprint 10 Update: AI Skills Platform
+
+Forge now treats AI as a reusable skills layer, not a monolithic integration.
+
+- AI providers are interchangeable adapters behind a generic provider interface.
+- Skills consume structured context, not raw HTML.
+- Skills validate their own outputs before returning them.
+- The pipeline layer registers skills as executable steps.
+
+## Sprint 10 Hardening Update
+
+The hardening pass removes implementation shortcuts before the platform grows further:
+
+- Project resolution is explicit and ordered instead of silently falling back to `default-project`.
+- Prompt definitions are first-class, versioned, and registry-backed.
+- Skill execution consumes structured AI context rather than raw internal objects.
+- Providers advertise capabilities before skill execution begins.
+- AI-specific error types isolate provider, prompt, context, and validation failures.
+
 Built-in pipelines currently include:
 
 - Website Audit

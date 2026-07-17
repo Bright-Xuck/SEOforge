@@ -9,6 +9,24 @@ import { createWordPressProvider, WORDPRESS_PROVIDER_METADATA } from "@forge/pro
 import { WebsiteReadError } from "@forge/core";
 import { loadKnowledge, createProjectProfile, detectChanges } from "@forge/knowledge-engine";
 import { loadMemory } from "@forge/memory-engine";
+import { resolveProject } from "@forge/project-resolver";
+import { ContextBuilder } from "@forge/context-builder";
+import { AIEngine, OpenAIProvider, AnthropicProvider, GeminiProvider, OpenRouterProvider, OllamaProvider } from "@forge/ai-engine";
+import {
+  SkillRegistry,
+  skillPromptRegistry,
+  GenerateSeoTitleSkill,
+  GenerateMetaDescriptionSkill,
+  GenerateAltTextSkill,
+  GenerateOpenGraphSkill,
+  GenerateTwitterCardSkill,
+  GenerateFaqSchemaSkill,
+  GenerateProductDescriptionSkill,
+  GenerateInternalLinksSkill,
+  ExpandThinContentSkill,
+  RewriteHeadingSkill,
+  createSkillPipeline,
+} from "@forge/skills";
 import {
   createAnalyzePipeline,
   createExecutePipeline,
@@ -21,6 +39,37 @@ import {
 } from "@forge/pipeline-engine";
 
 const program = new Command();
+const skillRegistry = new SkillRegistry();
+const contextBuilder = new ContextBuilder();
+
+for (const skill of [
+  GenerateSeoTitleSkill,
+  GenerateMetaDescriptionSkill,
+  GenerateAltTextSkill,
+  GenerateOpenGraphSkill,
+  GenerateTwitterCardSkill,
+  GenerateFaqSchemaSkill,
+  GenerateProductDescriptionSkill,
+  GenerateInternalLinksSkill,
+  ExpandThinContentSkill,
+  RewriteHeadingSkill,
+]) {
+  skillRegistry.register(skill);
+}
+
+function createProvider(providerId?: string): AIEngine {
+  const provider =
+    providerId === "anthropic"
+      ? AnthropicProvider
+      : providerId === "gemini"
+        ? GeminiProvider
+        : providerId === "openrouter"
+          ? OpenRouterProvider
+          : providerId === "ollama"
+            ? OllamaProvider
+            : OpenAIProvider;
+  return new AIEngine(provider);
+}
 
 program
   .name(FORGE_NAME.toLowerCase())
@@ -469,13 +518,14 @@ program
   .description("Project knowledge commands")
   .addCommand(
     new Command("profile")
-      .argument("[project]", "Project ID", "default")
+      .argument("[project]", "Project ID")
       .option("--json", "Output project profile as JSON")
       .action(async (project: string, options: { json?: boolean }) => {
         const rootDir = "projects";
-        const knowledge = await loadKnowledge(rootDir, project);
-        const memory = await loadMemory(rootDir, project);
-        const profile = createProjectProfile(knowledge, memory.summarize(project));
+        const resolved = resolveProject({ project });
+        const knowledge = await loadKnowledge(rootDir, resolved.project);
+        const memory = await loadMemory(rootDir, resolved.project);
+        const profile = createProjectProfile(knowledge, memory.summarize(resolved.project));
         if (options.json) {
           process.stdout.write(JSON.stringify(profile, null, 2) + "\n");
           return;
@@ -490,11 +540,12 @@ program
 
 program
   .command("timeline")
-  .argument("[project]", "Project ID", "default")
+  .argument("[project]", "Project ID")
   .option("--json", "Output timeline as JSON")
   .action(async (project: string, options: { json?: boolean }) => {
-    const store = await loadMemory("projects", project);
-    const events = store.timeline(project);
+    const resolved = resolveProject({ project });
+    const store = await loadMemory("projects", resolved.project);
+    const events = store.timeline(resolved.project);
     if (options.json) {
       process.stdout.write(JSON.stringify(events, null, 2) + "\n");
       return;
@@ -507,10 +558,11 @@ program
 
 program
   .command("changes")
-  .argument("[project]", "Project ID", "default")
+  .argument("[project]", "Project ID")
   .option("--json", "Output detected changes as JSON")
   .action(async (project: string, options: { json?: boolean }) => {
-    const knowledge = await loadKnowledge("projects", project);
+    const resolved = resolveProject({ project });
+    const knowledge = await loadKnowledge("projects", resolved.project);
     const changes = detectChanges(
       { title: knowledge.brand, pages: knowledge.contentCategories, metadata: { industry: knowledge.industry } },
       { pages: [] },
@@ -523,6 +575,108 @@ program
     process.stdout.write(`New Pages: ${changes.newPages.join(", ") || "(none)"}\n`);
     process.stdout.write(`Title Changes: ${changes.titleChanges.join(", ") || "(none)"}\n`);
   });
+
+program
+  .command("skills")
+  .description("AI skill commands")
+  .addCommand(
+    new Command("list")
+      .option("--json", "Output skills as JSON")
+      .action((options: { json?: boolean }) => {
+          const skills = skillRegistry.list().map((skill) => ({
+            id: skill.id,
+            name: skill.name,
+            version: skill.version,
+            description: skill.description,
+            requiredContext: skill.requiredContext,
+            inputs: skill.inputs,
+            outputs: skill.outputs,
+            supportedProviders: skill.supportedProviders,
+          }));
+        if (options.json) {
+          process.stdout.write(JSON.stringify(skills, null, 2) + "\n");
+          return;
+        }
+        for (const skill of skills) {
+          process.stdout.write(`${skill.id} - ${skill.name}\n`);
+        }
+      }),
+  )
+  .addCommand(
+    new Command("info")
+      .argument("<id>", "Skill ID")
+      .option("--json", "Output skill as JSON")
+      .action((id: string, options: { json?: boolean }) => {
+        const skill = skillRegistry.get(id);
+        const info = {
+          id: skill.id,
+          name: skill.name,
+          version: skill.version,
+          description: skill.description,
+          requiredContext: skill.requiredContext,
+          inputs: skill.inputs,
+          outputs: skill.outputs,
+          supportedProviders: skill.supportedProviders,
+          prompt: skillPromptRegistry.get(skill.id),
+        };
+        if (options.json) {
+          process.stdout.write(JSON.stringify(info, null, 2) + "\n");
+          return;
+        }
+        process.stdout.write(`Skill: ${skill.name}\n`);
+        process.stdout.write(`Version: ${skill.version}\n`);
+        process.stdout.write(`Description: ${skill.description}\n`);
+        process.stdout.write(`Inputs: ${skill.inputs.join(", ")}\n`);
+        process.stdout.write(`Outputs: ${skill.outputs.join(", ")}\n`);
+      }),
+  );
+
+program
+  .command("skill")
+  .description("Run a single AI skill")
+  .addCommand(
+    new Command("run")
+      .argument("<id>", "Skill ID")
+      .argument("[project]", "Project ID")
+      .option("--provider <provider>", "AI provider id")
+      .option("--model <model>", "Model name")
+      .option("--json", "Output skill execution as JSON")
+      .action(async (id: string, project: string, options: { provider?: string; model?: string; json?: boolean }) => {
+        const skill = skillRegistry.get(id);
+        const engine = createProvider(options.provider);
+        const rootDir = "projects";
+        const resolved = resolveProject({ project });
+        const knowledge = await loadKnowledge(rootDir, resolved.project);
+        const memory = await loadMemory(rootDir, resolved.project);
+        const profile = createProjectProfile(knowledge, memory.summarize(resolved.project));
+        const context = {
+          project: resolved.project,
+          knowledge,
+          profile,
+          memorySummary: profile.memorySummary,
+          findings: [],
+          recommendations: [],
+          provider: options.provider,
+          model: options.model,
+          aiContext: contextBuilder.build({
+            project: resolved.project,
+            knowledge,
+            memory: profile.memorySummary,
+            projectProfile: profile,
+            findings: [],
+            recommendations: [],
+            metadata: { provider: options.provider, model: options.model, resolution: resolved.source },
+          }),
+        };
+        const pipeline = createSkillPipeline(skill, {}, context, engine);
+        const result = await executePipeline(pipeline, { rootDir, ...context });
+        if (options.json) {
+          process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+          return;
+        }
+        process.stdout.write(`Skill ${skill.id} finished with status ${result.status}\n`);
+      }),
+  );
 
 program.parse(process.argv);
 

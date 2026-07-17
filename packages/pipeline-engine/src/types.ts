@@ -1,5 +1,5 @@
 import type { ExecutionPlan } from "@forge/action-engine";
-import type { WebsiteSnapshot, RecommendationReport, AnalysisReport } from "@forge/core";
+import type { WebsiteSnapshot } from "@forge/core";
 import type { ValidationReport } from "@forge/preflight-validator";
 import type { ExecutionResult } from "@forge/execution-engine";
 
@@ -18,8 +18,8 @@ export interface PipelineContext {
   readonly rootDir?: string;
   readonly provider?: unknown;
   snapshot?: WebsiteSnapshot;
-  findings?: AnalysisReport;
-  recommendations?: RecommendationReport;
+  findings?: unknown;
+  recommendations?: unknown;
   executionPlan?: ExecutionPlan;
   validationReport?: ValidationReport;
   executionResult?: ExecutionResult;

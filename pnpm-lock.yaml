@@ -41,12 +41,18 @@ importers:
       '@forge/action-engine':
         specifier: workspace:*
         version: link:../../packages/action-engine
+      '@forge/ai-engine':
+        specifier: workspace:*
+        version: link:../../packages/ai-engine
       '@forge/capabilities':
         specifier: workspace:*
         version: link:../../packages/capabilities
       '@forge/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@forge/context-builder':
+        specifier: workspace:*
+        version: link:../../packages/context-builder
       '@forge/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -68,6 +74,9 @@ importers:
       '@forge/preflight-validator':
         specifier: workspace:*
         version: link:../../packages/preflight-validator
+      '@forge/project-resolver':
+        specifier: workspace:*
+        version: link:../../packages/project-resolver
       '@forge/providers-wordpress':
         specifier: workspace:*
         version: link:../../packages/providers-wordpress
@@ -77,6 +86,9 @@ importers:
       '@forge/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@forge/skills':
+        specifier: workspace:*
+        version: link:../../packages/skills
       '@forge/tools':
         specifier: workspace:*
         version: link:../../packages/tools
@@ -89,6 +101,15 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/ai-engine:
+    dependencies:
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@forge/prompt-registry':
+        specifier: workspace:*
+        version: link:../prompt-registry
 
   packages/capabilities:
     dependencies:
@@ -104,6 +125,15 @@ importers:
       '@forge/shared':
         specifier: workspace:*
         version: link:../shared
+
+  packages/context-builder:
+    dependencies:
+      '@forge/ai-engine':
+        specifier: workspace:*
+        version: link:../ai-engine
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/core: {}
 
@@ -193,6 +223,21 @@ importers:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@26.1.1)
 
+  packages/project-resolver:
+    dependencies:
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@forge/providers-wordpress':
+        specifier: workspace:*
+        version: link:../providers-wordpress
+
+  packages/prompt-registry:
+    dependencies:
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+
   packages/providers-wordpress:
     dependencies:
       '@forge/core':
@@ -209,6 +254,30 @@ importers:
         version: link:../core
 
   packages/shared: {}
+
+  packages/skills:
+    dependencies:
+      '@forge/ai-engine':
+        specifier: workspace:*
+        version: link:../ai-engine
+      '@forge/context-builder':
+        specifier: workspace:*
+        version: link:../context-builder
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@forge/knowledge-engine':
+        specifier: workspace:*
+        version: link:../knowledge-engine
+      '@forge/memory-engine':
+        specifier: workspace:*
+        version: link:../memory-engine
+      '@forge/pipeline-engine':
+        specifier: workspace:*
+        version: link:../pipeline-engine
+      '@forge/prompt-registry':
+        specifier: workspace:*
+        version: link:../prompt-registry
 
   packages/tools:
     dependencies:

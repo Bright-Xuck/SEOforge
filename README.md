@@ -7,6 +7,9 @@ Forge is a modular, extensible platform for understanding, improving, operating,
 Sprint 8 introduces the Pipeline layer. Core workflows now execute through reusable pipeline steps, and the CLI exposes `forge pipeline list`, `forge pipeline info <id>`, and `forge pipeline run <id> <url>`.
 Sprint 9 adds project knowledge and memory commands:
 `forge project profile`, `forge timeline`, and `forge changes`.
+Sprint 10 adds the AI Skills Platform:
+`forge skills list`, `forge skills info <id>`, and `forge skill run <id>`.
+Sprint 10 hardening removes silent project fallback and adds explicit project resolution, structured AI context, prompt registry metadata, and provider capability checks.
 
 ---
 
@@ -50,9 +53,14 @@ forge recommend https://example.com
 forge plan https://example.com
 
 # Project knowledge
-forge project profile default
-forge timeline default
-forge changes default
+forge project profile my-project
+forge timeline my-project
+forge changes my-project
+
+# Skills commands
+forge skills list
+forge skills info skill.generate-meta-description
+forge skill run skill.generate-meta-description
 ```
 
 ---
@@ -128,6 +136,18 @@ Show the project timeline.
 ### `forge changes [project]`
 
 Show detected changes for the project.
+
+### `forge skills list`
+
+List registered AI skills.
+
+### `forge skills info <id>`
+
+Show skill details, requirements, and outputs.
+
+### `forge skill run <id>`
+
+Run a skill against structured project context. Supports `--provider`, `--model`, and `--json`.
 
 ---
 

@@ -935,6 +935,98 @@ Revisit when the project needs multi-user sync, query indexing, or cross-project
 
 ---
 
+## ADR-0025
+
+### Title
+
+AI Skills Platform and Provider Isolation
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-17
+
+### Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+Sprint 10 introduces AI capabilities, but Forge should not hardcode providers or let AI touch raw HTML. The platform needs a provider-agnostic orchestration layer and reusable skills that operate on structured context only.
+
+### Decision
+
+Create an AI engine to orchestrate generic providers, define skill contracts with structured inputs/outputs and output validation, and store prompts in a dedicated prompt registry. AI providers remain adapters only.
+
+### Consequences
+
+Positive:
+
+- provider independence is preserved
+- skills remain reusable pipeline steps
+- prompts are versioned and testable
+
+Negative:
+
+- additional abstraction layers to maintain
+
+### Future Review
+
+Revisit when adding multi-step agentic reasoning or provider-specific optimization.
+
+---
+
+## ADR-0018
+
+### Title
+
+Hardening Pass for Sprint 10 AI Layer
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-17
+
+### Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+Sprint 10 shipped the AI skills layer, but the first implementation used a few shortcuts to move quickly: implicit project defaults, raw context handoff, unstructured prompt definitions, and weak provider capability checks.
+
+### Decision
+
+Add explicit project resolution, a structured AI context builder, a versioned prompt registry, declared provider capabilities, and typed AI-specific errors before adding any more AI features.
+
+### Consequences
+
+Positive:
+
+- hidden defaults are removed
+- prompt and skill metadata become testable
+- provider and skill contracts are clearer
+
+Negative:
+
+- a few extra packages and abstractions to maintain
+
+### Future Review
+
+Revisit when Forge adds multi-provider routing or mission-level orchestration.
+
+---
+
 # Future Decisions
 
 Examples of future ADRs include:

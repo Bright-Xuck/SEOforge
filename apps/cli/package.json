@@ -20,6 +20,8 @@
   },
   "dependencies": {
     "@forge/action-engine": "workspace:*",
+    "@forge/ai-engine": "workspace:*",
+    "@forge/context-builder": "workspace:*",
     "@forge/capabilities": "workspace:*",
     "@forge/config": "workspace:*",
     "@forge/core": "workspace:*",
@@ -27,10 +29,12 @@
     "@forge/logger": "workspace:*",
     "@forge/knowledge-engine": "workspace:*",
     "@forge/memory-engine": "workspace:*",
+    "@forge/project-resolver": "workspace:*",
     "@forge/pipeline-engine": "workspace:*",
     "@forge/preflight-validator": "workspace:*",
     "@forge/providers-wordpress": "workspace:*",
     "@forge/recommendation-engine": "workspace:*",
+    "@forge/skills": "workspace:*",
     "@forge/shared": "workspace:*",
     "@forge/tools": "workspace:*",
     "commander": "^15.0.0"

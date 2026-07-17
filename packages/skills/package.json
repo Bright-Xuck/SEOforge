@@ -1,0 +1,27 @@
+{
+  "name": "@forge/skills",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "del /q dist 2>nul || rmdir /s /q dist"
+  },
+  "dependencies": {
+    "@forge/ai-engine": "workspace:*",
+    "@forge/context-builder": "workspace:*",
+    "@forge/core": "workspace:*",
+    "@forge/knowledge-engine": "workspace:*",
+    "@forge/memory-engine": "workspace:*",
+    "@forge/prompt-registry": "workspace:*",
+    "@forge/pipeline-engine": "workspace:*"
+  }
+}

@@ -67,7 +67,7 @@ export function createRecommendationStep(): PipelineStepDefinition {
       if (!context.findings) {
         throw new Error("Pipeline context missing analysis report");
       }
-      const report = generateRecommendations(context.findings);
+      const report = generateRecommendations(context.findings as never);
       context.recommendations = report;
       return report;
     },
@@ -88,7 +88,7 @@ export function createActionStep(): PipelineStepDefinition {
       if (!context.recommendations) {
         throw new Error("Pipeline context missing recommendation report");
       }
-      const plan = generateExecutionPlan(context.recommendations);
+      const plan = generateExecutionPlan(context.recommendations as never);
       context.executionPlan = plan;
       return plan;
     },

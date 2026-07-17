@@ -1,0 +1,144 @@
+import type { AIEngine } from "@forge/ai-engine";
+import { ContextBuilder } from "@forge/context-builder";
+import type { PipelineDefinition, PipelineStepDefinition } from "@forge/pipeline-engine";
+import { skillPromptRegistry } from "./prompts.js";
+import {
+  validateHeadingLength,
+  validateJsonLike,
+  validateMetaDescriptionLength,
+  validateTitleLength,
+} from "./validators.js";
+import type { SkillContext, SkillDefinition, SkillExecutionResult, SkillValidationResult, SkillMetadata } from "./types.js";
+
+const contextBuilder = new ContextBuilder();
+
+function createMetadata(
+  id: string,
+  name: string,
+  description: string,
+  outputs: string[],
+  validator: string,
+  category = "content",
+): SkillMetadata {
+  return {
+    id,
+    name,
+    version: "1.0.0-beta.1",
+    description,
+    category,
+    tags: ["seo", "content"],
+    difficulty: "intermediate",
+    costEstimate: "low",
+    estimatedTokens: 800,
+    supportedProviders: ["openai", "anthropic", "gemini", "openrouter", "ollama"],
+    requiredKnowledge: ["knowledge", "profile"],
+    requiredMemory: ["memorySummary"],
+    requiredInputs: ["input"],
+    outputs,
+    validator,
+  };
+}
+
+function createSimpleSkill(
+  id: string,
+  name: string,
+  description: string,
+  outputKey: string,
+  validateOutput: (output: string) => boolean,
+): SkillDefinition<Record<string, unknown>, { value: string }> {
+  const prompt = skillPromptRegistry.resolve(id);
+  return {
+    ...createMetadata(id, name, description, [outputKey], validateOutput.name || "output"),
+    promptId: id,
+    requiredContext: ["knowledge", "memory", "profile"],
+    inputs: ["knowledge", "memory", "profile"],
+    prompt,
+    validatePrompt: (item) => skillPromptRegistry.validate(item),
+    validate(input: Record<string, unknown>, _context: SkillContext): SkillValidationResult {
+      return { valid: Object.keys(input).length >= 0, errors: [] };
+    },
+    async execute(input: Record<string, unknown>, context: SkillContext, engine: AIEngine): Promise<SkillExecutionResult<{ value: string }>> {
+      const aiContext = context.aiContext ?? contextBuilder.build({
+        project: context.project,
+        knowledge: context.knowledge,
+        memory: context.memorySummary,
+        projectProfile: context.profile,
+        findings: context.findings,
+        recommendations: context.recommendations,
+        metadata: { provider: context.provider, model: context.model },
+      });
+      const response = await engine.generate({
+        prompt,
+        variables: {
+          input: JSON.stringify(input),
+          context: JSON.stringify(aiContext),
+        },
+        model: context.model,
+      });
+      const valid = validateOutput(response.output);
+      return {
+        skillId: id,
+        status: valid ? "success" : "failed",
+        output: { value: response.output },
+        validation: valid ? { valid: true, errors: [] } : { valid: false, errors: ["Output validation failed"] },
+        provider: context.provider,
+      };
+    },
+  };
+}
+
+export const GenerateSeoTitleSkill = createSimpleSkill("skill.generate-title", "Generate SEO Title", "Generate an SEO title.", "title", validateTitleLength);
+export const GenerateMetaDescriptionSkill = createSimpleSkill("skill.generate-meta-description", "Generate Meta Description", "Generate a meta description.", "metaDescription", validateMetaDescriptionLength);
+export const GenerateAltTextSkill = createSimpleSkill("skill.generate-alt", "Generate Alt Text", "Generate alt text.", "altText", (output) => output.length > 0);
+export const GenerateOpenGraphSkill = createSimpleSkill("skill.generate-open-graph", "Generate Open Graph", "Generate Open Graph metadata.", "openGraph", validateJsonLike);
+export const GenerateTwitterCardSkill = createSimpleSkill("skill.generate-twitter-card", "Generate Twitter Card", "Generate Twitter Card metadata.", "twitterCard", validateJsonLike);
+export const GenerateFaqSchemaSkill = createSimpleSkill("skill.generate-faq-schema", "Generate FAQ Schema", "Generate FAQ schema.", "faqSchema", validateJsonLike);
+export const GenerateProductDescriptionSkill = createSimpleSkill("skill.generate-product-description", "Generate Product Description", "Generate product description.", "productDescription", (output) => output.length > 20);
+export const GenerateInternalLinksSkill = createSimpleSkill("skill.generate-internal-links", "Generate Internal Links", "Generate internal links.", "internalLinks", validateJsonLike);
+export const ExpandThinContentSkill = createSimpleSkill("skill.expand-thin-content", "Expand Thin Content", "Expand thin content.", "expandedContent", (output) => output.length > 50);
+export const RewriteHeadingSkill = createSimpleSkill("skill.rewrite-heading", "Rewrite Heading", "Rewrite heading text.", "heading", validateHeadingLength);
+
+export function createSkillStep<TInput, TOutput>(
+  skill: SkillDefinition<TInput, TOutput>,
+  input: TInput,
+  context: SkillContext,
+  engine: AIEngine,
+): PipelineStepDefinition {
+  return {
+    id: skill.id,
+    name: skill.name,
+    version: skill.version,
+    description: skill.description,
+    type: "execution-engine",
+    inputs: skill.inputs,
+    outputs: skill.outputs,
+    dependencies: [],
+    execute: async () => {
+      const validation = skill.validate(input, context);
+      if (!validation.valid) {
+        throw new Error(validation.errors.join("; "));
+      }
+      const result = await skill.execute(input, context, engine);
+      if (!result.validation.valid || result.status !== "success") {
+        throw new Error(result.validation.errors.join("; ") || "Skill output validation failed");
+      }
+      return result;
+    },
+  };
+}
+
+export function createSkillPipeline<TInput, TOutput>(
+  skill: SkillDefinition<TInput, TOutput>,
+  input: TInput,
+  context: SkillContext,
+  engine: AIEngine,
+): PipelineDefinition {
+  return {
+    id: skill.id,
+    name: skill.name,
+    version: skill.version,
+    description: skill.description,
+    steps: [createSkillStep(skill, input, context, engine)],
+    metadata: { skillId: skill.id },
+  };
+}

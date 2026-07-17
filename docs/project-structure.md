@@ -94,6 +94,8 @@ No package should depend on an application.
 
 Sprint 8 adds `packages/pipeline-engine` for pipeline orchestration and extends `packages/plugin-registry` with pipeline registration and validation APIs.
 Sprint 9 adds `packages/knowledge-engine` and `packages/memory-engine` for project knowledge, timelines, and change detection.
+Sprint 10 adds `packages/ai-engine`, `packages/skills`, and `packages/prompt-registry` for AI orchestration, skill execution, and prompt management.
+Sprint 10 hardening adds `packages/project-resolver` for explicit project resolution and `packages/context-builder` for structured AI context.
 
 ---
 
