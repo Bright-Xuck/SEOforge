@@ -53,9 +53,15 @@ importers:
       '@forge/execution-engine':
         specifier: workspace:*
         version: link:../../packages/execution-engine
+      '@forge/knowledge-engine':
+        specifier: workspace:*
+        version: link:../../packages/knowledge-engine
       '@forge/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@forge/memory-engine':
+        specifier: workspace:*
+        version: link:../../packages/memory-engine
       '@forge/pipeline-engine':
         specifier: workspace:*
         version: link:../../packages/pipeline-engine
@@ -117,7 +123,22 @@ importers:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@26.1.1)
 
+  packages/knowledge-engine:
+    dependencies:
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@forge/memory-engine':
+        specifier: workspace:*
+        version: link:../memory-engine
+
   packages/logger:
+    dependencies:
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/memory-engine:
     dependencies:
       '@forge/core':
         specifier: workspace:*
@@ -137,6 +158,12 @@ importers:
       '@forge/execution-engine':
         specifier: workspace:*
         version: link:../execution-engine
+      '@forge/knowledge-engine':
+        specifier: workspace:*
+        version: link:../knowledge-engine
+      '@forge/memory-engine':
+        specifier: workspace:*
+        version: link:../memory-engine
       '@forge/preflight-validator':
         specifier: workspace:*
         version: link:../preflight-validator

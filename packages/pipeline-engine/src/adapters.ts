@@ -4,6 +4,14 @@ import { generateRecommendations } from "@forge/recommendation-engine";
 import { generateExecutionPlan } from "@forge/action-engine";
 import { validateExecutionPlan, createDefaultContext } from "@forge/preflight-validator";
 import { execute, executeWithValidation } from "@forge/execution-engine";
+import {
+  createKnowledgeGraph,
+  loadKnowledge,
+  saveKnowledge,
+  detectChanges,
+  createProjectProfile,
+} from "@forge/knowledge-engine";
+import { loadMemory, saveMemory } from "@forge/memory-engine";
 import type { PipelineStepDefinition } from "./types.js";
 
 export function createWebsiteReaderStep(url: string): PipelineStepDefinition {
@@ -127,6 +135,118 @@ export function createExecutionStep(dryRun = true): PipelineStepDefinition {
         : (await executeWithValidation(context.executionPlan, context.provider, context.validationReport)).execution;
       context.executionResult = result;
       return result;
+    },
+  };
+}
+
+export function createKnowledgeLoadStep(): PipelineStepDefinition {
+  return {
+    id: "knowledge-load",
+    name: "Knowledge Load",
+    version: "0.9.0",
+    description: "Loads project knowledge from storage.",
+    type: "website-reader",
+    inputs: ["project", "rootDir"],
+    outputs: ["knowledge"],
+    dependencies: [],
+    execute: async (context) => {
+      const rootDir = context.rootDir ?? "projects";
+      const project = context.project ?? "default";
+      const knowledge = await loadKnowledge(rootDir, project);
+      context.knowledge = knowledge;
+      return knowledge;
+    },
+  };
+}
+
+export function createKnowledgeSaveStep(): PipelineStepDefinition {
+  return {
+    id: "knowledge-save",
+    name: "Knowledge Save",
+    version: "0.9.0",
+    description: "Saves project knowledge to storage.",
+    type: "website-reader",
+    inputs: ["knowledge"],
+    outputs: ["knowledge"],
+    dependencies: ["knowledge-load"],
+    execute: async (context) => {
+      if (!context.knowledge) throw new Error("Pipeline context missing knowledge");
+      const rootDir = context.rootDir ?? "projects";
+      await saveKnowledge(rootDir, context.knowledge as ReturnType<typeof createKnowledgeGraph>);
+      return context.knowledge;
+    },
+  };
+}
+
+export function createMemoryAppendStep(): PipelineStepDefinition {
+  return {
+    id: "memory-append",
+    name: "Memory Append",
+    version: "0.9.0",
+    description: "Appends pipeline events to project memory.",
+    type: "website-reader",
+    inputs: ["project"],
+    outputs: ["memory"],
+    dependencies: ["knowledge-load"],
+    execute: async (context) => {
+      const rootDir = context.rootDir ?? "projects";
+      const project = context.project ?? "default";
+      const store = await loadMemory(rootDir, project);
+      store.append({
+        id: `memory-${Date.now()}`,
+        type: "pipeline-execution",
+        project,
+        timestamp: new Date().toISOString(),
+        payload: { pipeline: context.outputs ?? {} },
+      });
+      await saveMemory(rootDir, project, store);
+      context.memory = { appended: true };
+      return context.memory;
+    },
+  };
+}
+
+export function createChangeDetectionStep(): PipelineStepDefinition {
+  return {
+    id: "change-detection",
+    name: "Change Detection",
+    version: "0.9.0",
+    description: "Detects changes between current and previous snapshots.",
+    type: "website-reader",
+    inputs: ["snapshot"],
+    outputs: ["changes"],
+    dependencies: ["website-reader", "knowledge-load"],
+    execute: (context) => {
+      if (!context.snapshot) throw new Error("Pipeline context missing snapshot");
+      const previous = { pages: [] };
+      const changes = detectChanges(
+        { title: context.snapshot.pageTitle, metadata: { description: context.snapshot.metaDescription } },
+        previous,
+      );
+      context.changes = changes;
+      return changes;
+    },
+  };
+}
+
+export function createProjectProfileStep(): PipelineStepDefinition {
+  return {
+    id: "project-profile",
+    name: "Project Profile",
+    version: "0.9.0",
+    description: "Combines knowledge with memory summary.",
+    type: "website-reader",
+    inputs: ["knowledge", "memory"],
+    outputs: ["projectProfile"],
+    dependencies: ["knowledge-load", "memory-append"],
+    execute: async (context) => {
+      if (!context.knowledge) throw new Error("Pipeline context missing knowledge");
+      const rootDir = context.rootDir ?? "projects";
+      const project = context.project ?? "default";
+      const store = await loadMemory(rootDir, project);
+      const profile = createProjectProfile(context.knowledge as ReturnType<typeof createKnowledgeGraph>, store.summarize(project));
+      context.projectProfile = profile;
+      return profile;
     },
   };
 }

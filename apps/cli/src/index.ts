@@ -7,6 +7,8 @@ import { Command } from "commander";
 import { FORGE_NAME, FORGE_VERSION } from "@forge/shared";
 import { createWordPressProvider, WORDPRESS_PROVIDER_METADATA } from "@forge/providers-wordpress";
 import { WebsiteReadError } from "@forge/core";
+import { loadKnowledge, createProjectProfile, detectChanges } from "@forge/knowledge-engine";
+import { loadMemory } from "@forge/memory-engine";
 import {
   createAnalyzePipeline,
   createExecutePipeline,
@@ -460,6 +462,66 @@ pipelineCommand
     process.stdout.write(`Pipeline ${result.pipelineId} finished with status ${result.status}\n`);
     process.stdout.write(`Executed steps: ${result.stepsExecuted.join(", ") || "(none)"}\n`);
     process.stdout.write(`Skipped steps: ${result.stepsSkipped.join(", ") || "(none)"}\n`);
+  });
+
+program
+  .command("project")
+  .description("Project knowledge commands")
+  .addCommand(
+    new Command("profile")
+      .argument("[project]", "Project ID", "default")
+      .option("--json", "Output project profile as JSON")
+      .action(async (project: string, options: { json?: boolean }) => {
+        const rootDir = "projects";
+        const knowledge = await loadKnowledge(rootDir, project);
+        const memory = await loadMemory(rootDir, project);
+        const profile = createProjectProfile(knowledge, memory.summarize(project));
+        if (options.json) {
+          process.stdout.write(JSON.stringify(profile, null, 2) + "\n");
+          return;
+        }
+        process.stdout.write(`Industry: ${profile.knowledge.industry ?? "(unknown)"}\n`);
+        process.stdout.write(`Products: ${profile.knowledge.products.join(", ") || "(none)"}\n`);
+        process.stdout.write(`Keywords: ${profile.knowledge.primaryKeywords.join(", ") || "(none)"}\n`);
+        process.stdout.write(`Content: ${profile.knowledge.contentCategories.join(", ") || "(none)"}\n`);
+        process.stdout.write(`History Summary: ${profile.memorySummary.total} events\n`);
+      }),
+  );
+
+program
+  .command("timeline")
+  .argument("[project]", "Project ID", "default")
+  .option("--json", "Output timeline as JSON")
+  .action(async (project: string, options: { json?: boolean }) => {
+    const store = await loadMemory("projects", project);
+    const events = store.timeline(project);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(events, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Project Timeline: ${project}\n`);
+    for (const event of events) {
+      process.stdout.write(`${event.timestamp} - ${event.type}\n`);
+    }
+  });
+
+program
+  .command("changes")
+  .argument("[project]", "Project ID", "default")
+  .option("--json", "Output detected changes as JSON")
+  .action(async (project: string, options: { json?: boolean }) => {
+    const knowledge = await loadKnowledge("projects", project);
+    const changes = detectChanges(
+      { title: knowledge.brand, pages: knowledge.contentCategories, metadata: { industry: knowledge.industry } },
+      { pages: [] },
+    );
+    if (options.json) {
+      process.stdout.write(JSON.stringify(changes, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Detected Changes for ${project}\n`);
+    process.stdout.write(`New Pages: ${changes.newPages.join(", ") || "(none)"}\n`);
+    process.stdout.write(`Title Changes: ${changes.titleChanges.join(", ") || "(none)"}\n`);
   });
 
 program.parse(process.argv);

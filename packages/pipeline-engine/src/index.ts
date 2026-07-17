@@ -14,7 +14,12 @@ export {
 export {
   createActionStep,
   createExecutionStep,
+  createKnowledgeLoadStep,
+  createKnowledgeSaveStep,
+  createMemoryAppendStep,
   createHomepageAnalysisStep,
+  createChangeDetectionStep,
+  createProjectProfileStep,
   createRecommendationStep,
   createValidationStep,
   createWebsiteReaderStep,

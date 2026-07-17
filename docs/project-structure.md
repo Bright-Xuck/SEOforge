@@ -93,6 +93,7 @@ Packages should be reusable across multiple applications.
 No package should depend on an application.
 
 Sprint 8 adds `packages/pipeline-engine` for pipeline orchestration and extends `packages/plugin-registry` with pipeline registration and validation APIs.
+Sprint 9 adds `packages/knowledge-engine` and `packages/memory-engine` for project knowledge, timelines, and change detection.
 
 ---
 

@@ -25,6 +25,8 @@
     "@forge/core": "workspace:*",
     "@forge/execution-engine": "workspace:*",
     "@forge/logger": "workspace:*",
+    "@forge/knowledge-engine": "workspace:*",
+    "@forge/memory-engine": "workspace:*",
     "@forge/pipeline-engine": "workspace:*",
     "@forge/preflight-validator": "workspace:*",
     "@forge/providers-wordpress": "workspace:*",

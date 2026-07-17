@@ -15,6 +15,7 @@ export type PipelineStepStatus = "pending" | "running" | "completed" | "skipped"
 
 export interface PipelineContext {
   readonly project?: string;
+  readonly rootDir?: string;
   readonly provider?: unknown;
   snapshot?: WebsiteSnapshot;
   findings?: AnalysisReport;
@@ -22,6 +23,10 @@ export interface PipelineContext {
   executionPlan?: ExecutionPlan;
   validationReport?: ValidationReport;
   executionResult?: ExecutionResult;
+  knowledge?: unknown;
+  memorySummary?: unknown;
+  changes?: unknown;
+  projectProfile?: unknown;
   memory?: Record<string, unknown>;
   variables?: Record<string, unknown>;
   outputs?: Record<string, unknown>;

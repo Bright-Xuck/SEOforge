@@ -27,6 +27,15 @@ This document supersedes the SEO-specific framing of the previous architecture. 
 
 Forge workflows are now expressed as pipelines composed of reusable pipeline steps. The Pipeline Engine only orchestrates ordered execution, dependency resolution, shared context, timing, and failure handling. Business logic stays inside existing packages and is wrapped by step adapters.
 
+## Sprint 9 Update: Knowledge and Memory
+
+Forge now separates slow-changing knowledge from event history.
+
+- Knowledge Graph stores project facts, structure, and persistent site knowledge.
+- Memory Engine stores historical events and timeline entries.
+- Project Profile combines both for downstream consumers.
+- Change Detection compares snapshots to surface deltas between runs.
+
 Built-in pipelines currently include:
 
 - Website Audit

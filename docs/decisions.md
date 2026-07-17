@@ -881,6 +881,60 @@ Revisit after the first non-CLI pipeline consumers exist, such as scheduling or 
 
 ---
 
+## ADR-0024
+
+### Title
+
+Separate Knowledge From Memory
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-17
+
+### Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+Sprint 9 introduces persistent project knowledge and historical event memory. Forge needs a stable way to model slow-changing facts separately from event timelines so future AI systems can reason over both without conflating them.
+
+### Decision
+
+Create a knowledge layer for persistent project facts and a memory layer for append-only historical events. The knowledge layer stores brand, industry, products, services, keywords, plugins, structure, and other durable site facts. The memory layer stores crawls, analyses, recommendations, validations, executions, approvals, rejections, and pipeline events.
+
+Both layers are persisted behind JSON-based storage interfaces for now.
+
+### Alternatives Considered
+
+Keeping one combined store. Rejected because it makes stable facts and event history harder to reason about and update independently.
+
+Moving directly to a database. Rejected for Sprint 9 because JSON storage is simpler, testable, and sufficient for the current stage.
+
+### Consequences
+
+Positive:
+
+- clear separation of stable and volatile project data
+- easier future database migration
+- keeps AI consumers decoupled from storage details
+
+Negative:
+
+- two storage abstractions instead of one
+
+### Future Review
+
+Revisit when the project needs multi-user sync, query indexing, or cross-project analytics.
+
+---
+
 # Future Decisions
 
 Examples of future ADRs include:

@@ -20,6 +20,8 @@
     "@forge/capabilities": "workspace:*",
     "@forge/core": "workspace:*",
     "@forge/execution-engine": "workspace:*",
+    "@forge/knowledge-engine": "workspace:*",
+    "@forge/memory-engine": "workspace:*",
     "@forge/preflight-validator": "workspace:*",
     "@forge/recommendation-engine": "workspace:*",
     "@forge/tools": "workspace:*"
