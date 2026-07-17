@@ -693,3 +693,78 @@ export interface IWordPressProvider
    */
   detectCapabilities(): Promise<CapabilityDescriptor>;
 }
+
+// =============================================================================
+// EXECUTION PROVIDER INTERFACE
+// =============================================================================
+
+/**
+ * Payload for updating page title.
+ */
+export interface UpdateTitlePayload {
+  readonly pageId: number;
+  readonly newTitle: string;
+}
+
+/**
+ * Payload for updating meta description.
+ */
+export interface UpdateMetaDescriptionPayload {
+  readonly pageId: number;
+  readonly newDescription: string;
+}
+
+/**
+ * Payload for updating image alt text.
+ */
+export interface UpdateAltTextPayload {
+  readonly mediaId: number;
+  readonly newAlt: string;
+}
+
+/**
+ * Payload for updating canonical URL.
+ */
+export interface UpdateCanonicalPayload {
+  readonly pageId: number;
+  readonly newCanonical: string;
+}
+
+/**
+ * Payload for updating schema (JSON-LD).
+ */
+export interface UpdateSchemaPayload {
+  readonly pageId: number;
+  readonly schema: Record<string, unknown>;
+}
+
+/**
+ * Execution provider interface.
+ * Allows execution of actions on a website.
+ */
+export interface ExecutionProvider extends IProvider {
+  /**
+   * Update page title.
+   */
+  updateTitle(payload: UpdateTitlePayload): Promise<Result<void>>;
+
+  /**
+   * Update meta description.
+   */
+  updateMetaDescription(payload: UpdateMetaDescriptionPayload): Promise<Result<void>>;
+
+  /**
+   * Update image alt text.
+   */
+  updateAltText(payload: UpdateAltTextPayload): Promise<Result<void>>;
+
+  /**
+   * Update canonical URL.
+   */
+  updateCanonical(payload: UpdateCanonicalPayload): Promise<Result<void>>;
+
+  /**
+   * Update schema (JSON-LD).
+   */
+  updateSchema(payload: UpdateSchemaPayload): Promise<Result<void>>;
+}

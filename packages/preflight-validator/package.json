@@ -1,0 +1,20 @@
+{
+  "name": "@forge/preflight-validator",
+  "version": "0.1.0",
+  "description": "Deterministic preflight validation for execution actions in Forge",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "dev": "vitest watch"
+  },
+  "dependencies": {
+    "@forge/action-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.7"
+  }
+}

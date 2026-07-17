@@ -92,6 +92,19 @@ importers:
 
   packages/core: {}
 
+  packages/execution-engine:
+    dependencies:
+      '@forge/action-engine':
+        specifier: workspace:*
+        version: link:../action-engine
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/node@26.1.1)
+
   packages/logger:
     dependencies:
       '@forge/core':
@@ -103,6 +116,16 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/preflight-validator:
+    dependencies:
+      '@forge/action-engine':
+        specifier: workspace:*
+        version: link:../action-engine
+    devDependencies:
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/node@26.1.1)
 
   packages/providers-wordpress:
     dependencies:

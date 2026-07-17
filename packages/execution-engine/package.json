@@ -1,0 +1,21 @@
+{
+  "name": "@forge/execution-engine",
+  "version": "0.1.0",
+  "description": "Dry-run execution engine with rollback framework and history",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "dev": "vitest watch"
+  },
+  "dependencies": {
+    "@forge/core": "workspace:*",
+    "@forge/action-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.7"
+  }
+}
