@@ -11,6 +11,16 @@ import { loadKnowledge, createProjectProfile, detectChanges } from "@forge/knowl
 import { loadMemory } from "@forge/memory-engine";
 import { resolveProject } from "@forge/project-resolver";
 import { ContextBuilder } from "@forge/context-builder";
+import {
+  AgentRegistry,
+  SEOAgent,
+  ContentAgent,
+  LinkingAgent,
+  SchemaAgent,
+  AccessibilityAgent,
+  PerformanceAgent,
+  LearningAgent,
+} from "@forge/agent-engine";
 import { AIEngine, OpenAIProvider, AnthropicProvider, GeminiProvider, OpenRouterProvider, OllamaProvider } from "@forge/ai-engine";
 import {
   SkillRegistry,
@@ -40,7 +50,30 @@ import {
 
 const program = new Command();
 const skillRegistry = new SkillRegistry();
+const agentRegistry = new AgentRegistry();
 const contextBuilder = new ContextBuilder();
+const skillRegistryAdapter = {
+  list: () => skillRegistry.list(),
+  get: (id: string) => skillRegistry.get(id),
+  exists: (id: string) => {
+    try {
+      skillRegistry.get(id);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+};
+const providerRegistry = {
+  list: () => [
+    { id: "openai", name: "OpenAI" },
+    { id: "anthropic", name: "Anthropic" },
+    { id: "gemini", name: "Gemini" },
+    { id: "openrouter", name: "OpenRouter" },
+    { id: "ollama", name: "Ollama" },
+  ],
+  exists: (id: string) => ["openai", "anthropic", "gemini", "openrouter", "ollama"].includes(id),
+};
 
 for (const skill of [
   GenerateSeoTitleSkill,
@@ -55,6 +88,18 @@ for (const skill of [
   RewriteHeadingSkill,
 ]) {
   skillRegistry.register(skill);
+}
+
+for (const agent of [
+  SEOAgent,
+  ContentAgent,
+  LinkingAgent,
+  SchemaAgent,
+  AccessibilityAgent,
+  PerformanceAgent,
+  LearningAgent,
+]) {
+  agentRegistry.register(agent);
 }
 
 function createProvider(providerId?: string): AIEngine {
@@ -677,6 +722,120 @@ program
         process.stdout.write(`Skill ${skill.id} finished with status ${result.status}\n`);
       }),
   );
+
+const agentCommand = program.command("agents").description("Agent framework commands");
+
+agentCommand
+  .command("list")
+  .option("--json", "Output agents as JSON")
+  .action((options: { json?: boolean }) => {
+    const agents = agentRegistry.list().map((agent) => ({
+      id: agent.metadata.id,
+      name: agent.metadata.name,
+      version: agent.metadata.version,
+      description: agent.metadata.description,
+      goal: agent.metadata.goal,
+      supportedProviders: agent.metadata.supportedProviders,
+      supportedProjects: agent.metadata.supportedProjects,
+      supportedPipelines: agent.metadata.supportedPipelines,
+      supportedSkills: agent.metadata.supportedSkills,
+      capabilities: agent.metadata.capabilities,
+    }));
+    if (options.json) {
+      process.stdout.write(JSON.stringify(agents, null, 2) + "\n");
+      return;
+    }
+    for (const agent of agents) {
+      process.stdout.write(`${agent.id} - ${agent.name}\n`);
+    }
+  });
+
+agentCommand
+  .command("info")
+  .argument("<id>", "Agent ID")
+  .option("--json", "Output agent as JSON")
+  .action((id: string, options: { json?: boolean }) => {
+    const agent = agentRegistry.get(id);
+    const info = {
+      ...agent.metadata,
+    };
+    if (options.json) {
+      process.stdout.write(JSON.stringify(info, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Agent: ${agent.metadata.name}\n`);
+    process.stdout.write(`Goal: ${agent.metadata.goal}\n`);
+    process.stdout.write(`Pipelines: ${agent.metadata.supportedPipelines.join(", ")}\n`);
+    process.stdout.write(`Skills: ${agent.metadata.supportedSkills.join(", ")}\n`);
+  });
+
+agentCommand
+  .command("run")
+  .argument("<id>", "Agent ID")
+  .argument("[project]", "Project ID")
+  .option("--json", "Output agent execution as JSON")
+  .option("--dry-run", "Simulate execution without running a pipeline", true)
+  .action(async (id: string, project: string, options: { json?: boolean; dryRun?: boolean }) => {
+    const agent = agentRegistry.get(id);
+    const resolved = resolveProject({ project });
+    const rootDir = "projects";
+    const knowledge = await loadKnowledge(rootDir, resolved.project);
+    const memory = await loadMemory(rootDir, resolved.project);
+    const profile = createProjectProfile(knowledge, memory.summarize(resolved.project));
+    const pipelineRegistry = {
+      listPipelines: () => listDefaultPipelines(),
+      getPipeline: (pipelineId: string) => {
+        const pipeline = listDefaultPipelines().find((item) => item.id === pipelineId);
+        if (!pipeline) throw new Error(`Pipeline not found: ${pipelineId}`);
+        return pipeline;
+      },
+      exists: (pipelineId: string) => listDefaultPipelines().some((item) => item.id === pipelineId),
+    };
+    const context = {
+      project: resolved.project,
+      projectProfile: profile,
+      knowledge,
+      memorySummary: profile.memorySummary,
+      pipelineRegistry,
+      skillRegistry: skillRegistryAdapter,
+      providerRegistry,
+      latestFindings: [],
+      recommendations: [],
+      executionPlans: [],
+      validationReports: [],
+      executionHistory: memory.timeline(resolved.project),
+      currentTask: `agent:${id}`,
+      aiContext: contextBuilder.build({
+        project: resolved.project,
+        knowledge,
+        memory: profile.memorySummary,
+        projectProfile: profile,
+        findings: [],
+        recommendations: [],
+        executionPlan: {},
+        validationReport: {},
+        currentTask: `agent:${id}`,
+        metadata: { agentId: id, resolution: resolved.source },
+      }),
+    };
+
+    const result = await agent.execute(context, {
+      dryRun: options.dryRun ?? true,
+      invokePipeline: async (pipelineId) => {
+        const pipeline = pipelineRegistry.getPipeline(pipelineId);
+        return executePipeline(pipeline, { rootDir, project: resolved.project });
+      },
+    });
+
+    if (options.json) {
+      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+      return;
+    }
+
+    process.stdout.write(`Agent ${result.agentId} finished with status ${result.status}\n`);
+    process.stdout.write(`Decision: ${result.decision.pipelineId}\n`);
+    process.stdout.write(`Messages: ${result.messages.join(" | ") || "(none)"}\n`);
+  });
 
 program.parse(process.argv);
 

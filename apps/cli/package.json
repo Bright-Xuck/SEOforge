@@ -21,6 +21,7 @@
   "dependencies": {
     "@forge/action-engine": "workspace:*",
     "@forge/ai-engine": "workspace:*",
+    "@forge/agent-engine": "workspace:*",
     "@forge/context-builder": "workspace:*",
     "@forge/capabilities": "workspace:*",
     "@forge/config": "workspace:*",

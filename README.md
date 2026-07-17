@@ -10,6 +10,8 @@ Sprint 9 adds project knowledge and memory commands:
 Sprint 10 adds the AI Skills Platform:
 `forge skills list`, `forge skills info <id>`, and `forge skill run <id>`.
 Sprint 10 hardening removes silent project fallback and adds explicit project resolution, structured AI context, prompt registry metadata, and provider capability checks.
+Sprint 11 adds the Agent Framework:
+`forge agents list`, `forge agent info <id>`, and `forge agent run <id>`.
 
 ---
 

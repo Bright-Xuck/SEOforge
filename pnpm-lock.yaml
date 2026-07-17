@@ -41,6 +41,9 @@ importers:
       '@forge/action-engine':
         specifier: workspace:*
         version: link:../../packages/action-engine
+      '@forge/agent-engine':
+        specifier: workspace:*
+        version: link:../../packages/agent-engine
       '@forge/ai-engine':
         specifier: workspace:*
         version: link:../../packages/ai-engine
@@ -101,6 +104,27 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/agent-engine:
+    dependencies:
+      '@forge/context-builder':
+        specifier: workspace:*
+        version: link:../context-builder
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@forge/knowledge-engine':
+        specifier: workspace:*
+        version: link:../knowledge-engine
+      '@forge/memory-engine':
+        specifier: workspace:*
+        version: link:../memory-engine
+      '@forge/pipeline-engine':
+        specifier: workspace:*
+        version: link:../pipeline-engine
+      '@forge/skills':
+        specifier: workspace:*
+        version: link:../skills
 
   packages/ai-engine:
     dependencies:

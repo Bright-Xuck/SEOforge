@@ -55,6 +55,15 @@ The hardening pass removes implementation shortcuts before the platform grows fu
 - Providers advertise capabilities before skill execution begins.
 - AI-specific error types isolate provider, prompt, context, and validation failures.
 
+## Sprint 11 Update: Agent Framework
+
+Forge now adds an Agent layer above pipelines and skills.
+
+- Agents make deterministic decisions from project context, findings, and memory.
+- Agents orchestrate pipelines; they do not call providers or execute skills directly.
+- Agent metadata and capabilities are explicit and registry-backed.
+- Agent context includes project profile, knowledge, memory, registries, and execution history.
+
 Built-in pipelines currently include:
 
 - Website Audit

@@ -1027,6 +1027,52 @@ Revisit when Forge adds multi-provider routing or mission-level orchestration.
 
 ---
 
+## ADR-0019
+
+### Title
+
+Introduce an Agent Framework Above Pipelines and Skills
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-17
+
+### Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+Forge now has reusable pipelines and focused skills. The next architectural layer is a deterministic agent layer that can choose which pipeline to run based on project context, findings, and memory without calling providers directly.
+
+### Decision
+
+Add an agent engine with explicit agent metadata, deterministic decision policies, a registry for validation and lookup, and a CLI surface for inspecting and running agents. Agents orchestrate pipelines only.
+
+### Consequences
+
+Positive:
+
+- decision-making is separated from execution
+- agents stay provider-independent
+- the CLI can expose mission-level orchestration without new runtime complexity
+
+Negative:
+
+- another orchestration layer to maintain
+
+### Future Review
+
+Revisit when Forge introduces autonomous reasoning or scheduling.
+
+---
+
 # Future Decisions
 
 Examples of future ADRs include:
