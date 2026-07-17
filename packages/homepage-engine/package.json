@@ -1,0 +1,31 @@
+{
+  "name": "@forge/homepage-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "del /q dist 2>nul || rmdir /s /q dist"
+  },
+  "dependencies": {
+    "@forge/action-engine": "workspace:*",
+    "@forge/core": "workspace:*",
+    "@forge/execution-engine": "workspace:*",
+    "@forge/knowledge-engine": "workspace:*",
+    "@forge/memory-engine": "workspace:*",
+    "@forge/mission-engine": "workspace:*",
+    "@forge/pipeline-engine": "workspace:*",
+    "@forge/preflight-validator": "workspace:*",
+    "@forge/providers-wordpress": "workspace:*",
+    "@forge/strategy-engine": "workspace:*",
+    "@forge/tools": "workspace:*"
+  }
+}

@@ -7,6 +7,7 @@ import { Command } from "commander";
 import { FORGE_NAME, FORGE_VERSION } from "@forge/shared";
 import { createWordPressProvider, WORDPRESS_PROVIDER_METADATA } from "@forge/providers-wordpress";
 import { WebsiteReadError } from "@forge/core";
+import { readWebsite } from "@forge/tools/website-reader";
 import { loadKnowledge, createProjectProfile, detectChanges } from "@forge/knowledge-engine";
 import { loadMemory, saveMemory } from "@forge/memory-engine";
 import {
@@ -64,6 +65,7 @@ import {
 } from "@forge/pipeline-engine";
 import type { WriteOperation, WriteMode } from "@forge/core";
 import { execute as executeExecution, rollbackExecution } from "@forge/execution-engine";
+import { HomepageAnalyzer, HomepageDetector, HomepagePlanner } from "@forge/homepage-engine";
 
 const program = new Command();
 const skillRegistry = new SkillRegistry();
@@ -249,6 +251,19 @@ function createWordPressProviderFromEnv() {
   const username = process.env.FORGE_WP_USERNAME ?? "forge";
   const applicationPassword = process.env.FORGE_WP_APPLICATION_PASSWORD ?? "password";
   return createWordPressProvider({ siteUrl, username, applicationPassword });
+}
+
+function resolveHomepageUrl(project: string): string {
+  return process.env.FORGE_HOME_URL ?? process.env.FORGE_WP_SITE_URL ?? `https://${project}.example.com`;
+}
+
+async function loadHomepageProjectContext(project: string) {
+  const { resolved, rootDir, knowledge, memory, profile } = await loadProjectContext(project, "homepage");
+  const siteUrl = resolveHomepageUrl(resolved.project);
+  const snapshot = await readWebsite(siteUrl);
+  const detector = new HomepageDetector();
+  const context = detector.detectContext(resolved.project, snapshot, siteUrl, profile);
+  return { resolved, rootDir, knowledge, memory, profile, siteUrl, snapshot, context };
 }
 
 function parseJsonValue(value?: string): unknown {
@@ -730,6 +745,87 @@ executionCommand
       return;
     }
     process.stdout.write(`Execution apply finished with ${result.completedActions.length} completed actions\n`);
+  });
+
+const homepageCommand = program.command("homepage").description("Homepage optimization commands");
+
+homepageCommand
+  .command("analyze")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; json?: boolean }) => {
+    const project = options.project ?? "default";
+    const { context } = await loadHomepageProjectContext(project);
+    const analysis = new HomepageAnalyzer().analyze(context);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(analysis, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Homepage type: ${analysis.homepageType}\n`);
+    process.stdout.write(`Findings: ${analysis.summary.total}\n`);
+  });
+
+homepageCommand
+  .command("plan")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; json?: boolean }) => {
+    const project = options.project ?? "default";
+    const { context } = await loadHomepageProjectContext(project);
+    const analyzer = new HomepageAnalyzer();
+    const planner = new HomepagePlanner();
+    const analysis = analyzer.analyze(context);
+    const plan = planner.plan(context, analysis);
+    if (options.json) {
+      process.stdout.write(JSON.stringify({ analysis, plan }, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Homepage plan generated with ${plan.actions.length} actions\n`);
+  });
+
+homepageCommand
+  .command("preview")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; json?: boolean }) => {
+    const project = options.project ?? "default";
+    const { context } = await loadHomepageProjectContext(project);
+    const analyzer = new HomepageAnalyzer();
+    const planner = new HomepagePlanner();
+    const analysis = analyzer.analyze(context);
+    const plan = planner.plan(context, analysis);
+    const preview = planner.preview(plan);
+    if (options.json) {
+      process.stdout.write(JSON.stringify({ analysis, plan, preview }, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Preview generated for ${project}: ${preview.length} changes\n`);
+  });
+
+homepageCommand
+  .command("optimize")
+  .option("--project <project>", "Project ID")
+  .option("--dry-run", "Simulate without writing", true)
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; dryRun?: boolean; json?: boolean }) => {
+    const project = options.project ?? "default";
+    const { context } = await loadHomepageProjectContext(project);
+    const analyzer = new HomepageAnalyzer();
+    const planner = new HomepagePlanner();
+    const analysis = analyzer.analyze(context);
+    const plan = planner.plan(context, analysis);
+    const preview = planner.preview(plan);
+    const provider = createWordPressProviderFromEnv();
+    const executionPlan = planner.toExecutionPlan(plan);
+    const dryRun = options.dryRun ?? true;
+    const execution = dryRun
+      ? await executeExecution(executionPlan, provider, { dryRun: true, stopOnBlocked: true })
+      : await executeExecution(executionPlan, provider, { dryRun: false, stopOnBlocked: true });
+    if (options.json) {
+      process.stdout.write(JSON.stringify({ analysis, plan, preview, execution }, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Homepage optimization ${dryRun ? "previewed" : "executed"} for ${project}\n`);
   });
 
 executionCommand

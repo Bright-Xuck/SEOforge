@@ -93,6 +93,16 @@ Forge now supports safe WordPress write operations through the provider layer.
 - Rollback uses stored revision data or the provider's native revision support when possible.
 - Content APIs should anticipate section-level editing in future content intelligence work.
 
+## Sprint 15 Update: Homepage Optimization Vertical Slice
+
+Forge now has its first production-ready vertical slice for homepage optimization.
+
+- Homepage detection supports front page, static homepage, blog homepage, store homepage, and WordPress front-page settings.
+- Homepage analysis is deterministic and rule-based only.
+- Homepage optimization plans include preview objects before approval and execution.
+- The workflow remains provider-independent and reuses the existing mission, strategy, pipeline, and execution layers.
+- This sprint intentionally avoids AI generation and prepares structured content sections for future content intelligence.
+
 Built-in pipelines currently include:
 
 - Website Audit

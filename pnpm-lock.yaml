@@ -62,6 +62,9 @@ importers:
       '@forge/execution-engine':
         specifier: workspace:*
         version: link:../../packages/execution-engine
+      '@forge/homepage-engine':
+        specifier: workspace:*
+        version: link:../../packages/homepage-engine
       '@forge/knowledge-engine':
         specifier: workspace:*
         version: link:../../packages/knowledge-engine
@@ -188,6 +191,42 @@ importers:
       vitest:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@26.1.1)
+
+  packages/homepage-engine:
+    dependencies:
+      '@forge/action-engine':
+        specifier: workspace:*
+        version: link:../action-engine
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@forge/execution-engine':
+        specifier: workspace:*
+        version: link:../execution-engine
+      '@forge/knowledge-engine':
+        specifier: workspace:*
+        version: link:../knowledge-engine
+      '@forge/memory-engine':
+        specifier: workspace:*
+        version: link:../memory-engine
+      '@forge/mission-engine':
+        specifier: workspace:*
+        version: link:../mission-engine
+      '@forge/pipeline-engine':
+        specifier: workspace:*
+        version: link:../pipeline-engine
+      '@forge/preflight-validator':
+        specifier: workspace:*
+        version: link:../preflight-validator
+      '@forge/providers-wordpress':
+        specifier: workspace:*
+        version: link:../providers-wordpress
+      '@forge/strategy-engine':
+        specifier: workspace:*
+        version: link:../strategy-engine
+      '@forge/tools':
+        specifier: workspace:*
+        version: link:../tools
 
   packages/knowledge-engine:
     dependencies:

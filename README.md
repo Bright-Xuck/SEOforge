@@ -18,6 +18,8 @@ Sprint 13 adds the Mission Engine:
 `forge missions list`, `forge mission info <id>`, `forge mission run <id>`, `forge mission validate <id>`, and `forge mission export <id>`.
 Sprint 14 adds the WordPress Write Provider:
 `forge wp preview`, `forge wp apply`, `forge wp rollback`, `forge execution apply`, and `forge execution rollback`.
+Sprint 15 adds the Homepage Optimization vertical slice:
+`forge homepage analyze`, `forge homepage plan`, `forge homepage preview`, and `forge homepage optimize`.
 
 ---
 
@@ -196,6 +198,22 @@ Apply an approved execution against a provider-backed target.
 ### `forge execution rollback`
 
 Rollback an approved execution using stored rollback data.
+
+### `forge homepage analyze`
+
+Analyze a homepage deterministically without AI.
+
+### `forge homepage plan`
+
+Generate a homepage optimization plan from detected issues and heuristics.
+
+### `forge homepage preview`
+
+Preview homepage optimization changes without writes.
+
+### `forge homepage optimize`
+
+Optimize a homepage through the approval-gated execution flow.
 
 ---
 

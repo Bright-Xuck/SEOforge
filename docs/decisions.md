@@ -1219,6 +1219,56 @@ Revisit when section-level content editing and richer revision APIs are needed.
 
 ---
 
+## ADR-0028
+
+### Title
+
+Introduce a Deterministic Homepage Optimization Vertical Slice
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-17
+
+### Owner
+
+Bright Ndode
+
+### Context
+
+Sprint 15 is Forge's first production-ready vertical slice. The platform needs a deterministic homepage workflow that detects the homepage, analyzes it, generates an optimization plan, previews proposed changes, and executes only after approval.
+
+### Decision
+
+Add a homepage optimization layer that remains provider-independent and non-AI. The layer should expose homepage detection, homepage analysis, optimization planning, preview objects, and mission integration for homepage optimization workflows.
+
+### Alternatives Considered
+
+Extending the general audit pipeline only. Rejected because this sprint needs a dedicated end-to-end homepage workflow.
+
+Using AI for homepage optimization. Rejected because Sprint 15 explicitly forbids AI generation.
+
+### Consequences
+
+Positive:
+
+- first production slice becomes concrete and testable
+- homepage workflows get their own deterministic analysis and planning model
+- preview-first design reduces risk before execution
+
+Negative:
+
+- another domain-specific layer to maintain
+
+### Future Review
+
+Revisit when Sprint 16 introduces content intelligence and richer section-level generation.
+
+---
+
 # Future Decisions
 
 Examples of future ADRs include:
