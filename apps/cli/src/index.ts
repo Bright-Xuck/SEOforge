@@ -8,9 +8,16 @@ import { FORGE_NAME, FORGE_VERSION } from "@forge/shared";
 import { createWordPressProvider, WORDPRESS_PROVIDER_METADATA } from "@forge/providers-wordpress";
 import { WebsiteReadError } from "@forge/core";
 import { loadKnowledge, createProjectProfile, detectChanges } from "@forge/knowledge-engine";
-import { loadMemory } from "@forge/memory-engine";
+import { loadMemory, saveMemory } from "@forge/memory-engine";
 import { resolveProject } from "@forge/project-resolver";
 import { ContextBuilder } from "@forge/context-builder";
+import {
+  StrategyBuilder,
+  validateStrategy,
+  serializeStrategyToJson,
+  serializeStrategyToYaml,
+  recordStrategyEvent,
+} from "@forge/strategy-engine";
 import {
   AgentRegistry,
   SEOAgent,
@@ -51,6 +58,7 @@ import {
 const program = new Command();
 const skillRegistry = new SkillRegistry();
 const agentRegistry = new AgentRegistry();
+const strategyBuilder = new StrategyBuilder();
 const contextBuilder = new ContextBuilder();
 const skillRegistryAdapter = {
   list: () => skillRegistry.list(),
@@ -74,6 +82,87 @@ const providerRegistry = {
   ],
   exists: (id: string) => ["openai", "anthropic", "gemini", "openrouter", "ollama"].includes(id),
 };
+
+function createPipelineRegistryAdapter() {
+  const pipelines = listDefaultPipelines();
+  return {
+    listPipelines: () => pipelines,
+    getPipeline: (pipelineId: string) => {
+      const pipeline = pipelines.find((item) => item.id === pipelineId);
+      if (!pipeline) {
+        throw new Error(`Pipeline not found: ${pipelineId}`);
+      }
+      return pipeline;
+    },
+    exists: (pipelineId: string) => pipelines.some((item) => item.id === pipelineId),
+  };
+}
+
+async function loadProjectContext(project: string, currentTask?: string, agentId?: string) {
+  const resolved = resolveProject({ project });
+  const rootDir = "projects";
+  const knowledge = await loadKnowledge(rootDir, resolved.project);
+  const memory = await loadMemory(rootDir, resolved.project);
+  const profile = createProjectProfile(knowledge, memory.summarize(resolved.project));
+  const pipelineRegistry = createPipelineRegistryAdapter();
+  const strategyContext = {
+    project: resolved.project,
+    projectProfile: profile,
+    knowledge,
+    memorySummary: profile.memorySummary,
+    latestFindings: [],
+    recommendations: [],
+    executionPlans: [],
+    validationReports: [],
+    executionHistory: memory.timeline(resolved.project),
+    pipelineRegistry,
+    skillRegistry: skillRegistryAdapter,
+    providerRegistry,
+    currentTask,
+    agentId,
+  };
+  const aiContext = contextBuilder.build({
+    project: resolved.project,
+    knowledge,
+    memory: profile.memorySummary,
+    projectProfile: profile,
+    findings: [],
+    recommendations: [],
+    executionPlan: {},
+    validationReport: {},
+    currentTask,
+    metadata: { resolution: resolved.source, agentId },
+  });
+  return { resolved, rootDir, knowledge, memory, profile, pipelineRegistry, strategyContext, aiContext };
+}
+
+async function executeStrategy(
+  strategy: { selectedPipelines: string[]; metadata: { id: string; status: string; createdAt: string } },
+  pipelineRegistry: ReturnType<typeof createPipelineRegistryAdapter>,
+  rootDir: string,
+  project: string,
+  dryRun = true,
+) {
+  if (dryRun) {
+    return {
+      strategyId: strategy.metadata.id,
+      status: "dry-run" as const,
+      executions: [] as unknown[],
+    };
+  }
+
+  const executions: unknown[] = [];
+  for (const pipelineId of strategy.selectedPipelines) {
+    const pipeline = pipelineRegistry.getPipeline(pipelineId);
+    const result = await executePipeline(pipeline, { rootDir, project });
+    executions.push(result);
+  }
+  return {
+    strategyId: strategy.metadata.id,
+    status: "completed" as const,
+    executions,
+  };
+}
 
 for (const skill of [
   GenerateSeoTitleSkill,
@@ -777,64 +866,117 @@ agentCommand
   .option("--dry-run", "Simulate execution without running a pipeline", true)
   .action(async (id: string, project: string, options: { json?: boolean; dryRun?: boolean }) => {
     const agent = agentRegistry.get(id);
-    const resolved = resolveProject({ project });
-    const rootDir = "projects";
-    const knowledge = await loadKnowledge(rootDir, resolved.project);
-    const memory = await loadMemory(rootDir, resolved.project);
-    const profile = createProjectProfile(knowledge, memory.summarize(resolved.project));
-    const pipelineRegistry = {
-      listPipelines: () => listDefaultPipelines(),
-      getPipeline: (pipelineId: string) => {
-        const pipeline = listDefaultPipelines().find((item) => item.id === pipelineId);
-        if (!pipeline) throw new Error(`Pipeline not found: ${pipelineId}`);
-        return pipeline;
-      },
-      exists: (pipelineId: string) => listDefaultPipelines().some((item) => item.id === pipelineId),
-    };
-    const context = {
-      project: resolved.project,
-      projectProfile: profile,
-      knowledge,
-      memorySummary: profile.memorySummary,
-      pipelineRegistry,
-      skillRegistry: skillRegistryAdapter,
-      providerRegistry,
-      latestFindings: [],
-      recommendations: [],
-      executionPlans: [],
-      validationReports: [],
-      executionHistory: memory.timeline(resolved.project),
-      currentTask: `agent:${id}`,
-      aiContext: contextBuilder.build({
-        project: resolved.project,
-        knowledge,
-        memory: profile.memorySummary,
-        projectProfile: profile,
-        findings: [],
-        recommendations: [],
-        executionPlan: {},
-        validationReport: {},
-        currentTask: `agent:${id}`,
-        metadata: { agentId: id, resolution: resolved.source },
-      }),
-    };
-
+    const { resolved, rootDir, pipelineRegistry, strategyContext, aiContext } = await loadProjectContext(project, `agent:${id}`, id);
+    const context = { ...strategyContext, aiContext };
     const result = await agent.execute(context, {
+      invokeStrategy: async () => ({ } as never),
       dryRun: options.dryRun ?? true,
-      invokePipeline: async (pipelineId) => {
-        const pipeline = pipelineRegistry.getPipeline(pipelineId);
-        return executePipeline(pipeline, { rootDir, project: resolved.project });
-      },
     });
+    const strategy = result.strategy ?? strategyBuilder.build(context);
+    const execution = await executeStrategy(strategy, pipelineRegistry, rootDir, resolved.project, options.dryRun ?? true);
+    const memory = await loadMemory(rootDir, resolved.project);
+    recordStrategyEvent(memory, strategy, (options.dryRun ?? true) ? "strategy-created" : "strategy-executed");
+    await saveMemory(rootDir, resolved.project, memory);
 
     if (options.json) {
-      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+      process.stdout.write(JSON.stringify({ ...result, strategy, execution }, null, 2) + "\n");
       return;
     }
 
     process.stdout.write(`Agent ${result.agentId} finished with status ${result.status}\n`);
-    process.stdout.write(`Decision: ${result.decision.pipelineId}\n`);
+    process.stdout.write(`Strategy: ${strategy.metadata.id}\n`);
+    process.stdout.write(`Pipelines: ${strategy.selectedPipelines.join(", ")}\n`);
     process.stdout.write(`Messages: ${result.messages.join(" | ") || "(none)"}\n`);
+  });
+
+const strategyCommand = program.command("strategy").description("Strategy engine commands");
+
+strategyCommand
+  .command("create")
+  .argument("[project]", "Project ID")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output strategy as JSON")
+  .option("--yaml", "Output strategy as YAML")
+  .option("--dry-run", "Do not persist strategy to memory", true)
+  .action(async (projectArg: string, options: { project?: string; json?: boolean; yaml?: boolean; dryRun?: boolean }) => {
+    const project = options.project ?? projectArg;
+    const { resolved, rootDir, strategyContext } = await loadProjectContext(project, "strategy:create");
+    const strategy = strategyBuilder.build(strategyContext);
+    validateStrategy(strategy, strategyContext);
+    if (!options.dryRun) {
+      const memory = await loadMemory(rootDir, resolved.project);
+      recordStrategyEvent(memory, strategy, "strategy-created");
+      await saveMemory(rootDir, resolved.project, memory);
+    }
+    if (options.yaml) {
+      process.stdout.write(`${serializeStrategyToYaml(strategy)}\n`);
+      return;
+    }
+    if (options.json) {
+      process.stdout.write(JSON.stringify(strategy, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Strategy: ${strategy.metadata.name}\n`);
+    process.stdout.write(`Pipelines: ${strategy.selectedPipelines.join(", ")}\n`);
+    process.stdout.write(`Skills: ${strategy.selectedSkills.join(", ")}\n`);
+  });
+
+strategyCommand
+  .command("show")
+  .argument("[project]", "Project ID")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output strategy as JSON")
+  .option("--yaml", "Output strategy as YAML")
+  .action(async (projectArg: string, options: { project?: string; json?: boolean; yaml?: boolean }) => {
+    const project = options.project ?? projectArg;
+    const { strategyContext } = await loadProjectContext(project, "strategy:show");
+    const strategy = strategyBuilder.build(strategyContext);
+    if (options.yaml) {
+      process.stdout.write(`${serializeStrategyToYaml(strategy)}\n`);
+      return;
+    }
+    if (options.json) {
+      process.stdout.write(JSON.stringify(strategy, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Strategy: ${strategy.metadata.id}\n`);
+    process.stdout.write(`Goal: ${strategy.goal.title}\n`);
+    process.stdout.write(`Risk: ${strategy.riskLevel}\n`);
+  });
+
+strategyCommand
+  .command("validate")
+  .argument("[project]", "Project ID")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output validation as JSON")
+  .action(async (projectArg: string, options: { project?: string; json?: boolean }) => {
+    const project = options.project ?? projectArg;
+    const { strategyContext } = await loadProjectContext(project, "strategy:validate");
+    const strategy = strategyBuilder.build(strategyContext);
+    const validation = validateStrategy(strategy, strategyContext);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(validation, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Valid: ${validation.valid}\n`);
+    process.stdout.write(`Issues: ${validation.issues.join(" | ") || "(none)"}\n`);
+  });
+
+strategyCommand
+  .command("export")
+  .argument("[project]", "Project ID")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Export strategy as JSON")
+  .option("--yaml", "Export strategy as YAML")
+  .action(async (projectArg: string, options: { project?: string; json?: boolean; yaml?: boolean }) => {
+    const project = options.project ?? projectArg;
+    const { strategyContext } = await loadProjectContext(project, "strategy:export");
+    const strategy = strategyBuilder.build(strategyContext);
+    if (options.yaml) {
+      process.stdout.write(`${serializeStrategyToYaml(strategy)}\n`);
+      return;
+    }
+    process.stdout.write(`${serializeStrategyToJson(strategy)}\n`);
   });
 
 program.parse(process.argv);

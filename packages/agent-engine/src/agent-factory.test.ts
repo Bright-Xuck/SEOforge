@@ -25,10 +25,10 @@ describe("Agent execution", () => {
   it("supports dry-run execution", async () => {
     const result = await SEOAgent.execute(context, {
       dryRun: true,
-      invokePipeline: async () => ({ status: "success", pipelineId: "website-audit", pipelineName: "Website Audit", stepsExecuted: [], stepsSkipped: [], durationMs: 0, errors: [], outputs: {}, events: [], stepResults: [] }),
+      invokeStrategy: async () => ({ status: "success", pipelineId: "website-audit", pipelineName: "Website Audit", stepsExecuted: [], stepsSkipped: [], durationMs: 0, errors: [], outputs: {}, events: [], stepResults: [] }),
     });
 
     expect(result.status).toBe("success");
-    expect(result.messages.join(" ")).toContain("Dry run");
+    expect(result.messages.join(" ")).toContain("Strategy created");
   });
 });

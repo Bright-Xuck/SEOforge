@@ -92,6 +92,9 @@ importers:
       '@forge/skills':
         specifier: workspace:*
         version: link:../../packages/skills
+      '@forge/strategy-engine':
+        specifier: workspace:*
+        version: link:../../packages/strategy-engine
       '@forge/tools':
         specifier: workspace:*
         version: link:../../packages/tools
@@ -107,6 +110,9 @@ importers:
 
   packages/agent-engine:
     dependencies:
+      '@forge/ai-engine':
+        specifier: workspace:*
+        version: link:../ai-engine
       '@forge/context-builder':
         specifier: workspace:*
         version: link:../context-builder
@@ -125,6 +131,9 @@ importers:
       '@forge/skills':
         specifier: workspace:*
         version: link:../skills
+      '@forge/strategy-engine':
+        specifier: workspace:*
+        version: link:../strategy-engine
 
   packages/ai-engine:
     dependencies:
@@ -302,6 +311,30 @@ importers:
       '@forge/prompt-registry':
         specifier: workspace:*
         version: link:../prompt-registry
+
+  packages/strategy-engine:
+    dependencies:
+      '@forge/ai-engine':
+        specifier: workspace:*
+        version: link:../ai-engine
+      '@forge/context-builder':
+        specifier: workspace:*
+        version: link:../context-builder
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@forge/knowledge-engine':
+        specifier: workspace:*
+        version: link:../knowledge-engine
+      '@forge/memory-engine':
+        specifier: workspace:*
+        version: link:../memory-engine
+      '@forge/pipeline-engine':
+        specifier: workspace:*
+        version: link:../pipeline-engine
+      '@forge/skills':
+        specifier: workspace:*
+        version: link:../skills
 
   packages/tools:
     dependencies:

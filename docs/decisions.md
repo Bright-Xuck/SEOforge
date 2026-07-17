@@ -1073,6 +1073,52 @@ Revisit when Forge introduces autonomous reasoning or scheduling.
 
 ---
 
+## ADR-0020
+
+### Title
+
+Introduce a Strategy Engine Between Agents and Pipelines
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-17
+
+### Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+Agents currently choose pipelines directly, which is too coarse for mission-level orchestration. Forge needs an intermediate strategy layer that can capture objectives, selected pipelines, selected skills, estimates, risk, and approval requirements before execution.
+
+### Decision
+
+Add a strategy engine that converts agent context into strategies. Pipelines become the execution layer for strategies, and strategies become the serializable, validated unit of planning.
+
+### Consequences
+
+Positive:
+
+- the orchestration chain becomes Mission → Agent → Strategy → Pipeline → Skill → Provider
+- execution plans gain richer metadata and validation
+- strategy state can be stored and replayed from memory
+
+Negative:
+
+- more domain objects and transformation code to maintain
+
+### Future Review
+
+Revisit when Forge introduces autonomous agent reasoning or external scheduling.
+
+---
+
 # Future Decisions
 
 Examples of future ADRs include:

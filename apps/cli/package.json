@@ -35,6 +35,7 @@
     "@forge/preflight-validator": "workspace:*",
     "@forge/providers-wordpress": "workspace:*",
     "@forge/recommendation-engine": "workspace:*",
+    "@forge/strategy-engine": "workspace:*",
     "@forge/skills": "workspace:*",
     "@forge/shared": "workspace:*",
     "@forge/tools": "workspace:*",

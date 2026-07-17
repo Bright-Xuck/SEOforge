@@ -64,6 +64,15 @@ Forge now adds an Agent layer above pipelines and skills.
 - Agent metadata and capabilities are explicit and registry-backed.
 - Agent context includes project profile, knowledge, memory, registries, and execution history.
 
+## Sprint 12 Update: Strategy Engine
+
+Forge now inserts a Strategy layer between agents and pipelines.
+
+- Agents generate strategies instead of selecting pipelines directly.
+- Strategies capture objectives, selected pipelines, selected skills, risk, estimates, and approval requirements.
+- Pipelines execute strategies by resolving each strategy step into one or more pipeline executions.
+- Strategy validation and serialization are first-class concerns.
+
 Built-in pipelines currently include:
 
 - Website Audit

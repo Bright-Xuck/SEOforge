@@ -12,6 +12,8 @@ Sprint 10 adds the AI Skills Platform:
 Sprint 10 hardening removes silent project fallback and adds explicit project resolution, structured AI context, prompt registry metadata, and provider capability checks.
 Sprint 11 adds the Agent Framework:
 `forge agents list`, `forge agent info <id>`, and `forge agent run <id>`.
+Sprint 12 adds the Strategy Engine:
+`forge strategy create`, `forge strategy show`, `forge strategy validate`, and `forge strategy export`.
 
 ---
 

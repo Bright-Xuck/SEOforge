@@ -1,5 +1,8 @@
+import { StrategyBuilder, summarizeStrategyDecision } from "@forge/strategy-engine";
 import type { Agent, AgentContext, AgentResult } from "./types.js";
 import { createDeterministicDecision, reviewDecision } from "./policies.js";
+
+const strategyBuilder = new StrategyBuilder();
 
 function createAgent(
   id: string,
@@ -33,7 +36,7 @@ function createAgent(
         rationale: `${goal}. ${decision.rationale}`,
       };
     },
-    async execute(context: AgentContext, runtime): Promise<AgentResult> {
+    async execute(context: AgentContext, _runtime): Promise<AgentResult> {
       const decision = this.decide(context);
       const messages = reviewDecision(context, decision);
       if (decision.stopExecution) {
@@ -42,16 +45,45 @@ function createAgent(
       if (decision.escalateForApproval) {
         return { agentId: id, status: "escalated", decision, messages };
       }
-      if (runtime.dryRun) {
-        return { agentId: id, status: "success", decision, messages: [...messages, "Dry run; no pipeline executed."] };
-      }
-      const pipeline = await runtime.invokePipeline(decision.pipelineId, context);
+      const strategy = strategyBuilder.build({
+        project: context.project,
+        projectProfile: context.projectProfile,
+        knowledge: context.knowledge,
+        memorySummary: context.memorySummary,
+        latestFindings: context.latestFindings,
+        recommendations: context.recommendations,
+        executionPlans: context.executionPlans,
+        validationReports: context.validationReports,
+        executionHistory: context.executionHistory,
+        pipelineRegistry: context.pipelineRegistry,
+        skillRegistry: context.skillRegistry,
+        providerRegistry: context.providerRegistry,
+        currentTask: context.currentTask,
+        agentId: id,
+      });
+      const strategyMessages = summarizeStrategyDecision({
+        project: context.project,
+        projectProfile: context.projectProfile,
+        knowledge: context.knowledge,
+        memorySummary: context.memorySummary,
+        latestFindings: context.latestFindings,
+        recommendations: context.recommendations,
+        executionPlans: context.executionPlans,
+        validationReports: context.validationReports,
+        executionHistory: context.executionHistory,
+        pipelineRegistry: context.pipelineRegistry,
+        skillRegistry: context.skillRegistry,
+        providerRegistry: context.providerRegistry,
+        currentTask: context.currentTask,
+        agentId: id,
+      });
       return {
         agentId: id,
         status: "success",
         decision,
-        execution: { decision, pipeline },
-        messages,
+        strategy,
+        execution: { decision, strategy },
+        messages: [...messages, strategyMessages.rationale, "Strategy created; no pipeline executed."],
       };
     },
     review(context: AgentContext, decision) {

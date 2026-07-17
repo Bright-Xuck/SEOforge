@@ -1,6 +1,7 @@
 import type { ContextBuilder, AIContext } from "@forge/context-builder";
 import type { KnowledgeGraph, ProjectProfile, MemorySummaryLike } from "@forge/knowledge-engine";
 import type { PipelineDefinition, PipelineResult } from "@forge/pipeline-engine";
+import type { Strategy } from "@forge/strategy-engine";
 import type { SkillDefinition } from "@forge/skills";
 
 export type AgentCapability =
@@ -37,12 +38,14 @@ export interface AgentDecision {
 export interface AgentExecution {
   readonly decision: AgentDecision;
   readonly pipeline?: PipelineResult;
+  readonly strategy?: Strategy;
 }
 
 export interface AgentResult {
   readonly agentId: string;
   readonly status: "success" | "stopped" | "escalated" | "failed";
   readonly decision: AgentDecision;
+  readonly strategy?: Strategy;
   readonly execution?: AgentExecution;
   readonly messages: string[];
 }
@@ -88,7 +91,7 @@ export interface Agent {
   execute(
     context: AgentContext,
     runtime: {
-      invokePipeline(pipelineId: string, context: AgentContext): Promise<PipelineResult>;
+      invokeStrategy(strategy: Strategy, context: AgentContext): Promise<PipelineResult>;
       dryRun?: boolean;
     },
   ): Promise<AgentResult>;
