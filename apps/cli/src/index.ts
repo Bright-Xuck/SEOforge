@@ -317,6 +317,158 @@ program
       }),
   );
 
+// Sprint 7: Validate command
+program
+  .command("validate")
+  .argument("<url>", "Website URL to validate execution plan for")
+  .option("--json", "Output validation report as JSON")
+  .description("Validate an execution plan before execution")
+  .action(async (url: string, options: { json?: boolean }) => {
+    try {
+      process.stdout.write("Reading...\n");
+      const snapshot = await readWebsite(url);
+
+      process.stdout.write("✓ Downloaded\n");
+      process.stdout.write("✓ Parsed\n");
+      process.stdout.write("Analyzing...\n");
+
+      const report = analyzeHomepage(snapshot);
+
+      process.stdout.write("Generating Recommendations...\n");
+      const recReport = generateRecommendations(report);
+
+      process.stdout.write("Generating Execution Plan...\n");
+      const plan = generateExecutionPlan(recReport);
+
+      process.stdout.write("Validating Execution Plan...\n");
+      const { validateExecutionPlan, createDefaultContext } = await import("@forge/preflight-validator");
+      const validationReport = validateExecutionPlan(plan, null, createDefaultContext());
+
+      process.stdout.write("✓ Validation Complete\n\n");
+
+      if (options.json) {
+        process.stdout.write(JSON.stringify(validationReport, null, 2) + "\n");
+        return;
+      }
+
+      process.stdout.write("Validation Report\n");
+      process.stdout.write("=================\n\n");
+
+      process.stdout.write("Risk Summary:\n");
+      process.stdout.write(`  Safe:     ${validationReport.riskSummary.safe}\n`);
+      process.stdout.write(`  Moderate: ${validationReport.riskSummary.moderate}\n`);
+      process.stdout.write(`  High:     ${validationReport.riskSummary.high}\n`);
+      process.stdout.write(`  Critical: ${validationReport.riskSummary.critical}\n\n`);
+
+      process.stdout.write(`Approved Actions: ${validationReport.approvedActions.length}\n`);
+      process.stdout.write(`Warning Actions:  ${validationReport.warningActions.length}\n`);
+      process.stdout.write(`Blocked Actions:  ${validationReport.blockedActions.length}\n\n`);
+
+      if (validationReport.blockedActions.length > 0) {
+        process.stdout.write("Blocked Actions:\n");
+        for (const action of validationReport.blockedActions) {
+          process.stdout.write(`  [${action.estimatedRisk.toUpperCase()}] ${action.actionId}\n`);
+          process.stdout.write(`    Reason: ${action.reason}\n`);
+        }
+        process.stdout.write("\n");
+      }
+
+      if (validationReport.warningActions.length > 0) {
+        process.stdout.write("Actions with Warnings:\n");
+        for (const action of validationReport.warningActions) {
+          process.stdout.write(`  [${action.estimatedRisk.toUpperCase()}] ${action.actionId}\n`);
+          for (const warning of action.warnings) {
+            process.stdout.write(`    ⚠ ${warning}\n`);
+          }
+        }
+        process.stdout.write("\n");
+      }
+
+      if (validationReport.approvedActions.length > 0) {
+        process.stdout.write("Approved Actions:\n");
+        for (const action of validationReport.approvedActions) {
+          process.stdout.write(`  ✓ ${action.actionId} (${action.estimatedRisk})\n`);
+        }
+        process.stdout.write("\n");
+      }
+    } catch (error) {
+      process.stderr.write(
+        `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
+      );
+      process.exit(1);
+    }
+  });
+
+// Sprint 7: Execute command (dry-run only)
+program
+  .command("execute")
+  .argument("<url>", "Website URL to execute plan for")
+  .option("--dry-run", "Simulate execution without making changes", true)
+  .option("--json", "Output execution result as JSON")
+  .description("Execute an execution plan (dry-run only)")
+  .action(async (url: string, options: { dryRun?: boolean; json?: boolean }) => {
+    try {
+      process.stdout.write("Reading...\n");
+      const snapshot = await readWebsite(url);
+
+      process.stdout.write("✓ Downloaded\n");
+      process.stdout.write("✓ Parsed\n");
+      process.stdout.write("Analyzing...\n");
+
+      const report = analyzeHomepage(snapshot);
+
+      process.stdout.write("Generating Recommendations...\n");
+      const recReport = generateRecommendations(report);
+
+      process.stdout.write("Generating Execution Plan...\n");
+      const plan = generateExecutionPlan(recReport);
+
+      process.stdout.write("Validating Execution Plan...\n");
+      const { validateExecutionPlan, createDefaultContext } = await import("@forge/preflight-validator");
+      const validationReport = validateExecutionPlan(plan, null, createDefaultContext());
+
+      process.stdout.write("Executing (dry-run)...\n");
+      const { execute } = await import("@forge/execution-engine");
+      const result = await execute(plan, null, { dryRun: true, stopOnBlocked: true });
+
+      process.stdout.write("✓ Execution Simulation Complete\n\n");
+
+      if (options.json) {
+        process.stdout.write(JSON.stringify({ validation: validationReport, execution: result }, null, 2) + "\n");
+        return;
+      }
+
+      process.stdout.write("Execution Report (Dry Run)\n");
+      process.stdout.write("==========================\n\n");
+
+      process.stdout.write("Validation:\n");
+      process.stdout.write(`  Approved: ${validationReport.approvedActions.length}\n`);
+      process.stdout.write(`  Warnings: ${validationReport.warningActions.length}\n`);
+      process.stdout.write(`  Blocked:  ${validationReport.blockedActions.length}\n\n`);
+
+      process.stdout.write("Execution:\n");
+      process.stdout.write(`  Completed: ${result.completedActions.length}\n`);
+      process.stdout.write(`  Failed:    ${result.failedActions.length}\n`);
+      process.stdout.write(`  Skipped:   ${result.skippedActions.length}\n`);
+      process.stdout.write(`  Time:      ${result.executionTime}\n\n`);
+
+      if (result.rollbackPlan.length > 0) {
+        process.stdout.write("Rollback Plan:\n");
+        for (const op of result.rollbackPlan) {
+          process.stdout.write(`  ${op.actionId}: ${op.rollbackMethod}\n`);
+        }
+        process.stdout.write("\n");
+      }
+
+      process.stdout.write("✓ Dry-run complete — no website modifications were made\n");
+    } catch (error) {
+      process.stderr.write(
+        `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
+      );
+      process.exit(1);
+    }
+  });
+
 // Sprint 6: Connection management commands
 program
   .command("connect")

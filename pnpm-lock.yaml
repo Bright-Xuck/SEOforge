@@ -100,6 +100,9 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
+      '@forge/preflight-validator':
+        specifier: workspace:*
+        version: link:../preflight-validator
     devDependencies:
       vitest:
         specifier: ^3.2.7

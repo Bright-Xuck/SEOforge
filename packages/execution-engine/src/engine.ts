@@ -4,7 +4,10 @@
 import type { ExecutionPlan, Action } from "@forge/action-engine";
 import { RollbackStore } from "./rollback.js";
 import { ExecutionHistory } from "./history.js";
+import { PolicyEngine } from "./policies.js";
 import type { ExecutionResult, RollbackOperation } from "./types.js";
+import type { ValidationReport } from "@forge/preflight-validator";
+import { validateExecutionPlan } from "@forge/preflight-validator";
 
 /**
  * Execution engine options.
@@ -113,6 +116,38 @@ function getOriginalValue(_action: Action): Record<string, unknown> {
   // In real implementation, this would fetch from the provider
   // For now, return empty object indicating "no previous value"
   return {};
+}
+
+/**
+ * Execute an execution plan with preflight validation.
+ * Validates first, then executes (dry-run only).
+ */
+export async function executeWithValidation(
+  plan: ExecutionPlan,
+  provider: unknown,
+  validationReport: ValidationReport,
+  options: Partial<ExecutionEngineOptions> = {},
+): Promise<{ validation: ValidationReport; execution: ExecutionResult }> {
+  // If there are blocked actions, skip execution
+  if (validationReport.blockedActions.length > 0) {
+    const startTime = Date.now();
+    return {
+      validation: validationReport,
+      execution: {
+        url: plan.url,
+        executedAt: new Date().toISOString(),
+        completedActions: [],
+        failedActions: [],
+        skippedActions: plan.actions.map((a) => a.id),
+        rollbackPlan: [],
+        executionTime: `${Date.now() - startTime}ms`,
+        rollbackRequired: false,
+      },
+    };
+  }
+
+  const execution = await execute(plan, provider, options);
+  return { validation: validationReport, execution };
 }
 
 /**

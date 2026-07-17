@@ -19,11 +19,13 @@ export type ActionType =
   | "seo.add-h1"
   | "seo.fix-heading-hierarchy"
   | "seo.remove-noindex"
+  | "seo.update-slug"
   | "accessibility.add-alt"
   | "accessibility.update-alt"
   | "metadata.add-og"
   | "technical.add-jsonld"
-  | "content.update-content";
+  | "content.update-content"
+  | "content.add-internal-link";
 
 // Action status for approval queue
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";

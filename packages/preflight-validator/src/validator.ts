@@ -3,8 +3,8 @@
 
 import type { Action } from "@forge/action-engine";
 import type { ValidationReport, ValidationResult, ValidationRiskLevel } from "./types.js";
-import type { TitleValidationInput, MetaValidationInput, AltValidationInput, CanonicalValidationInput, SchemaValidationInput } from "./rules/index.js";
-import { validateTitleAction, validateMetaDescriptionAction, validateAltTextAction, validateCanonicalAction, validateSchemaAction } from "./rules/index.js";
+import type { TitleValidationInput, MetaValidationInput, AltValidationInput, CanonicalValidationInput, SchemaValidationInput, SlugValidationInput, LinkValidationInput } from "./rules/index.js";
+import { validateTitleAction, validateMetaDescriptionAction, validateAltTextAction, validateCanonicalAction, validateSchemaAction, validateSlugAction, validateLinkAction } from "./rules/index.js";
 
 /**
  * Context interface for provider lookups during validation.
@@ -17,6 +17,9 @@ export interface ValidationContext {
   imageHasAltText: (mediaId: number) => boolean;
   slugExists: (slug: string) => boolean;
   pageHasSchema: (pageId: number) => boolean;
+  redirectPossible: () => boolean;
+  destinationExists: (url: string) => boolean;
+  isDuplicateLink: (sourcePageId: number, destinationUrl: string) => boolean;
 }
 
 /**
@@ -31,6 +34,9 @@ export function createDefaultContext(): ValidationContext {
     imageHasAltText: () => false,
     slugExists: () => false,
     pageHasSchema: () => false,
+    redirectPossible: () => true,
+    destinationExists: () => true,
+    isDuplicateLink: () => false,
   };
 }
 
@@ -101,6 +107,30 @@ function validateSingleAction(
         schema: action.payload.schema as Record<string, unknown>,
       };
       return validateSchemaAction(input, context.pageExists, context.pageHasSchema);
+    }
+
+    case "seo.update-slug": {
+      const input: SlugValidationInput = {
+        actionId: action.id,
+        actionType: "seo.update-slug",
+        risk,
+        pageId: action.payload.pageId as number,
+        newSlug: action.payload.newSlug as string,
+        currentSlug: action.payload.currentSlug as string,
+      };
+      return validateSlugAction(input, context.pageExists, context.slugExists, context.redirectPossible);
+    }
+
+    case "content.add-internal-link": {
+      const input: LinkValidationInput = {
+        actionId: action.id,
+        actionType: "content.add-internal-link",
+        risk,
+        sourcePageId: action.payload.sourcePageId as number,
+        destinationUrl: action.payload.destinationUrl as string,
+        anchorText: action.payload.anchorText as string,
+      };
+      return validateLinkAction(input, context.pageExists, context.destinationExists, context.isDuplicateLink);
     }
 
     default: {

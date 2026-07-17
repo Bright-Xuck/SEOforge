@@ -40,8 +40,8 @@ export function validateTitleAction(
 
   // Check: title differs from current
   const currentTitle = getCurrentTitle(pageId);
-  if (currentTitle !== undefined) {
-    blockingIssues.push(`Title already matches expected value`);
+  if (currentTitle !== undefined && currentTitle === input.newTitle) {
+    blockingIssues.push(`Title already matches expected value — no change needed`);
   }
 
   const status: ValidationStatus = blockingIssues.length > 0 ? "blocked" : warnings.length > 0 ? "warning" : "approved";

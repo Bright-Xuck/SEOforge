@@ -11,3 +11,7 @@ export { validateCanonicalAction } from "./canonical.rules.js";
 export type { CanonicalValidationInput, CanonicalActionType } from "./canonical.rules.js";
 export { validateSchemaAction } from "./schema.rules.js";
 export type { SchemaValidationInput, SchemaActionType } from "./schema.rules.js";
+export { validateSlugAction } from "./slug.rules.js";
+export type { SlugValidationInput, SlugActionType } from "./slug.rules.js";
+export { validateLinkAction } from "./link.rules.js";
+export type { LinkValidationInput, LinkActionType } from "./link.rules.js";

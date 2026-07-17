@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@forge/core": "workspace:*",
-    "@forge/action-engine": "workspace:*"
+    "@forge/action-engine": "workspace:*",
+    "@forge/preflight-validator": "workspace:*"
   },
   "devDependencies": {
     "vitest": "^3.2.7"
