@@ -4,6 +4,8 @@ AI Operating System for Websites.
 
 Forge is a modular, extensible platform for understanding, improving, operating, and maintaining websites. It is not an SEO tool, chatbot, or WordPress plugin — SEO is one capability among many.
 
+Sprint 8 introduces the Pipeline layer. Core workflows now execute through reusable pipeline steps, and the CLI exposes `forge pipeline list`, `forge pipeline info <id>`, and `forge pipeline run <id> <url>`.
+
 ---
 
 ## Requirements
@@ -32,6 +34,17 @@ forge analyze https://example.com
 forge recommend https://example.com
 
 # Generate execution plan
+forge plan https://example.com
+
+# Pipeline commands
+forge pipeline list
+forge pipeline info read
+forge pipeline run execute https://example.com
+
+# Legacy commands still work through pipelines
+forge read https://example.com
+forge analyze https://example.com
+forge recommend https://example.com
 forge plan https://example.com
 ```
 
@@ -76,6 +89,26 @@ Read, analyze, and generate deterministic recommendations for fixing issues.
 ### `forge plan <url>`
 
 Read, analyze, generate recommendations, and produce an execution plan with risk assessment and approval queue.
+
+### `forge validate <url>`
+
+Read, analyze, plan, and validate an execution plan.
+
+### `forge execute <url>`
+
+Read, analyze, plan, validate, and dry-run execution.
+
+### `forge pipeline list`
+
+List built-in pipelines.
+
+### `forge pipeline info <id>`
+
+Show pipeline details, steps, and dependencies.
+
+### `forge pipeline run <id> <url>`
+
+Run a pipeline by ID. Supports `--json` and `--dry-run`.
 
 ---
 

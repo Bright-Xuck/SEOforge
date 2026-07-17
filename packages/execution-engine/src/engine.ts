@@ -4,10 +4,8 @@
 import type { ExecutionPlan, Action } from "@forge/action-engine";
 import { RollbackStore } from "./rollback.js";
 import { ExecutionHistory } from "./history.js";
-import { PolicyEngine } from "./policies.js";
 import type { ExecutionResult, RollbackOperation } from "./types.js";
 import type { ValidationReport } from "@forge/preflight-validator";
-import { validateExecutionPlan } from "@forge/preflight-validator";
 
 /**
  * Execution engine options.

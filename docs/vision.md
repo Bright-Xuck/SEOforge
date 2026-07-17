@@ -19,6 +19,10 @@ Forge is not a WordPress plugin.
 
 Forge is an AI Operating System for websites.
 
+## Pipeline Update
+
+As of Sprint 8, Forge execution is pipeline-driven. Major workflows should be modeled as pipelines made from smaller reusable steps, with the orchestration layer remaining domain-agnostic.
+
 SEO is one capability.
 
 Accessibility is one capability.

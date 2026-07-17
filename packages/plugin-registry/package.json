@@ -16,6 +16,7 @@
     "clean": "del /q dist 2>nul || rmdir /s /q dist"
   },
   "dependencies": {
-    "@forge/core": "workspace:*"
+    "@forge/core": "workspace:*",
+    "@forge/pipeline-engine": "workspace:*"
   }
 }

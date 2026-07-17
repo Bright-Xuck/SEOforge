@@ -50,9 +50,18 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@forge/execution-engine':
+        specifier: workspace:*
+        version: link:../../packages/execution-engine
       '@forge/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@forge/pipeline-engine':
+        specifier: workspace:*
+        version: link:../../packages/pipeline-engine
+      '@forge/preflight-validator':
+        specifier: workspace:*
+        version: link:../../packages/preflight-validator
       '@forge/providers-wordpress':
         specifier: workspace:*
         version: link:../../packages/providers-wordpress
@@ -114,11 +123,38 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/pipeline-engine:
+    dependencies:
+      '@forge/action-engine':
+        specifier: workspace:*
+        version: link:../action-engine
+      '@forge/capabilities':
+        specifier: workspace:*
+        version: link:../capabilities
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@forge/execution-engine':
+        specifier: workspace:*
+        version: link:../execution-engine
+      '@forge/preflight-validator':
+        specifier: workspace:*
+        version: link:../preflight-validator
+      '@forge/recommendation-engine':
+        specifier: workspace:*
+        version: link:../recommendation-engine
+      '@forge/tools':
+        specifier: workspace:*
+        version: link:../tools
+
   packages/plugin-registry:
     dependencies:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
+      '@forge/pipeline-engine':
+        specifier: workspace:*
+        version: link:../pipeline-engine
 
   packages/preflight-validator:
     dependencies:

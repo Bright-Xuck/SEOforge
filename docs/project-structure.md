@@ -25,6 +25,7 @@ forge/
 
 ├── apps/
 ├── packages/
+│   ├── pipeline-engine/
 ├── plugins/
 ├── prompts/
 ├── reports/
@@ -90,6 +91,8 @@ Every package must have one clearly defined responsibility.
 Packages should be reusable across multiple applications.
 
 No package should depend on an application.
+
+Sprint 8 adds `packages/pipeline-engine` for pipeline orchestration and extends `packages/plugin-registry` with pipeline registration and validation APIs.
 
 ---
 

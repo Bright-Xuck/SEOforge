@@ -23,6 +23,18 @@ This document supersedes the SEO-specific framing of the previous architecture. 
 | 11  | Desktop-only v1, skip responsive                        | **Agree**                                               | You're the only user. Ship faster.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | 12  | Mission-driven, not agent-picking                       | **Agree — and this is the same idea as #2, done right** | "Improve buycleancart.com" → AI decides the plan → invokes Skills as needed. This _is_ the Orchestrator Core + Planner from the previous doc, just correctly framed as the primary interaction model instead of a power-user shortcut.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
+## Sprint 8 Update: Pipeline Architecture
+
+Forge workflows are now expressed as pipelines composed of reusable pipeline steps. The Pipeline Engine only orchestrates ordered execution, dependency resolution, shared context, timing, and failure handling. Business logic stays inside existing packages and is wrapped by step adapters.
+
+Built-in pipelines currently include:
+
+- Website Audit
+- Weekly Optimization
+- Validation Only
+
+The CLI now routes legacy commands through pipeline execution and exposes a `forge pipeline` command group for listing, inspecting, and running pipelines.
+
 **Where I disagree, specifically:**
 
 - **Electron.** I'd push back on this one directly (see §11). I don't think you want Electron yet, for reasons below — I think you want a plain local web app, and Electron is a v3/v4 decision, not a v1 one.

@@ -5,13 +5,18 @@
 
 import { Command } from "commander";
 import { FORGE_NAME, FORGE_VERSION } from "@forge/shared";
-import { readWebsite } from "@forge/tools/website-reader";
-import { analyzeHomepage } from "@forge/capabilities/homepage";
-import { generateRecommendations } from "@forge/recommendation-engine";
-import { generateExecutionPlan } from "@forge/action-engine";
 import { createWordPressProvider, WORDPRESS_PROVIDER_METADATA } from "@forge/providers-wordpress";
-import type { Action } from "@forge/action-engine";
 import { WebsiteReadError } from "@forge/core";
+import {
+  createAnalyzePipeline,
+  createExecutePipeline,
+  createPlanPipeline,
+  createReadPipeline,
+  createRecommendPipeline,
+  createValidatePipeline,
+  executePipeline,
+  listDefaultPipelines,
+} from "@forge/pipeline-engine";
 
 const program = new Command();
 
@@ -27,31 +32,14 @@ program
   .description("Read a website and produce a structured snapshot")
   .action(async (url: string, options: { json?: boolean }) => {
     try {
-      process.stdout.write("Reading...\n");
-      const snapshot = await readWebsite(url);
-
-      process.stdout.write("✓ Downloaded\n");
-      process.stdout.write("✓ Parsed\n");
-      process.stdout.write("✓ Snapshot Created\n\n");
-
+      const result = await executePipeline(createReadPipeline(url), {});
+      const snapshot = result.outputs["website-reader"] as unknown;
       if (options.json) {
-        // Omit rawHtml for security
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { rawHtml: _rawHtml, ...jsonSnapshot } = snapshot;
-        process.stdout.write(JSON.stringify(jsonSnapshot, null, 2) + "\n");
+        process.stdout.write(JSON.stringify(snapshot, null, 2) + "\n");
         return;
       }
-
-      process.stdout.write("Summary:\n");
-      process.stdout.write(`  Title:        ${snapshot.pageTitle}\n`);
-      process.stdout.write(`  Description:  ${snapshot.metaDescription}\n`);
-      process.stdout.write(
-        `  H1 Count:     ${snapshot.headings.filter((h) => h.level === 1).length}\n`,
-      );
-      process.stdout.write(`  Links:        ${snapshot.links.length}\n`);
-      process.stdout.write(`  Images:       ${snapshot.images.length}\n`);
-      process.stdout.write(`  Canonical:    ${snapshot.canonicalUrl || "(none)"}\n`);
-      process.stdout.write(`  Response:     ${snapshot.statusCode}\n`);
+      process.stdout.write(`Snapshot loaded in ${result.durationMs}ms\n`);
+      process.stdout.write(JSON.stringify(snapshot, null, 2) + "\n");
     } catch (error) {
       const wre = error instanceof WebsiteReadError ? error : null;
       process.stderr.write(
@@ -68,24 +56,13 @@ program
   .description("Read and analyze a website for issues")
   .action(async (url: string, options: { json?: boolean }) => {
     try {
-      process.stdout.write("Reading...\n");
-      const snapshot = await readWebsite(url);
-
-      process.stdout.write("✓ Downloaded\n");
-      process.stdout.write("✓ Parsed\n");
-      process.stdout.write("Analyzing...\n");
-
-      const report = analyzeHomepage(snapshot);
-
-      process.stdout.write("✓ Analysis Complete\n\n");
-
+      const result = await executePipeline(createAnalyzePipeline(url), {});
+      const report = result.outputs["homepage-analysis"] as any;
       if (options.json) {
         process.stdout.write(JSON.stringify(report, null, 2) + "\n");
         return;
       }
-
       process.stdout.write(`Issues Found: ${report.summary.total}\n\n`);
-
       for (const finding of report.findings) {
         const severityLabel = finding.severity.toUpperCase().padEnd(8);
         process.stdout.write(`${severityLabel} ${finding.title}\n`);
@@ -106,38 +83,14 @@ program
   .description("Generate recommendations from website analysis")
   .action(async (url: string, options: { json?: boolean }) => {
     try {
-      process.stdout.write("Reading...\n");
-      const snapshot = await readWebsite(url);
-
-      process.stdout.write("✓ Downloaded\n");
-      process.stdout.write("✓ Parsed\n");
-      process.stdout.write("Analyzing...\n");
-
-      const report = analyzeHomepage(snapshot);
-
-      process.stdout.write("Generating Recommendations...\n");
-
-      const recReport = generateRecommendations(report);
-
-      process.stdout.write("✓ Recommendations Generated\n\n");
-
-      process.stdout.write("Priority Summary:\n");
-      process.stdout.write(`  Critical: ${recReport.priorityBreakdown.critical}\n`);
-      process.stdout.write(`  High:     ${recReport.priorityBreakdown.high}\n`);
-      process.stdout.write(`  Medium:   ${recReport.priorityBreakdown.medium}\n`);
-      process.stdout.write(`  Low:      ${recReport.priorityBreakdown.low}\n`);
-      process.stdout.write(`\nEstimated Fix Time: ${recReport.estimatedEffort}\n\n`);
-
+      const result = await executePipeline(createRecommendPipeline(url), {});
+      const recReport = result.outputs["recommendation-engine"] as any;
       if (options.json) {
         process.stdout.write(JSON.stringify(recReport, null, 2) + "\n");
         return;
       }
-
-      for (const rec of recReport.recommendations) {
-        process.stdout.write(`\n[${rec.priority.toUpperCase()}] ${rec.title}\n`);
-        process.stdout.write(`  ${rec.description}\n`);
-        process.stdout.write(`  Time: ${rec.estimatedTime} | Impact: ${rec.expectedImpact}\n`);
-      }
+      process.stdout.write(`Recommendations: ${recReport.summary.total}\n`);
+      process.stdout.write(JSON.stringify(recReport, null, 2) + "\n");
     } catch (error) {
       const wre = error instanceof WebsiteReadError ? error : null;
       process.stderr.write(
@@ -154,49 +107,13 @@ program
   .description("Generate execution plan from website analysis")
   .action(async (url: string, options: { json?: boolean }) => {
     try {
-      process.stdout.write("Reading...\n");
-      const snapshot = await readWebsite(url);
-
-      process.stdout.write("✓ Downloaded\n");
-      process.stdout.write("✓ Parsed\n");
-      process.stdout.write("Analyzing...\n");
-
-      const report = analyzeHomepage(snapshot);
-
-      process.stdout.write("Generating Recommendations...\n");
-      const recReport = generateRecommendations(report);
-
-      process.stdout.write("Generating Execution Plan...\n");
-      const plan = generateExecutionPlan(recReport);
-
-      process.stdout.write("✓ Execution Plan Generated\n\n");
-
-      process.stdout.write("Risk Summary:\n");
-      process.stdout.write(`  Safe:     ${plan.riskSummary.safe}\n`);
-      process.stdout.write(`  Moderate: ${plan.riskSummary.moderate}\n`);
-      process.stdout.write(`  High:     ${plan.riskSummary.high}\n`);
-      process.stdout.write(`  Critical: ${plan.riskSummary.critical}\n\n`);
-
-      process.stdout.write(`Actions: ${plan.summary.total}\n`);
-      process.stdout.write(`  Automatable:     ${plan.summary.automatable}\n`);
-      process.stdout.write(`  Requires Approval: ${plan.summary.requiresApproval}\n`);
-      process.stdout.write(`\nEstimated Duration: ${plan.estimatedDuration}\n\n`);
-
+      const result = await executePipeline(createPlanPipeline(url), {});
+      const plan = result.outputs["action-engine"] as any;
       if (options.json) {
         process.stdout.write(JSON.stringify(plan, null, 2) + "\n");
         return;
       }
-
-      if (plan.approvalQueue.length > 0) {
-        process.stdout.write("Actions Requiring Approval:\n");
-        for (const actionId of plan.approvalQueue) {
-          const action = plan.actions.find((a: Action) => a.id === actionId);
-          if (action) {
-            process.stdout.write(`\n[${action.risk.toUpperCase()}] ${action.title}\n`);
-            process.stdout.write(`  ${action.description}\n`);
-          }
-        }
-      }
+      process.stdout.write(JSON.stringify(plan, null, 2) + "\n");
     } catch (error) {
       const wre = error instanceof WebsiteReadError ? error : null;
       process.stderr.write(
@@ -325,72 +242,13 @@ program
   .description("Validate an execution plan before execution")
   .action(async (url: string, options: { json?: boolean }) => {
     try {
-      process.stdout.write("Reading...\n");
-      const snapshot = await readWebsite(url);
-
-      process.stdout.write("✓ Downloaded\n");
-      process.stdout.write("✓ Parsed\n");
-      process.stdout.write("Analyzing...\n");
-
-      const report = analyzeHomepage(snapshot);
-
-      process.stdout.write("Generating Recommendations...\n");
-      const recReport = generateRecommendations(report);
-
-      process.stdout.write("Generating Execution Plan...\n");
-      const plan = generateExecutionPlan(recReport);
-
-      process.stdout.write("Validating Execution Plan...\n");
-      const { validateExecutionPlan, createDefaultContext } = await import("@forge/preflight-validator");
-      const validationReport = validateExecutionPlan(plan, null, createDefaultContext());
-
-      process.stdout.write("✓ Validation Complete\n\n");
-
+      const result = await executePipeline(createValidatePipeline(url), {});
+      const validationReport = result.outputs["preflight-validator"] as any;
       if (options.json) {
         process.stdout.write(JSON.stringify(validationReport, null, 2) + "\n");
         return;
       }
-
-      process.stdout.write("Validation Report\n");
-      process.stdout.write("=================\n\n");
-
-      process.stdout.write("Risk Summary:\n");
-      process.stdout.write(`  Safe:     ${validationReport.riskSummary.safe}\n`);
-      process.stdout.write(`  Moderate: ${validationReport.riskSummary.moderate}\n`);
-      process.stdout.write(`  High:     ${validationReport.riskSummary.high}\n`);
-      process.stdout.write(`  Critical: ${validationReport.riskSummary.critical}\n\n`);
-
-      process.stdout.write(`Approved Actions: ${validationReport.approvedActions.length}\n`);
-      process.stdout.write(`Warning Actions:  ${validationReport.warningActions.length}\n`);
-      process.stdout.write(`Blocked Actions:  ${validationReport.blockedActions.length}\n\n`);
-
-      if (validationReport.blockedActions.length > 0) {
-        process.stdout.write("Blocked Actions:\n");
-        for (const action of validationReport.blockedActions) {
-          process.stdout.write(`  [${action.estimatedRisk.toUpperCase()}] ${action.actionId}\n`);
-          process.stdout.write(`    Reason: ${action.reason}\n`);
-        }
-        process.stdout.write("\n");
-      }
-
-      if (validationReport.warningActions.length > 0) {
-        process.stdout.write("Actions with Warnings:\n");
-        for (const action of validationReport.warningActions) {
-          process.stdout.write(`  [${action.estimatedRisk.toUpperCase()}] ${action.actionId}\n`);
-          for (const warning of action.warnings) {
-            process.stdout.write(`    ⚠ ${warning}\n`);
-          }
-        }
-        process.stdout.write("\n");
-      }
-
-      if (validationReport.approvedActions.length > 0) {
-        process.stdout.write("Approved Actions:\n");
-        for (const action of validationReport.approvedActions) {
-          process.stdout.write(`  ✓ ${action.actionId} (${action.estimatedRisk})\n`);
-        }
-        process.stdout.write("\n");
-      }
+      process.stdout.write(JSON.stringify(validationReport, null, 2) + "\n");
     } catch (error) {
       process.stderr.write(
         `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
@@ -408,59 +266,13 @@ program
   .description("Execute an execution plan (dry-run only)")
   .action(async (url: string, options: { dryRun?: boolean; json?: boolean }) => {
     try {
-      process.stdout.write("Reading...\n");
-      const snapshot = await readWebsite(url);
-
-      process.stdout.write("✓ Downloaded\n");
-      process.stdout.write("✓ Parsed\n");
-      process.stdout.write("Analyzing...\n");
-
-      const report = analyzeHomepage(snapshot);
-
-      process.stdout.write("Generating Recommendations...\n");
-      const recReport = generateRecommendations(report);
-
-      process.stdout.write("Generating Execution Plan...\n");
-      const plan = generateExecutionPlan(recReport);
-
-      process.stdout.write("Validating Execution Plan...\n");
-      const { validateExecutionPlan, createDefaultContext } = await import("@forge/preflight-validator");
-      const validationReport = validateExecutionPlan(plan, null, createDefaultContext());
-
-      process.stdout.write("Executing (dry-run)...\n");
-      const { execute } = await import("@forge/execution-engine");
-      const result = await execute(plan, null, { dryRun: true, stopOnBlocked: true });
-
-      process.stdout.write("✓ Execution Simulation Complete\n\n");
-
+      const result = await executePipeline(createExecutePipeline(url, options.dryRun ?? true), {});
+      const execution = result.outputs["execution-engine"] as any;
       if (options.json) {
-        process.stdout.write(JSON.stringify({ validation: validationReport, execution: result }, null, 2) + "\n");
+        process.stdout.write(JSON.stringify(execution, null, 2) + "\n");
         return;
       }
-
-      process.stdout.write("Execution Report (Dry Run)\n");
-      process.stdout.write("==========================\n\n");
-
-      process.stdout.write("Validation:\n");
-      process.stdout.write(`  Approved: ${validationReport.approvedActions.length}\n`);
-      process.stdout.write(`  Warnings: ${validationReport.warningActions.length}\n`);
-      process.stdout.write(`  Blocked:  ${validationReport.blockedActions.length}\n\n`);
-
-      process.stdout.write("Execution:\n");
-      process.stdout.write(`  Completed: ${result.completedActions.length}\n`);
-      process.stdout.write(`  Failed:    ${result.failedActions.length}\n`);
-      process.stdout.write(`  Skipped:   ${result.skippedActions.length}\n`);
-      process.stdout.write(`  Time:      ${result.executionTime}\n\n`);
-
-      if (result.rollbackPlan.length > 0) {
-        process.stdout.write("Rollback Plan:\n");
-        for (const op of result.rollbackPlan) {
-          process.stdout.write(`  ${op.actionId}: ${op.rollbackMethod}\n`);
-        }
-        process.stdout.write("\n");
-      }
-
-      process.stdout.write("✓ Dry-run complete — no website modifications were made\n");
+      process.stdout.write(JSON.stringify(execution, null, 2) + "\n");
     } catch (error) {
       process.stderr.write(
         `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
@@ -572,6 +384,82 @@ program
       );
       process.exit(1);
     }
+  });
+
+const pipelineCommand = program.command("pipeline").description("Pipeline management commands");
+
+pipelineCommand
+  .command("list")
+  .option("--json", "Output pipelines as JSON")
+  .action((options: { json?: boolean }) => {
+    const pipelines = listDefaultPipelines().map((pipeline) => ({
+      id: pipeline.id,
+      name: pipeline.name,
+      version: pipeline.version,
+      description: pipeline.description,
+      steps: pipeline.steps.map((step) => step.id),
+    }));
+    if (options.json) {
+      process.stdout.write(JSON.stringify(pipelines, null, 2) + "\n");
+      return;
+    }
+    for (const pipeline of pipelines) {
+      process.stdout.write(`${pipeline.id} - ${pipeline.name} (${pipeline.version})\n`);
+      process.stdout.write(`  ${pipeline.description}\n`);
+      process.stdout.write(`  Steps: ${pipeline.steps.join(" -> ")}\n`);
+    }
+  });
+
+pipelineCommand
+  .command("info")
+  .argument("<id>", "Pipeline ID")
+  .option("--json", "Output pipeline as JSON")
+  .action((id: string, options: { json?: boolean }) => {
+    const pipeline = listDefaultPipelines().find((item) => item.id === id);
+    if (!pipeline) {
+      process.stderr.write(`Error: Pipeline not found: ${id}\n`);
+      process.exit(1);
+    }
+    if (options.json) {
+      process.stdout.write(JSON.stringify(pipeline, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Pipeline: ${pipeline.name}\n`);
+    process.stdout.write(`Version: ${pipeline.version}\n`);
+    process.stdout.write(`Description: ${pipeline.description}\n`);
+    process.stdout.write("Steps:\n");
+    for (const step of pipeline.steps) {
+      process.stdout.write(`  - ${step.id} (${step.dependencies.join(", ") || "no dependencies"})\n`);
+    }
+  });
+
+pipelineCommand
+  .command("run")
+  .argument("<id>", "Pipeline ID")
+  .argument("<url>", "Website URL")
+  .option("--dry-run", "Simulate execution without making changes", true)
+  .option("--json", "Output pipeline result as JSON")
+  .action(async (id: string, url: string, options: { dryRun?: boolean; json?: boolean }) => {
+    const pipeline =
+      id === "read"
+        ? createReadPipeline(url)
+        : id === "analyze"
+          ? createAnalyzePipeline(url)
+          : id === "recommend"
+            ? createRecommendPipeline(url)
+            : id === "plan"
+              ? createPlanPipeline(url)
+              : id === "validate"
+                ? createValidatePipeline(url)
+                : createExecutePipeline(url, options.dryRun ?? true);
+    const result = await executePipeline(pipeline, {});
+    if (options.json) {
+      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Pipeline ${result.pipelineId} finished with status ${result.status}\n`);
+    process.stdout.write(`Executed steps: ${result.stepsExecuted.join(", ") || "(none)"}\n`);
+    process.stdout.write(`Skipped steps: ${result.stepsSkipped.join(", ") || "(none)"}\n`);
   });
 
 program.parse(process.argv);

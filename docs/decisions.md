@@ -827,6 +827,60 @@ Negative:
 
 ---
 
+## ADR-0023
+
+### Title
+
+Pipeline-First Workflow Orchestration
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-17
+
+### Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+Forge had hardcoded orchestration spread across the CLI and execution helpers. Sprint 8 requires reusable workflows, step registration, dependency resolution, and a single orchestration layer that can run existing capabilities without duplicating business logic.
+
+### Decision
+
+Add a pipeline layer with reusable pipeline definitions, sequential execution, dependency resolution, shared execution context, pipeline events, and registry support for pipelines and steps.
+
+Existing command flows should delegate to pipeline execution helpers instead of directly coordinating multiple engines.
+
+### Alternatives Considered
+
+Keeping the existing command-by-command orchestration. Rejected because it keeps workflow logic duplicated and hardcoded.
+
+Moving business logic into the pipeline engine. Rejected because the engine must remain domain-agnostic.
+
+### Consequences
+
+Positive:
+
+- Removes hardcoded orchestration from the CLI
+- Makes workflows reusable and inspectable
+- Keeps business logic inside existing packages
+
+Negative:
+
+- Adds one more abstraction layer to maintain
+
+### Future Review
+
+Revisit after the first non-CLI pipeline consumers exist, such as scheduling or dashboard subscribers.
+
+---
+
 # Future Decisions
 
 Examples of future ADRs include:
