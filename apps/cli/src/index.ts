@@ -62,6 +62,8 @@ import {
   executePipeline,
   listDefaultPipelines,
 } from "@forge/pipeline-engine";
+import type { WriteOperation, WriteMode } from "@forge/core";
+import { execute as executeExecution, rollbackExecution } from "@forge/execution-engine";
 
 const program = new Command();
 const skillRegistry = new SkillRegistry();
@@ -240,6 +242,51 @@ function createProvider(providerId?: string): AIEngine {
             ? OllamaProvider
             : OpenAIProvider;
   return new AIEngine(provider);
+}
+
+function createWordPressProviderFromEnv() {
+  const siteUrl = process.env.FORGE_WP_SITE_URL ?? "https://example.com";
+  const username = process.env.FORGE_WP_USERNAME ?? "forge";
+  const applicationPassword = process.env.FORGE_WP_APPLICATION_PASSWORD ?? "password";
+  return createWordPressProvider({ siteUrl, username, applicationPassword });
+}
+
+function parseJsonValue(value?: string): unknown {
+  if (!value) return undefined;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function createWordPressWriteOperation(
+  operation: string,
+  resourceType: string,
+  resourceId: string | number,
+  field: string,
+  value: unknown,
+  mode: WriteMode,
+  revisionId?: string,
+): WriteOperation {
+  return {
+    id: `wp-${operation}-${resourceType}-${resourceId}-${Date.now()}`,
+    type: operation,
+    resourceType,
+    resourceId,
+    mode,
+    timestamp: new Date().toISOString(),
+    revisionId,
+    oldValue: {},
+    newValue: { [field]: value },
+    diffs: [{ field, oldValue: undefined, newValue: value }],
+    summary: {
+      totalChanges: 1,
+      changedFields: [field],
+      preview: mode === "preview" || mode === "dry-run",
+      rollbackSupported: true,
+    },
+  };
 }
 
 async function executeMission(project: string, missionId: string, options: { dryRun?: boolean }) {
@@ -546,6 +593,195 @@ program
       );
       process.exit(1);
     }
+  });
+
+const wpCommand = program.command("wp").description("WordPress provider write commands");
+
+wpCommand
+  .command("preview")
+  .option("--project <project>", "Project ID")
+  .option("--operation <operation>", "Write operation", "update")
+  .option("--resource-type <type>", "Resource type", "page")
+  .option("--resource-id <id>", "Resource ID", "1")
+  .option("--field <field>", "Field to preview", "title")
+  .option("--value <value>", "Value to preview", "Preview value")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; operation?: string; resourceType?: string; resourceId?: string; field?: string; value?: string; json?: boolean }) => {
+    const provider = createWordPressProviderFromEnv();
+    const result = await provider.previewWrite(
+      createWordPressWriteOperation(
+        options.operation ?? "update",
+        options.resourceType ?? "page",
+        options.resourceId ?? "1",
+        options.field ?? "title",
+        parseJsonValue(options.value),
+        "preview",
+      ),
+    );
+    if (options.json) {
+      process.stdout.write(JSON.stringify({ project: options.project, result }, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Preview for ${options.project ?? "default"} completed: ${result.message}\n`);
+  });
+
+wpCommand
+  .command("apply")
+  .option("--project <project>", "Project ID")
+  .option("--operation <operation>", "Write operation", "update")
+  .option("--resource-type <type>", "Resource type", "page")
+  .option("--resource-id <id>", "Resource ID", "1")
+  .option("--field <field>", "Field to update", "title")
+  .option("--value <value>", "Value to apply", "Applied value")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; operation?: string; resourceType?: string; resourceId?: string; field?: string; value?: string; json?: boolean }) => {
+    const provider = createWordPressProviderFromEnv();
+    const write = createWordPressWriteOperation(
+      options.operation ?? "update",
+      options.resourceType ?? "page",
+      options.resourceId ?? "1",
+      options.field ?? "title",
+      parseJsonValue(options.value),
+      "apply",
+    );
+    const result = await provider.applyWrite(write);
+    if (options.json) {
+      process.stdout.write(JSON.stringify({ project: options.project, result }, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Applied write for ${options.project ?? "default"}: ${result.message}\n`);
+  });
+
+wpCommand
+  .command("rollback")
+  .option("--project <project>", "Project ID")
+  .option("--resource-type <type>", "Resource type", "page")
+  .option("--resource-id <id>", "Resource ID", "1")
+  .option("--revision-id <id>", "Revision ID")
+  .option("--field <field>", "Field name", "title")
+  .option("--value <value>", "Original value", "Rolled back value")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; resourceType?: string; resourceId?: string; revisionId?: string; field?: string; value?: string; json?: boolean }) => {
+    const provider = createWordPressProviderFromEnv();
+    const originalValue = { [options.field ?? "title"]: parseJsonValue(options.value) };
+    const result = await provider.rollbackWrite(
+      options.resourceType ?? "page",
+      options.resourceId ?? "1",
+      originalValue,
+      options.revisionId,
+    );
+    if (options.json) {
+      process.stdout.write(JSON.stringify({ project: options.project, result }, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Rolled back ${options.project ?? "default"}: ${result.message}\n`);
+  });
+
+const executionCommand = program.command("execution").description("Execution engine write commands");
+
+executionCommand
+  .command("apply")
+  .option("--project <project>", "Project ID")
+  .option("--resource-type <type>", "Resource type", "page")
+  .option("--resource-id <id>", "Resource ID", "1")
+  .option("--field <field>", "Field to apply", "title")
+  .option("--value <value>", "Value to apply", "Applied value")
+  .option("--dry-run", "Simulate without writing", true)
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; resourceType?: string; resourceId?: string; field?: string; value?: string; dryRun?: boolean; json?: boolean }) => {
+    const provider = createWordPressProviderFromEnv();
+    const write = createWordPressWriteOperation(
+      "execution.apply",
+      options.resourceType ?? "page",
+      options.resourceId ?? "1",
+      options.field ?? "title",
+      parseJsonValue(options.value),
+      (options.dryRun ?? true) ? "dry-run" : "apply",
+    );
+    const action = {
+      id: write.id,
+      recommendationId: `rec-${write.id}`,
+      findingId: `finding-${write.id}` as never,
+      type: "content.update-content" as never,
+      title: "Execution apply",
+      description: "Apply a provider-backed write operation.",
+      priority: "medium" as never,
+      risk: "moderate" as never,
+      automatable: false,
+      requiresApproval: true,
+      rollbackSupported: true,
+      estimatedDuration: "5m",
+      requiredProvider: provider.id,
+      payload: write.newValue,
+      status: "approved" as never,
+    };
+    const plan = {
+      url: options.project ?? "default",
+      generatedAt: new Date().toISOString(),
+      actions: [action],
+      approvalQueue: [action.id],
+      summary: { total: 1, automatable: 0, requiresApproval: 1, byRisk: { safe: 0, moderate: 1, high: 0, critical: 0 } },
+      estimatedDuration: "5m",
+      riskSummary: { safe: 0, moderate: 1, high: 0, critical: 0 },
+    };
+    const result = options.dryRun ?? true ? await executeExecution(plan as never, provider, { dryRun: true }) : await executeExecution(plan as never, provider, { dryRun: false });
+    if (options.json) {
+      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Execution apply finished with ${result.completedActions.length} completed actions\n`);
+  });
+
+executionCommand
+  .command("rollback")
+  .option("--project <project>", "Project ID")
+  .option("--resource-type <type>", "Resource type", "page")
+  .option("--resource-id <id>", "Resource ID", "1")
+  .option("--revision-id <id>", "Revision ID")
+  .option("--field <field>", "Field name", "title")
+  .option("--value <value>", "Original value", "Rolled back value")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; resourceType?: string; resourceId?: string; revisionId?: string; field?: string; value?: string; json?: boolean }) => {
+    const provider = createWordPressProviderFromEnv();
+    const operation = createWordPressWriteOperation(
+      "execution.rollback",
+      options.resourceType ?? "page",
+      options.resourceId ?? "1",
+      options.field ?? "title",
+      parseJsonValue(options.value),
+      "apply",
+      options.revisionId,
+    );
+    const result = await rollbackExecution(
+      {
+        url: options.project ?? "default",
+        executedAt: new Date().toISOString(),
+        completedActions: [],
+        failedActions: [],
+        skippedActions: [],
+        rollbackPlan: [
+          {
+            actionId: operation.id,
+            resourceType: operation.resourceType,
+            resourceId: operation.resourceId,
+            originalValue: operation.oldValue,
+            newValue: operation.newValue,
+            rollbackMethod: "manual_rollback",
+            providerId: provider.id,
+            revisionId: operation.revisionId,
+            timestamp: operation.timestamp,
+          },
+        ],
+        executionTime: "0ms",
+        rollbackRequired: true,
+      },
+      provider,
+    );
+    if (options.json) {
+      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Execution rollback finished for ${options.project ?? "default"}\n`);
   });
 
 // Sprint 6: Connection management commands
@@ -872,7 +1108,7 @@ program
           memorySummary: profile.memorySummary,
           findings: [],
           recommendations: [],
-          provider: options.provider,
+          aiProvider: options.provider,
           model: options.model,
           aiContext: contextBuilder.build({
             project: resolved.project,

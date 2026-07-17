@@ -1,5 +1,5 @@
 import type { ExecutionPlan } from "@forge/action-engine";
-import type { WebsiteSnapshot } from "@forge/core";
+import type { WebsiteSnapshot, WriteProvider } from "@forge/core";
 import type { ValidationReport } from "@forge/preflight-validator";
 import type { ExecutionResult } from "@forge/execution-engine";
 
@@ -16,7 +16,7 @@ export type PipelineStepStatus = "pending" | "running" | "completed" | "skipped"
 export interface PipelineContext {
   readonly project?: string;
   readonly rootDir?: string;
-  readonly provider?: unknown;
+  readonly provider?: WriteProvider;
   snapshot?: WebsiteSnapshot;
   findings?: unknown;
   recommendations?: unknown;

@@ -1,7 +1,7 @@
 // @forge/execution-engine
 // Dry-run execution engine with rollback framework and history.
 
-export { execute, executeWithValidation, getRollbackOperations } from "./engine.js";
+export { execute, executeWithValidation, getRollbackOperations, rollbackExecution } from "./engine.js";
 export { RollbackStore } from "./rollback.js";
 export { ExecutionHistory } from "./history.js";
 export { PolicyEngine } from "./policies.js";

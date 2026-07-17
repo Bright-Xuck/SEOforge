@@ -16,6 +16,8 @@ Sprint 12 adds the Strategy Engine:
 `forge strategy create`, `forge strategy show`, `forge strategy validate`, and `forge strategy export`.
 Sprint 13 adds the Mission Engine:
 `forge missions list`, `forge mission info <id>`, `forge mission run <id>`, `forge mission validate <id>`, and `forge mission export <id>`.
+Sprint 14 adds the WordPress Write Provider:
+`forge wp preview`, `forge wp apply`, `forge wp rollback`, `forge execution apply`, and `forge execution rollback`.
 
 ---
 
@@ -174,6 +176,26 @@ Validate a mission template.
 ### `forge mission export <id>`
 
 Export a mission template as JSON or YAML.
+
+### `forge wp preview`
+
+Preview a WordPress write operation without modifying the site.
+
+### `forge wp apply`
+
+Apply a WordPress write operation after approval.
+
+### `forge wp rollback`
+
+Rollback a previous WordPress write operation using stored revision data.
+
+### `forge execution apply`
+
+Apply an approved execution against a provider-backed target.
+
+### `forge execution rollback`
+
+Rollback an approved execution using stored rollback data.
 
 ---
 

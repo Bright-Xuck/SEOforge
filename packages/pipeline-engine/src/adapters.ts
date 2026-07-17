@@ -12,6 +12,7 @@ import {
   createProjectProfile,
 } from "@forge/knowledge-engine";
 import { loadMemory, saveMemory } from "@forge/memory-engine";
+import type { WriteProvider } from "@forge/core";
 import type { PipelineStepDefinition } from "./types.js";
 
 export function createWebsiteReaderStep(url: string): PipelineStepDefinition {
@@ -131,8 +132,8 @@ export function createExecutionStep(dryRun = true): PipelineStepDefinition {
         throw new Error("Pipeline context missing execution plan or validation report");
       }
       const result = dryRun
-        ? await execute(context.executionPlan, context.provider, { dryRun: true, stopOnBlocked: true })
-        : (await executeWithValidation(context.executionPlan, context.provider, context.validationReport)).execution;
+        ? await execute(context.executionPlan, context.provider as WriteProvider, { dryRun: true, stopOnBlocked: true })
+        : (await executeWithValidation(context.executionPlan, context.provider as WriteProvider, context.validationReport)).execution;
       context.executionResult = result;
       return result;
     },

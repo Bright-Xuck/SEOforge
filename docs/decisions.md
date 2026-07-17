@@ -1169,6 +1169,56 @@ Revisit when mission execution needs persistence, scheduling, or remote job exec
 
 ---
 
+## ADR-0027
+
+### Title
+
+Introduce a Safe WordPress Write Provider
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-17
+
+### Owner
+
+Bright Ndode
+
+### Context
+
+Sprint 14 transitions Forge from read-only inspection to approval-gated website modification. WordPress writes must remain isolated in the provider layer, with execution and missions calling interfaces rather than REST APIs directly.
+
+### Decision
+
+Extend the WordPress provider with write operations for content, SEO, media, schema, taxonomy, redirects, preview, and rollback. Add structured write results, diffs, and revision references. Keep execution provider-agnostic and preserve read-only compatibility.
+
+### Alternatives Considered
+
+Placing WordPress REST calls in the execution engine. Rejected because provider logic must stay inside the provider package.
+
+Implementing writes only as CLI-specific behavior. Rejected because the write capability must be reusable by missions and future apps.
+
+### Consequences
+
+Positive:
+
+- approved writes can be executed safely
+- rollback and preview become first-class
+- content editing can evolve toward section-level operations later
+
+Negative:
+
+- the provider API surface becomes significantly larger
+
+### Future Review
+
+Revisit when section-level content editing and richer revision APIs are needed.
+
+---
+
 # Future Decisions
 
 Examples of future ADRs include:

@@ -9,6 +9,62 @@ import { PolicyEngine } from "./policies.js";
 import type { ExecutionPlan, Action } from "@forge/action-engine";
 import type { ValidationReport } from "@forge/preflight-validator";
 
+const mockProvider = {
+  id: "mock-provider",
+  name: "Mock Provider",
+  async previewWrite(operation: any) {
+    return {
+      operationId: operation.id,
+      providerId: this.id,
+      resourceType: operation.resourceType,
+      resourceId: operation.resourceId,
+      timestamp: new Date().toISOString(),
+      revisionId: "rev-1",
+      oldValue: operation.oldValue,
+      newValue: operation.newValue,
+      diffs: operation.diffs,
+      summary: operation.summary,
+      preview: true,
+      applied: false,
+      message: "preview",
+    };
+  },
+  async applyWrite(operation: any) {
+    return {
+      operationId: operation.id,
+      providerId: this.id,
+      resourceType: operation.resourceType,
+      resourceId: operation.resourceId,
+      timestamp: new Date().toISOString(),
+      revisionId: "rev-1",
+      oldValue: { previousTitle: "Old Title" },
+      newValue: operation.newValue,
+      diffs: operation.diffs,
+      summary: operation.summary,
+      preview: false,
+      applied: true,
+      message: "applied",
+    };
+  },
+  async rollbackWrite(resourceType: string, resourceId: string | number, originalValue: Record<string, unknown>) {
+    return {
+      operationId: `rollback-${resourceType}-${resourceId}`,
+      providerId: this.id,
+      resourceType,
+      resourceId,
+      timestamp: new Date().toISOString(),
+      revisionId: "rev-1",
+      oldValue: originalValue,
+      newValue: originalValue,
+      diffs: [],
+      summary: { totalChanges: 0, changedFields: [], preview: false, rollbackSupported: true },
+      preview: false,
+      applied: true,
+      message: "rolled back",
+    };
+  },
+};
+
 function createMockAction(overrides: Partial<Action> = {}): Action {
   return {
     id: "action-1",
@@ -79,7 +135,7 @@ describe("Execution Engine", () => {
         createMockAction({ id: "a2", type: "seo.add-meta-description" }),
       ]);
 
-      const result = await execute(plan, null, { dryRun: true });
+      const result = await execute(plan, mockProvider as any, { dryRun: true });
 
       expect(result.completedActions).toHaveLength(2);
       expect(result.failedActions).toHaveLength(0);
@@ -91,7 +147,7 @@ describe("Execution Engine", () => {
         createMockAction({ id: "a1", type: "seo.add-title" }),
       ]);
 
-      const result = await execute(plan, null, { dryRun: true });
+      const result = await execute(plan, mockProvider as any, { dryRun: true });
 
       expect(result.rollbackPlan).toHaveLength(1);
       expect(result.rollbackRequired).toBe(true);
@@ -102,7 +158,7 @@ describe("Execution Engine", () => {
         createMockAction({ id: "a1", type: "seo.add-title", status: "failed" as any }),
       ]);
 
-      const result = await execute(plan, null, { dryRun: true, stopOnBlocked: true });
+      const result = await execute(plan, mockProvider as any, { dryRun: true, stopOnBlocked: true });
 
       expect(result.completedActions).toHaveLength(0);
       expect(result.skippedActions).toHaveLength(1);
@@ -110,7 +166,7 @@ describe("Execution Engine", () => {
 
     it("should record execution time", async () => {
       const plan = createMockPlan([createMockAction()]);
-      const result = await execute(plan, null, { dryRun: true });
+      const result = await execute(plan, mockProvider as any, { dryRun: true });
 
       expect(result.executionTime).toMatch(/^\d+ms$/);
     });
@@ -123,7 +179,7 @@ describe("Execution Engine", () => {
         approvedActions: [{ actionId: "a1", status: "approved", reason: "OK", warnings: [], blockingIssues: [], confidence: 1, estimatedRisk: "safe" }],
       });
 
-      const result = await executeWithValidation(plan, null, validationReport);
+      const result = await executeWithValidation(plan, mockProvider as any, validationReport);
 
       expect(result.execution.completedActions).toHaveLength(1);
     });
@@ -134,7 +190,7 @@ describe("Execution Engine", () => {
         blockedActions: [{ actionId: "a1", status: "blocked", reason: "Blocked", warnings: [], blockingIssues: ["issue"], confidence: 0, estimatedRisk: "critical" }],
       });
 
-      const result = await executeWithValidation(plan, null, validationReport);
+      const result = await executeWithValidation(plan, mockProvider as any, validationReport);
 
       expect(result.execution.completedActions).toHaveLength(0);
       expect(result.execution.skippedActions).toHaveLength(1);
@@ -144,7 +200,7 @@ describe("Execution Engine", () => {
   describe("getRollbackOperations", () => {
     it("should return rollback plan from execution result", async () => {
       const plan = createMockPlan([createMockAction({ id: "a1" })]);
-      const result = await execute(plan, null, { dryRun: true });
+      const result = await execute(plan, mockProvider as any, { dryRun: true });
 
       const operations = getRollbackOperations(result);
       expect(operations).toHaveLength(1);

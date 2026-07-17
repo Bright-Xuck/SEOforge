@@ -694,6 +694,81 @@ export interface IWordPressProvider
   detectCapabilities(): Promise<CapabilityDescriptor>;
 }
 
+/**
+ * A diff entry for write operations.
+ */
+export interface WriteDiff {
+  readonly field: string;
+  readonly oldValue: unknown;
+  readonly newValue: unknown;
+}
+
+/**
+ * Summary information for write operations.
+ */
+export interface WriteSummary {
+  readonly totalChanges: number;
+  readonly changedFields: string[];
+  readonly preview: boolean;
+  readonly rollbackSupported: boolean;
+}
+
+/**
+ * Supported modes for a write operation.
+ */
+export type WriteMode = "preview" | "dry-run" | "apply" | "no-action";
+
+/**
+ * Structured write operation request.
+ */
+export interface WriteOperation {
+  readonly id: string;
+  readonly type: string;
+  readonly resourceType: string;
+  readonly resourceId: string | number;
+  readonly mode: WriteMode;
+  readonly timestamp: string;
+  readonly revisionId?: string;
+  readonly oldValue: Record<string, unknown>;
+  readonly newValue: Record<string, unknown>;
+  readonly diffs: WriteDiff[];
+  readonly summary: WriteSummary;
+  readonly metadata?: Record<string, unknown>;
+}
+
+/**
+ * Structured write result.
+ */
+export interface WriteResult {
+  readonly operationId: string;
+  readonly providerId: string;
+  readonly resourceType: string;
+  readonly resourceId: string | number;
+  readonly timestamp: string;
+  readonly revisionId?: string;
+  readonly oldValue: Record<string, unknown>;
+  readonly newValue: Record<string, unknown>;
+  readonly diffs: WriteDiff[];
+  readonly summary: WriteSummary;
+  readonly preview: boolean;
+  readonly applied: boolean;
+  readonly message: string;
+}
+
+/**
+ * Generic provider contract for preview/apply/rollback flows.
+ */
+export interface WriteProvider extends IProvider {
+  previewWrite(operation: WriteOperation): Promise<WriteResult>;
+  applyWrite(operation: WriteOperation): Promise<WriteResult>;
+  rollbackWrite(
+    resourceType: string,
+    resourceId: string | number,
+    originalValue: Record<string, unknown>,
+    revisionId?: string,
+  ): Promise<WriteResult>;
+}
+
 // =============================================================================
 // EXECUTION PROVIDER INTERFACE
 // =============================================================================

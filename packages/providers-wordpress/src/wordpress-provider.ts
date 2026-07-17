@@ -14,6 +14,10 @@ import type {
   CapabilityDescriptor,
   PaginatedResponse,
   WordPressRequestOptions,
+  WriteOperation,
+  WriteResult,
+  WriteSummary,
+  WriteDiff,
 } from "@forge/core";
 import { WordPressClient } from "./client.js";
 
@@ -186,6 +190,344 @@ export class WordPressProvider {
   }
 
   /**
+   * Update a page.
+   */
+  async updatePage(pageId: number, payload: Record<string, unknown>): Promise<WriteResult> {
+    return this.executeWrite({
+      id: `page-${pageId}-${Date.now()}`,
+      type: "page.update",
+      resourceType: "page",
+      resourceId: pageId,
+      mode: "apply",
+      timestamp: new Date().toISOString(),
+      oldValue: await this.fetchResource("pages", pageId),
+      newValue: payload,
+      diffs: this.createDiffs(await this.fetchResource("pages", pageId), payload),
+      summary: this.createSummary(await this.fetchResource("pages", pageId), payload, false),
+    });
+  }
+
+  /**
+   * Update a post.
+   */
+  async updatePost(postId: number, payload: Record<string, unknown>): Promise<WriteResult> {
+    return this.executeWrite({
+      id: `post-${postId}-${Date.now()}`,
+      type: "post.update",
+      resourceType: "post",
+      resourceId: postId,
+      mode: "apply",
+      timestamp: new Date().toISOString(),
+      oldValue: await this.fetchResource("posts", postId),
+      newValue: payload,
+      diffs: this.createDiffs(await this.fetchResource("posts", postId), payload),
+      summary: this.createSummary(await this.fetchResource("posts", postId), payload, false),
+    });
+  }
+
+  /**
+   * Create a draft post.
+   */
+  async createDraft(payload: Record<string, unknown>): Promise<WriteResult> {
+    const created = await this.client.post<Record<string, unknown>>("posts", { ...payload, status: "draft" });
+    const resourceId = typeof created.id === "number" || typeof created.id === "string" ? created.id : `draft-${Date.now()}`;
+    return this.createResult("post", resourceId, {}, created, false, true, undefined);
+  }
+
+  /**
+   * Update an existing draft.
+   */
+  async updateDraft(postId: number, payload: Record<string, unknown>): Promise<WriteResult> {
+    return this.updatePost(postId, { ...payload, status: "draft" });
+  }
+
+  /**
+   * Publish a draft.
+   */
+  async publishDraft(postId: number): Promise<WriteResult> {
+    const current = await this.fetchResource("posts", postId);
+    const published = await this.client.put<Record<string, unknown>>(`posts/${postId}`, { status: "publish" });
+    return this.createResult("post", postId, current, published, false, true);
+  }
+
+  /**
+   * Delete a draft post.
+   */
+  async deleteDraft(postId: number): Promise<WriteResult> {
+    const current = await this.fetchResource("posts", postId);
+    await this.client.delete(`posts/${postId}`);
+    return this.createResult("post", postId, current, {}, false, true);
+  }
+
+  /**
+   * Update the SEO title.
+   */
+  async updateSeoTitle(pageId: number, title: string): Promise<WriteResult> {
+    return this.updatePage(pageId, { title });
+  }
+
+  /**
+   * Update the meta description.
+   */
+  async updateMetaDescription(pageId: number, description: string): Promise<WriteResult> {
+    return this.updatePage(pageId, { excerpt: description });
+  }
+
+  /**
+   * Update the slug.
+   */
+  async updateSlug(pageId: number, slug: string): Promise<WriteResult> {
+    return this.updatePage(pageId, { slug });
+  }
+
+  /**
+   * Update canonical URL.
+   */
+  async updateCanonical(pageId: number, canonical: string): Promise<WriteResult> {
+    return this.updatePage(pageId, { canonical_url: canonical });
+  }
+
+  /**
+   * Update robots directives.
+   */
+  async updateRobots(pageId: number, robots: Record<string, unknown>): Promise<WriteResult> {
+    return this.updatePage(pageId, { robots });
+  }
+
+  /**
+   * Update excerpt.
+   */
+  async updateExcerpt(postId: number, excerpt: string): Promise<WriteResult> {
+    return this.updatePost(postId, { excerpt });
+  }
+
+  /**
+   * Update image alt text.
+   */
+  async updateImageAlt(mediaId: number, altText: string): Promise<WriteResult> {
+    return this.executeWrite({
+      id: `media-alt-${mediaId}-${Date.now()}`,
+      type: "media.update-alt",
+      resourceType: "media",
+      resourceId: mediaId,
+      mode: "apply",
+      timestamp: new Date().toISOString(),
+      oldValue: await this.fetchResource("media", mediaId),
+      newValue: { alt_text: altText },
+      diffs: this.createDiffs(await this.fetchResource("media", mediaId), { alt_text: altText }),
+      summary: this.createSummary(await this.fetchResource("media", mediaId), { alt_text: altText }, false),
+    });
+  }
+
+  /**
+   * Update image caption.
+   */
+  async updateImageCaption(mediaId: number, caption: string): Promise<WriteResult> {
+    return this.executeWrite({
+      id: `media-caption-${mediaId}-${Date.now()}`,
+      type: "media.update-caption",
+      resourceType: "media",
+      resourceId: mediaId,
+      mode: "apply",
+      timestamp: new Date().toISOString(),
+      oldValue: await this.fetchResource("media", mediaId),
+      newValue: { caption },
+      diffs: this.createDiffs(await this.fetchResource("media", mediaId), { caption }),
+      summary: this.createSummary(await this.fetchResource("media", mediaId), { caption }, false),
+    });
+  }
+
+  /**
+   * Update image description.
+   */
+  async updateImageDescription(mediaId: number, description: string): Promise<WriteResult> {
+    return this.executeWrite({
+      id: `media-description-${mediaId}-${Date.now()}`,
+      type: "media.update-description",
+      resourceType: "media",
+      resourceId: mediaId,
+      mode: "apply",
+      timestamp: new Date().toISOString(),
+      oldValue: await this.fetchResource("media", mediaId),
+      newValue: { description },
+      diffs: this.createDiffs(await this.fetchResource("media", mediaId), { description }),
+      summary: this.createSummary(await this.fetchResource("media", mediaId), { description }, false),
+    });
+  }
+
+  /**
+   * Update featured image.
+   */
+  async updateFeaturedImage(pageId: number, mediaId: number): Promise<WriteResult> {
+    return this.updatePage(pageId, { featured_media: mediaId });
+  }
+
+  /**
+   * Update JSON-LD.
+   */
+  async updateJsonLd(pageId: number, schema: Record<string, unknown>): Promise<WriteResult> {
+    return this.updatePage(pageId, { json_ld: schema });
+  }
+
+  /**
+   * Insert FAQ schema.
+   */
+  async insertFaqSchema(pageId: number, schema: Record<string, unknown>): Promise<WriteResult> {
+    return this.updatePage(pageId, { faq_schema: schema });
+  }
+
+  /**
+   * Insert Breadcrumb schema.
+   */
+  async insertBreadcrumbSchema(pageId: number, schema: Record<string, unknown>): Promise<WriteResult> {
+    return this.updatePage(pageId, { breadcrumb_schema: schema });
+  }
+
+  /**
+   * Update categories.
+   */
+  async updateCategories(postId: number, categories: number[]): Promise<WriteResult> {
+    return this.updatePost(postId, { categories });
+  }
+
+  /**
+   * Update tags.
+   */
+  async updateTags(postId: number, tags: number[]): Promise<WriteResult> {
+    return this.updatePost(postId, { tags });
+  }
+
+  /**
+   * Create a redirect.
+   */
+  async createRedirect(payload: Record<string, unknown>): Promise<WriteResult> {
+    return this.executeWrite({
+      id: `redirect-create-${Date.now()}`,
+      type: "redirect.create",
+      resourceType: "redirect",
+      resourceId: `${payload.from ?? "unknown"}->${payload.to ?? "unknown"}`,
+      mode: "apply",
+      timestamp: new Date().toISOString(),
+      oldValue: {},
+      newValue: payload,
+      diffs: this.createDiffs({}, payload),
+      summary: this.createSummary({}, payload, true),
+    });
+  }
+
+  /**
+   * Update a redirect.
+   */
+  async updateRedirect(redirectId: string, payload: Record<string, unknown>): Promise<WriteResult> {
+    return this.executeWrite({
+      id: `redirect-update-${redirectId}-${Date.now()}`,
+      type: "redirect.update",
+      resourceType: "redirect",
+      resourceId: redirectId,
+      mode: "apply",
+      timestamp: new Date().toISOString(),
+      oldValue: {},
+      newValue: payload,
+      diffs: this.createDiffs({}, payload),
+      summary: this.createSummary({}, payload, true),
+    });
+  }
+
+  /**
+   * Delete a redirect.
+   */
+  async deleteRedirect(redirectId: string): Promise<WriteResult> {
+    return this.executeWrite({
+      id: `redirect-delete-${redirectId}-${Date.now()}`,
+      type: "redirect.delete",
+      resourceType: "redirect",
+      resourceId: redirectId,
+      mode: "apply",
+      timestamp: new Date().toISOString(),
+      oldValue: {},
+      newValue: {},
+      diffs: [],
+      summary: this.createSummary({}, {}, true),
+    });
+  }
+
+  /**
+   * Update content.
+   */
+  async updateContent(pageId: number, content: string): Promise<WriteResult> {
+    return this.updatePage(pageId, { content });
+  }
+
+  /**
+   * Replace a content section.
+   */
+  async replaceSection(pageId: number, sectionId: string, content: string): Promise<WriteResult> {
+    return this.updatePage(pageId, { sectionId, content, operation: "replace" });
+  }
+
+  /**
+   * Insert a content section.
+   */
+  async insertSection(pageId: number, sectionId: string, content: string): Promise<WriteResult> {
+    return this.updatePage(pageId, { sectionId, content, operation: "insert" });
+  }
+
+  /**
+   * Append a content section.
+   */
+  async appendSection(pageId: number, sectionId: string, content: string): Promise<WriteResult> {
+    return this.updatePage(pageId, { sectionId, content, operation: "append" });
+  }
+
+  /**
+   * Remove a content section.
+   */
+  async removeSection(pageId: number, sectionId: string): Promise<WriteResult> {
+    return this.updatePage(pageId, { sectionId, operation: "remove" });
+  }
+
+  /**
+   * Preview a write operation.
+   */
+  async previewWrite(operation: WriteOperation): Promise<WriteResult> {
+    return this.createResult(
+      operation.resourceType,
+      operation.resourceId,
+      operation.oldValue,
+      operation.newValue,
+      true,
+      false,
+      operation.revisionId,
+      operation,
+    );
+  }
+
+  /**
+   * Apply a write operation.
+   */
+  async applyWrite(operation: WriteOperation): Promise<WriteResult> {
+    const endpoint = this.getEndpoint(operation.resourceType, operation.resourceId);
+    const current = await this.fetchResource(operation.resourceType, operation.resourceId);
+    const updated = await this.client.put<Record<string, unknown>>(endpoint, operation.newValue);
+    const revisionId = await this.fetchRevisionId(operation.resourceType, operation.resourceId);
+    return this.createResult(operation.resourceType, operation.resourceId, current, updated, false, true, revisionId, operation);
+  }
+
+  /**
+   * Rollback a write operation.
+   */
+  async rollbackWrite(
+    resourceType: string,
+    resourceId: string | number,
+    originalValue: Record<string, unknown>,
+    revisionId?: string,
+  ): Promise<WriteResult> {
+    const endpoint = this.getEndpoint(resourceType, resourceId);
+    const updated = await this.client.put<Record<string, unknown>>(endpoint, originalValue);
+    return this.createResult(resourceType, resourceId, updated, originalValue, false, true, revisionId);
+  }
+
+  /**
    * Detect capabilities of the WordPress site.
    */
   async detectCapabilities(): Promise<CapabilityDescriptor> {
@@ -267,6 +609,107 @@ export class WordPressProvider {
     } catch {
       return [];
     }
+  }
+
+  private async fetchResource(resourceType: string, resourceId: string | number): Promise<Record<string, unknown>> {
+    try {
+      const result = await this.client.get<Record<string, unknown>>(`${resourceType}/${resourceId}`);
+      return result.data[0] ?? {};
+    } catch {
+      return {};
+    }
+  }
+
+  private async fetchRevisionId(resourceType: string, resourceId: string | number): Promise<string | undefined> {
+    try {
+      const result = await this.client.get<Record<string, unknown>>(`${resourceType}/${resourceId}/revisions`, { perPage: 1 });
+      const revision = result.data[0];
+      const id = revision && typeof revision.id === "number" ? revision.id : undefined;
+      return id === undefined ? undefined : String(id);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private getEndpoint(resourceType: string, resourceId: string | number): string {
+    if (resourceType === "page" || resourceType === "pages") return `pages/${resourceId}`;
+    if (resourceType === "post" || resourceType === "posts") return `posts/${resourceId}`;
+    if (resourceType === "media") return `media/${resourceId}`;
+    return `${resourceType}/${resourceId}`;
+  }
+
+  private createDiffs(oldValue: Record<string, unknown>, newValue: Record<string, unknown>): WriteDiff[] {
+    const keys = new Set([...Object.keys(oldValue), ...Object.keys(newValue)]);
+    const diffs: WriteDiff[] = [];
+    for (const key of keys) {
+      const previous = oldValue[key];
+      const next = newValue[key];
+      if (JSON.stringify(previous) !== JSON.stringify(next)) {
+        diffs.push({ field: key, oldValue: previous, newValue: next });
+      }
+    }
+    return diffs;
+  }
+
+  private createSummary(oldValue: Record<string, unknown>, newValue: Record<string, unknown>, rollbackSupported: boolean): WriteSummary {
+    const diffs = this.createDiffs(oldValue, newValue);
+    return {
+      totalChanges: diffs.length,
+      changedFields: diffs.map((diff) => diff.field),
+      preview: false,
+      rollbackSupported,
+    };
+  }
+
+  private createResult(
+    resourceType: string,
+    resourceId: string | number,
+    oldValue: Record<string, unknown>,
+    newValue: Record<string, unknown>,
+    preview: boolean,
+    applied: boolean,
+    revisionId?: string,
+    operation?: WriteOperation,
+  ): WriteResult {
+    const diffs = operation?.diffs ?? this.createDiffs(oldValue, newValue);
+    return {
+      operationId: operation?.id ?? `write-${resourceType}-${resourceId}-${Date.now()}`,
+      providerId: this.id,
+      resourceType,
+      resourceId,
+      timestamp: new Date().toISOString(),
+      revisionId,
+      oldValue,
+      newValue,
+      diffs,
+      summary: {
+        ...(operation?.summary ?? this.createSummary(oldValue, newValue, true)),
+        preview,
+      },
+      preview,
+      applied,
+      message: applied ? "Write operation applied." : preview ? "Write operation previewed." : "Write operation completed.",
+    };
+  }
+
+  private async executeWrite(operation: WriteOperation): Promise<WriteResult> {
+    if (operation.mode === "preview" || operation.mode === "dry-run") {
+      return this.createResult(
+        operation.resourceType,
+        operation.resourceId,
+        operation.oldValue,
+        operation.newValue,
+        true,
+        false,
+        operation.revisionId,
+        operation,
+      );
+    }
+
+    const endpoint = this.getEndpoint(operation.resourceType, operation.resourceId);
+    const updated = await this.client.put<Record<string, unknown>>(endpoint, operation.newValue);
+    const revisionId = await this.fetchRevisionId(operation.resourceType, operation.resourceId);
+    return this.createResult(operation.resourceType, operation.resourceId, operation.oldValue, updated, false, true, revisionId, operation);
   }
 }
 

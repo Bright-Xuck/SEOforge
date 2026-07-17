@@ -2,6 +2,7 @@
 // Execution engine for dry-run mode.
 
 import type { ExecutionPlan, Action } from "@forge/action-engine";
+import type { WriteOperation, WriteProvider } from "@forge/core";
 import { RollbackStore } from "./rollback.js";
 import { ExecutionHistory } from "./history.js";
 import type { ExecutionResult, RollbackOperation } from "./types.js";
@@ -28,7 +29,7 @@ const DEFAULT_OPTIONS: ExecutionEngineOptions = {
  */
 export async function execute(
   plan: ExecutionPlan,
-  _provider: unknown,
+  provider: WriteProvider,
   options: Partial<ExecutionEngineOptions> = {},
 ): Promise<ExecutionResult> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
@@ -61,12 +62,8 @@ export async function execute(
   // Process each action
   for (const action of plan.actions) {
     try {
-      // Capture rollback before simulated execution
-      const originalValue = getOriginalValue(action);
-      rollbackStore.capture(action, originalValue);
-
-      // In dry-run mode, we don't actually execute, just simulate
       if (opts.dryRun) {
+        rollbackStore.capture(action, {});
         completedActions.push(action.id);
         history.record({
           actionId: action.id,
@@ -77,14 +74,43 @@ export async function execute(
           result: "success",
           rollbackAvailable: action.rollbackSupported,
         });
+        continue;
       }
+
+      if (action.status !== "approved") {
+        skippedActions.push(action.id);
+        history.record({
+          actionId: action.id,
+          startedAt: new Date().toISOString(),
+          status: "cancelled",
+          providerId: provider.id,
+          duration: action.estimatedDuration,
+          result: "skipped",
+          rollbackAvailable: false,
+        });
+        continue;
+      }
+
+      const operation = createWriteOperation(action);
+      const result = await provider.applyWrite(operation);
+      completedActions.push(action.id);
+      rollbackStore.capture(action, result.oldValue);
+      history.record({
+        actionId: action.id,
+        startedAt: result.timestamp,
+        status: "completed",
+        providerId: provider.id,
+        duration: action.estimatedDuration,
+        result: "success",
+        rollbackAvailable: result.summary.rollbackSupported,
+      });
     } catch {
       failedActions.push(action.id);
       history.record({
         actionId: action.id,
         startedAt: new Date().toISOString(),
         status: "failed",
-        providerId: action.requiredProvider,
+        providerId: provider.id,
         duration: action.estimatedDuration,
         result: "failure",
         rollbackAvailable: false,
@@ -107,13 +133,41 @@ export async function execute(
   };
 }
 
-/**
- * Get original value for an action (for rollback).
- */
-function getOriginalValue(_action: Action): Record<string, unknown> {
-  // In real implementation, this would fetch from the provider
-  // For now, return empty object indicating "no previous value"
-  return {};
+function createWriteOperation(action: Action): WriteOperation {
+  return {
+    id: action.id,
+    type: action.type,
+    resourceType: inferResourceType(action.type),
+    resourceId: inferResourceId(action),
+    mode: "apply",
+    timestamp: new Date().toISOString(),
+    oldValue: {},
+    newValue: action.payload,
+    diffs: Object.entries(action.payload).map(([field, newValue]) => ({
+      field,
+      oldValue: undefined,
+      newValue,
+    })),
+    summary: {
+      totalChanges: Object.keys(action.payload).length,
+      changedFields: Object.keys(action.payload),
+      preview: false,
+      rollbackSupported: action.rollbackSupported,
+    },
+    metadata: { recommendationId: action.recommendationId, findingId: action.findingId },
+  };
+}
+
+function inferResourceType(actionType: string): string {
+  if (actionType.startsWith("accessibility.")) return "media";
+  if (actionType.startsWith("technical.")) return "page";
+  if (actionType.startsWith("content.")) return "page";
+  return "page";
+}
+
+function inferResourceId(action: Action): string | number {
+  const payload = action.payload as Record<string, unknown>;
+  return (payload.pageId as number | undefined) ?? (payload.mediaId as number | undefined) ?? action.id;
 }
 
 /**
@@ -122,7 +176,7 @@ function getOriginalValue(_action: Action): Record<string, unknown> {
  */
 export async function executeWithValidation(
   plan: ExecutionPlan,
-  provider: unknown,
+  provider: WriteProvider,
   validationReport: ValidationReport,
   options: Partial<ExecutionEngineOptions> = {},
 ): Promise<{ validation: ValidationReport; execution: ExecutionResult }> {
@@ -153,4 +207,20 @@ export async function executeWithValidation(
  */
 export function getRollbackOperations(result: ExecutionResult): RollbackOperation[] {
   return result.rollbackPlan;
+}
+
+export async function rollbackExecution(
+  result: ExecutionResult,
+  provider: WriteProvider,
+): Promise<ExecutionResult> {
+  const rollbackPlan: RollbackOperation[] = [];
+  for (const operation of result.rollbackPlan) {
+    await provider.rollbackWrite(operation.resourceType, operation.resourceId, operation.originalValue, operation.revisionId);
+    rollbackPlan.push(operation);
+  }
+  return {
+    ...result,
+    rollbackPlan,
+    rollbackRequired: false,
+  };
 }

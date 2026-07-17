@@ -16,6 +16,8 @@ export class RollbackStore {
   capture(action: Action, originalValue: Record<string, unknown>): void {
     const operation: RollbackOperation = {
       actionId: action.id,
+      resourceType: this.getResourceType(action.type),
+      resourceId: this.getResourceId(action),
       originalValue,
       newValue: action.payload,
       rollbackMethod: this.getRollbackMethod(action.type),
@@ -62,5 +64,17 @@ export class RollbackStore {
       "content.update-content": "restore_previous_content",
     };
     return methods[actionType] ?? "manual_rollback";
+  }
+
+  private getResourceType(actionType: string): string {
+    if (actionType.startsWith("accessibility.")) return "media";
+    if (actionType.startsWith("technical.")) return "page";
+    if (actionType.startsWith("content.")) return "page";
+    return "page";
+  }
+
+  private getResourceId(action: Action): string | number {
+    const payload = action.payload as Record<string, unknown>;
+    return (payload.pageId as number | undefined) ?? (payload.mediaId as number | undefined) ?? action.id;
   }
 }

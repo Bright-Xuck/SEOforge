@@ -8,10 +8,13 @@ import type { ActionStatus } from "@forge/action-engine";
  */
 export interface RollbackOperation {
   readonly actionId: string;
+  readonly resourceType: string;
+  readonly resourceId: string | number;
   readonly originalValue: Record<string, unknown>;
   readonly newValue: Record<string, unknown>;
   readonly rollbackMethod: string;
   readonly providerId: string;
+  readonly revisionId?: string;
   readonly timestamp: string;
 }
 

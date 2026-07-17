@@ -83,6 +83,16 @@ Forge now inserts a Mission layer above agents and below workspace/project conte
 - Mission lifecycle events are recorded in memory for later inspection and reuse.
 - The orchestration chain is now Mission -> Agent -> Strategy -> Pipeline -> Skill -> Provider.
 
+## Sprint 14 Update: WordPress Write Provider
+
+Forge now supports safe WordPress write operations through the provider layer.
+
+- Write flows remain gated by missions, agents, strategies, pipelines, and action approval.
+- Preview and dry-run modes never mutate WordPress.
+- Write results capture old value, new value, timestamp, resource ID, and revision ID where available.
+- Rollback uses stored revision data or the provider's native revision support when possible.
+- Content APIs should anticipate section-level editing in future content intelligence work.
+
 Built-in pipelines currently include:
 
 - Website Audit

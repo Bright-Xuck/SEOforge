@@ -99,6 +99,7 @@ Sprint 10 hardening adds `packages/project-resolver` for explicit project resolu
 Sprint 11 adds `packages/agent-engine` for deterministic agent orchestration and registry-backed agent metadata.
 Sprint 12 adds `packages/strategy-engine` for strategy generation, validation, serialization, and pipeline resolution.
 Sprint 13 adds `packages/mission-engine` for mission templates, planning, execution orchestration, serialization, and mission lifecycle memory events.
+Sprint 14 extends `packages/providers-wordpress` with write operations, `packages/execution-engine` with approval-gated real execution, and `packages/core` with write result models and provider interfaces.
 
 ---
 
