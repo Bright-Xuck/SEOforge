@@ -14,6 +14,8 @@ Sprint 11 adds the Agent Framework:
 `forge agents list`, `forge agent info <id>`, and `forge agent run <id>`.
 Sprint 12 adds the Strategy Engine:
 `forge strategy create`, `forge strategy show`, `forge strategy validate`, and `forge strategy export`.
+Sprint 13 adds the Mission Engine:
+`forge missions list`, `forge mission info <id>`, `forge mission run <id>`, `forge mission validate <id>`, and `forge mission export <id>`.
 
 ---
 
@@ -152,6 +154,26 @@ Show skill details, requirements, and outputs.
 ### `forge skill run <id>`
 
 Run a skill against structured project context. Supports `--provider`, `--model`, and `--json`.
+
+### `forge missions list`
+
+List registered mission templates.
+
+### `forge mission info <id>`
+
+Show a mission template.
+
+### `forge mission run <id>`
+
+Plan and execute a mission for a project. Supports `--dry-run` and `--json`.
+
+### `forge mission validate <id>`
+
+Validate a mission template.
+
+### `forge mission export <id>`
+
+Export a mission template as JSON or YAML.
 
 ---
 

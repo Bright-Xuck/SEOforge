@@ -1119,6 +1119,56 @@ Revisit when Forge introduces autonomous agent reasoning or external scheduling.
 
 ---
 
+## ADR-0026
+
+### Title
+
+Introduce a Mission Engine Above Agents and Strategies
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-17
+
+### Owner
+
+Bright Ndode
+
+### Context
+
+Sprint 12 introduced strategies as the planning unit between agents and pipelines, but the user-facing orchestration layer still needed a place to represent full missions, mission templates, and mission lifecycle history without collapsing everything into a single strategy object.
+
+### Decision
+
+Add `@forge/mission-engine` as a library-first orchestration layer above agents and strategies. Missions own templates, planning, execution order, summaries, and lifecycle memory events. The mission layer coordinates existing agents and strategies rather than replacing them.
+
+### Alternatives Considered
+
+Extending the strategy engine to cover mission templates and lifecycle events. Rejected because strategies are execution plans, not user-level missions.
+
+Keeping mission orchestration only inside the CLI. Rejected because mission planning should be reusable by future apps and automation surfaces.
+
+### Consequences
+
+Positive:
+
+- mission planning becomes reusable and testable
+- user-facing workflows can be expressed as named templates
+- mission history can be tracked separately from strategy history
+
+Negative:
+
+- one more orchestration package to maintain
+
+### Future Review
+
+Revisit when mission execution needs persistence, scheduling, or remote job execution.
+
+---
+
 # Future Decisions
 
 Examples of future ADRs include:

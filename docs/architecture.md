@@ -73,6 +73,16 @@ Forge now inserts a Strategy layer between agents and pipelines.
 - Pipelines execute strategies by resolving each strategy step into one or more pipeline executions.
 - Strategy validation and serialization are first-class concerns.
 
+## Sprint 13 Update: Mission Engine
+
+Forge now inserts a Mission layer above agents and below workspace/project context.
+
+- Missions coordinate multiple agents and strategies for a single user goal.
+- Mission planning selects agents, builds execution order, resolves dependencies, and estimates time, tokens, and risk.
+- Built-in mission templates cover weekly optimization, homepage optimization, content optimization, metadata optimization, accessibility audits, technical audits, pre-launch audits, and store optimization.
+- Mission lifecycle events are recorded in memory for later inspection and reuse.
+- The orchestration chain is now Mission -> Agent -> Strategy -> Pipeline -> Skill -> Provider.
+
 Built-in pipelines currently include:
 
 - Website Audit

@@ -9,6 +9,14 @@ import { createWordPressProvider, WORDPRESS_PROVIDER_METADATA } from "@forge/pro
 import { WebsiteReadError } from "@forge/core";
 import { loadKnowledge, createProjectProfile, detectChanges } from "@forge/knowledge-engine";
 import { loadMemory, saveMemory } from "@forge/memory-engine";
+import {
+  MissionPlanner,
+  createMissionRegistry,
+  serializeMissionToJson,
+  serializeMissionToYaml,
+  recordMissionEvent,
+  executionToMemoryEvent,
+} from "@forge/mission-engine";
 import { resolveProject } from "@forge/project-resolver";
 import { ContextBuilder } from "@forge/context-builder";
 import {
@@ -59,6 +67,8 @@ const program = new Command();
 const skillRegistry = new SkillRegistry();
 const agentRegistry = new AgentRegistry();
 const strategyBuilder = new StrategyBuilder();
+const missionRegistry = createMissionRegistry();
+const missionPlanner = new MissionPlanner();
 const contextBuilder = new ContextBuilder();
 const skillRegistryAdapter = {
   list: () => skillRegistry.list(),
@@ -136,6 +146,33 @@ async function loadProjectContext(project: string, currentTask?: string, agentId
   return { resolved, rootDir, knowledge, memory, profile, pipelineRegistry, strategyContext, aiContext };
 }
 
+function createMissionContext(project: string, currentTask?: string, missionTemplateId?: string) {
+  return loadProjectContext(project, currentTask).then(({ resolved, rootDir, knowledge, memory, profile, pipelineRegistry, strategyContext }) => {
+    const availableAgents = agentRegistry.list().map((agent) => ({
+      id: agent.metadata.id,
+      name: agent.metadata.name,
+      supportedPipelines: agent.metadata.supportedPipelines,
+      supportedSkills: agent.metadata.supportedSkills,
+    }));
+    return {
+      resolved,
+      rootDir,
+      missionContext: {
+        project: resolved.project,
+        projectProfile: profile,
+        knowledge,
+        memorySummary: profile.memorySummary,
+        strategyContext,
+        availableAgents,
+        currentTask,
+        missionTemplateId,
+      },
+      memory,
+      pipelineRegistry,
+    };
+  });
+}
+
 async function executeStrategy(
   strategy: { selectedPipelines: string[]; metadata: { id: string; status: string; createdAt: string } },
   pipelineRegistry: ReturnType<typeof createPipelineRegistryAdapter>,
@@ -203,6 +240,51 @@ function createProvider(providerId?: string): AIEngine {
             ? OllamaProvider
             : OpenAIProvider;
   return new AIEngine(provider);
+}
+
+async function executeMission(project: string, missionId: string, options: { dryRun?: boolean }) {
+  const mission = missionRegistry.get(missionId);
+  const { resolved, rootDir, missionContext, memory, pipelineRegistry } = await createMissionContext(project, mission.goal.description, missionId);
+  const plan = missionPlanner.plan(missionContext);
+  const startedAt = new Date().toISOString();
+  const stepResults: Array<{
+    readonly stepId: string;
+    readonly agentId: string;
+    readonly strategyId: string;
+    readonly pipelineResults: unknown[];
+  }> = [];
+
+  if (!options.dryRun) {
+    for (const step of plan.mission.steps) {
+      const pipelineResults: unknown[] = [];
+      for (const pipelineId of step.pipelines) {
+        const pipeline = pipelineRegistry.getPipeline(pipelineId);
+        const result = await executePipeline(pipeline, { rootDir, project: resolved.project });
+        pipelineResults.push(result);
+      }
+      stepResults.push({
+        stepId: step.id,
+        agentId: step.agentId,
+        strategyId: step.strategy.metadata.id,
+        pipelineResults,
+      });
+    }
+  }
+
+  const execution = {
+    missionId: plan.mission.metadata.id,
+    status: options.dryRun ? ("dry-run" as const) : ("completed" as const),
+    startedAt,
+    completedAt: new Date().toISOString(),
+    stepResults,
+  };
+  recordMissionEvent(memory, resolved.project, plan.mission, "mission-created");
+  recordMissionEvent(memory, resolved.project, plan.mission, "mission-started");
+  recordMissionEvent(memory, resolved.project, plan.mission, "mission-completed");
+  memory.append(executionToMemoryEvent(resolved.project, plan.mission, execution));
+  await saveMemory(rootDir, resolved.project, memory);
+
+  return { plan, execution };
 }
 
 program
@@ -837,6 +919,88 @@ agentCommand
     for (const agent of agents) {
       process.stdout.write(`${agent.id} - ${agent.name}\n`);
     }
+  });
+
+const missionsCommand = program.command("missions").description("Mission layer commands");
+
+missionsCommand
+  .command("list")
+  .option("--json", "Output missions as JSON")
+  .action((options: { json?: boolean }) => {
+    const missions = missionRegistry.list().map((mission) => ({
+      id: mission.id,
+      name: mission.name,
+      version: mission.version,
+      description: mission.description,
+    }));
+    if (options.json) {
+      process.stdout.write(JSON.stringify(missions, null, 2) + "\n");
+      return;
+    }
+    for (const mission of missions) {
+      process.stdout.write(`${mission.id} - ${mission.name}\n`);
+    }
+  });
+
+const missionCommand = program.command("mission").description("Mission execution commands");
+
+missionCommand
+  .command("info")
+  .argument("<id>", "Mission ID")
+  .option("--json", "Output mission as JSON")
+  .action((id: string, options: { json?: boolean }) => {
+    const mission = missionRegistry.get(id);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(mission, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Mission: ${mission.name}\n`);
+    process.stdout.write(`Version: ${mission.version}\n`);
+    process.stdout.write(`Description: ${mission.description}\n`);
+  });
+
+missionCommand
+  .command("run")
+  .argument("<id>", "Mission ID")
+  .argument("[project]", "Project ID")
+  .option("--dry-run", "Simulate mission execution without making changes", true)
+  .option("--json", "Output mission execution as JSON")
+  .action(async (id: string, project: string, options: { dryRun?: boolean; json?: boolean }) => {
+    const result = await executeMission(project, id, { dryRun: options.dryRun ?? true });
+    if (options.json) {
+      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Mission ${result.plan.mission.metadata.id} finished with status ${result.execution.status}\n`);
+    process.stdout.write(`Steps: ${result.plan.mission.steps.length}\n`);
+  });
+
+missionCommand
+  .command("validate")
+  .argument("<id>", "Mission ID")
+  .option("--json", "Output validation as JSON")
+  .action((id: string, options: { json?: boolean }) => {
+    const validation = missionRegistry.validate(id);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(validation, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Valid: ${validation.valid}\n`);
+    process.stdout.write(`Issues: ${validation.issues.join(" | ") || "(none)"}\n`);
+  });
+
+missionCommand
+  .command("export")
+  .argument("<id>", "Mission ID")
+  .option("--json", "Export mission as JSON")
+  .option("--yaml", "Export mission as YAML")
+  .action((id: string, options: { json?: boolean; yaml?: boolean }) => {
+    const mission = missionRegistry.get(id);
+    if (options.yaml) {
+      process.stdout.write(`${serializeMissionToYaml(mission)}\n`);
+      return;
+    }
+    process.stdout.write(`${serializeMissionToJson(mission)}\n`);
   });
 
 agentCommand

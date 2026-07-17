@@ -30,6 +30,7 @@
     "@forge/logger": "workspace:*",
     "@forge/knowledge-engine": "workspace:*",
     "@forge/memory-engine": "workspace:*",
+    "@forge/mission-engine": "workspace:*",
     "@forge/project-resolver": "workspace:*",
     "@forge/pipeline-engine": "workspace:*",
     "@forge/preflight-validator": "workspace:*",

@@ -71,6 +71,9 @@ importers:
       '@forge/memory-engine':
         specifier: workspace:*
         version: link:../../packages/memory-engine
+      '@forge/mission-engine':
+        specifier: workspace:*
+        version: link:../../packages/mission-engine
       '@forge/pipeline-engine':
         specifier: workspace:*
         version: link:../../packages/pipeline-engine
@@ -206,6 +209,24 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/mission-engine:
+    dependencies:
+      '@forge/agent-engine':
+        specifier: workspace:*
+        version: link:../agent-engine
+      '@forge/knowledge-engine':
+        specifier: workspace:*
+        version: link:../knowledge-engine
+      '@forge/memory-engine':
+        specifier: workspace:*
+        version: link:../memory-engine
+      '@forge/pipeline-engine':
+        specifier: workspace:*
+        version: link:../pipeline-engine
+      '@forge/strategy-engine':
+        specifier: workspace:*
+        version: link:../strategy-engine
 
   packages/pipeline-engine:
     dependencies:
