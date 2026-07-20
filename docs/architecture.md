@@ -155,6 +155,51 @@ Content Generation (future)
 
 The orchestration chain remains Mission → Agent → Strategy → Pipeline → Skill → Provider. Content Intelligence is a building block that future Missions, Agents, Strategies, and Skills consume.
 
+## Sprint 17 Update: Section Content Generation Engine
+
+Forge's first AI-powered content generation layer — but scoped strictly to **sections**, never whole pages. AI produces only candidate improvements; Content Intelligence remains the source of truth.
+
+- New package: `packages/content-generation` (`@forge/content-generation`, v1.7.0-beta.1).
+- **One-way dependency:** `content-generation → content-intelligence`. Content Intelligence must never import AI, prompt-registry, or skills. Generation is additive and sits above understanding.
+- The generation workflow:
+
+```text
+Page
+  ↓
+Content Intelligence
+  ↓
+Page DNA
+  ↓
+Content Graph
+  ↓
+Section Selection
+  ↓
+Prompt Builder
+  ↓
+AI Provider (via AI Engine)
+  ↓
+Structured Output
+  ↓
+Validation (content safety)
+  ↓
+ContentPatch + SectionDiff
+  ↓
+Preview
+  ↓
+Approval (Sprint 18)
+  ↓
+Execution (Sprint 18)
+```
+
+- A dedicated `PromptBuilder` composes registry-backed `PromptDefinition`s from Page DNA + Knowledge + Memory + Audience + Intent + Tone + Brand + existing section + target keywords + missing topics. Prompts are **never** built by manual string concatenation.
+- AI providers are integrated through the existing AI Engine. Sprint 17 keeps all providers **mocked** but adds `AIProviderConfig` + `ProviderFactory` scaffolding so real providers swap in later without changing callers.
+- Every AI output becomes a self-contained `ContentPatch` (id, sectionId, operation, selector, currentContent, proposedContent, diff, validation, confidence, estimatedImpact, warnings, generatedBy, provider, model, promptVersion, createdAt) plus a `SectionDiff` for review.
+- A `validator` enforces content safety (length bounds, heading count, keyword stuffing, repeated phrases, malformed markdown/HTML, broken links, empty output, unsafe placeholders) before any patch is emitted.
+- CLI gains a `forge generate` command group: `hero|faq|cta|section|page --preview` with `--provider --model --project --dry-run --json`.
+- Pipeline Engine gains five reusable steps — Section Generation, Patch Creation, Output Validation, Diff Generation, Patch Packaging.
+- Skills are rewired to call the Prompt Builder instead of embedding prompts; the Homepage Optimization Mission can detect a weak Hero and generate a section-level replacement (preview only).
+- **Out of scope (Sprint 18):** visual review, scheduling, execution/WordPress writes, real provider API keys, publishing.
+
 **Where I disagree, specifically:**
 
 - **Electron.** I'd push back on this one directly (see §11). I don't think you want Electron yet, for reasons below — I think you want a plain local web app, and Electron is a v3/v4 decision, not a v1 one.

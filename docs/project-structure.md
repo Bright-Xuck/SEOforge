@@ -102,6 +102,7 @@ Sprint 13 adds `packages/mission-engine` for mission templates, planning, execut
 Sprint 14 extends `packages/providers-wordpress` with write operations, `packages/execution-engine` with approval-gated real execution, and `packages/core` with write result models and provider interfaces.
 Sprint 15 adds `packages/homepage-engine` for homepage detection, deterministic homepage analysis, optimization planning, preview generation, and mission integration.
 Sprint 16 adds `packages/content-intelligence` for deterministic content understanding: page type detection, search intent classification, section detection, entity extraction, topic extraction, content graph construction, Page DNA assembly, quality scoring, and content-gap detection. It produces structured intelligence only — no LLM, no text generation, no content rewriting.
+Sprint 17 adds `packages/content-generation` for section-scoped AI content generation. It consumes Content Intelligence (Page DNA + Content Graph) as the source of truth, builds prompts via a dedicated Prompt Builder, calls AI providers through the AI Engine, validates output for content safety, and emits self-contained `ContentPatch` + `SectionDiff` + `Preview` artifacts. It depends on `content-intelligence`, `prompt-registry`, `ai-engine`, `skills`, `core`, `knowledge-engine`, `memory-engine`, and `context-builder`. It must NOT be imported by `content-intelligence` (one-way dependency). No execution or publishing occurs in Sprint 17.
 
 ---
 
@@ -185,6 +186,40 @@ Must never import:
 - LLM SDKs
 
 This package understands content. It does NOT generate content. It produces structured intelligence (Page DNA, Content Graph, scores, gaps) that future AI generation depends on. Everything is deterministic and offline.
+
+---
+
+# packages/content-generation
+
+Purpose:
+
+Section-scoped AI content generation.
+
+Responsibilities:
+
+- Section generators (15 types: hero, benefits, features, services, products, testimonials, faq, comparison, buying-guide, pricing, cta, introduction, conclusion, about, contact)
+- Prompt Builder (composes registry-backed prompts from Page DNA + Knowledge + Memory + Audience + Intent + Tone + Brand + existing section + target keywords + missing topics)
+- Content request/result types
+- Content patches (self-contained `ContentPatch` + `SectionPatch`)
+- Content safety validation
+- Section diffs
+- Project context aggregation
+- AI provider abstraction (via AI Engine + `ProviderFactory`)
+
+Rules:
+
+Must never import:
+
+- WordPress providers
+- Execution engine (no writes in Sprint 17)
+- Publishing/scheduling libraries
+
+Dependency direction (enforced):
+
+- MAY import `content-intelligence`, `prompt-registry`, `ai-engine`, `skills`, `core`, `knowledge-engine`, `memory-engine`, `context-builder`.
+- MUST NOT be imported by `content-intelligence` (one-way dependency).
+
+This package generates candidate section improvements only. It never rewrites an entire page, never bypasses Content Intelligence, and never executes or publishes. Every output becomes a `ContentPatch` for review in Sprint 18.
 
 ---
 

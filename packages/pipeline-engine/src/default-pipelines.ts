@@ -4,9 +4,15 @@ import {
   createContentGapStep,
   createContentIntelligenceStep,
   createContentQualityStep,
+  createDiffGenerationStep,
   createExecutionStep,
   createHomepageAnalysisStep,
+  createKnowledgeLoadStep,
+  createOutputValidationStep,
+  createPatchCreationStep,
+  createPatchPackagingStep,
   createRecommendationStep,
+  createSectionGenerationStep,
   createValidationStep,
   createWebsiteReaderStep,
 } from "./adapters.js";
@@ -151,11 +157,32 @@ export function createContentIntelligencePipeline(url: string): PipelineDefiniti
   };
 }
 
+export function createSectionGenerationPipeline(url: string): PipelineDefinition {
+  return {
+    id: "section-generation",
+    name: "Section Generation",
+    version: "1.7.0-beta.1",
+    description: "Section-scoped AI content generation: Page DNA -> section selection -> AI -> patch (no execution).",
+    steps: [
+      createWebsiteReaderStep(url),
+      createContentIntelligenceStep(),
+      createKnowledgeLoadStep(),
+      createSectionGenerationStep(),
+      createDiffGenerationStep(),
+      createOutputValidationStep(),
+      createPatchCreationStep(),
+      createPatchPackagingStep(),
+    ],
+    metadata: { category: "content-generation" },
+  };
+}
+
 export function listDefaultPipelines(): PipelineDefinition[] {
   return [
     createWebsiteAuditPipeline("https://example.com"),
     createWeeklyOptimizationPipeline("https://example.com"),
     createValidationOnlyPipeline("https://example.com"),
     createContentIntelligencePipeline("https://example.com"),
+    createSectionGenerationPipeline("https://example.com"),
   ];
 }

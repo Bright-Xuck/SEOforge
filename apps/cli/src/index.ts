@@ -75,6 +75,9 @@ import {
   extractEntities,
   extractTopics,
 } from "@forge/content-intelligence";
+import { generateContent, buildProjectContext } from "@forge/content-generation";
+import { ProviderFactory } from "@forge/ai-engine";
+import { PromptRegistry } from "@forge/prompt-registry";
 
 const program = new Command();
 const skillRegistry = new SkillRegistry();
@@ -1594,6 +1597,133 @@ contentCommand
     process.stdout.write(`Overall quality: ${quality.overall}\n`);
     process.stdout.write(`Readability: ${quality.readability.score}, Depth: ${quality.contentDepth.score}\n`);
   });
+
+const generateCommand = program.command("generate").description("Section-scoped AI content generation (Sprint 17)");
+
+const SECTION_KINDS = [
+  "hero", "benefits", "features", "services", "products", "testimonials",
+  "faq", "comparison", "buying-guide", "pricing", "cta", "introduction",
+  "conclusion", "about", "contact",
+];
+
+async function runGenerate(sectionKinds: string[], options: {
+  project?: string;
+  provider?: string;
+  model?: string;
+  preview?: boolean;
+  dryRun?: boolean;
+  json?: boolean;
+}) {
+  const project = options.project ?? "default";
+  const { resolved, knowledge, profile } = await loadProjectContext(project, "generate");
+  const siteUrl = resolveHomepageUrl(resolved.project);
+  const snapshot = await readWebsite(siteUrl);
+  const $ = (await import("cheerio")).load(snapshot.rawHtml || "");
+  const dna = buildPageDNA(snapshot, $);
+  const sections = detectSections(snapshot, $);
+  const selected = sectionKinds.length > 0
+    ? sections.sections.filter((s) => sectionKinds.includes(s.kind))
+    : sections.sections;
+
+  const projectContext = buildProjectContext({
+    project: resolved.project,
+    profile,
+    knowledge,
+    memory: profile.memorySummary,
+  });
+
+  const engine = new AIEngine(ProviderFactory.create({ provider: (options.provider ?? "openai") as never, model: options.model }));
+  const registry = new PromptRegistry();
+  const result = await generateContent(
+    {
+      project: resolved.project,
+      pageDNA: dna,
+      sections: selected,
+      projectContext,
+      brand: (knowledge as { brand?: never }).brand as never,
+      targetKeyword: "",
+      intent: dna.intent,
+      audience: dna.audience,
+    },
+    {
+      engine,
+      registry,
+      knowledge,
+      memory: profile.memorySummary,
+      profile,
+      brand: (knowledge as { brand?: never }).brand as never,
+    },
+  );
+
+  if (options.json) {
+    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+    return;
+  }
+  process.stdout.write(`Generated ${result.patches.length} section patch(es) for project "${resolved.project}".\n`);
+  for (const patch of result.patches) {
+    process.stdout.write(`  [${patch.operation}] ${patch.sectionId} — valid: ${patch.validation.valid}\n`);
+  }
+  if (options.preview) {
+    process.stdout.write("\nPreview mode: no changes applied. Use Sprint 18 to review & apply.\n");
+  }
+}
+
+generateCommand
+  .command("hero").description("Generate a hero section improvement")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only (no apply)")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runGenerate(["hero"], options));
+
+generateCommand
+  .command("faq").description("Generate a FAQ section improvement")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only (no apply)")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runGenerate(["faq"], options));
+
+generateCommand
+  .command("cta").description("Generate a CTA section improvement")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only (no apply)")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runGenerate(["cta"], options));
+
+generateCommand
+  .command("section").description("Generate a specific section by kind")
+  .argument("<kind>", `Section kind: ${SECTION_KINDS.join(", ")}`)
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only (no apply)")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (kind: string, options) => {
+    if (!SECTION_KINDS.includes(kind)) {
+      process.stderr.write(`Unknown section kind: ${kind}\n`);
+      return;
+    }
+    await runGenerate([kind], options);
+  });
+
+generateCommand
+  .command("page").description("Generate improvements for all detected sections")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only (no apply)")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runGenerate([], options));
 
 program.parse(process.argv);
 

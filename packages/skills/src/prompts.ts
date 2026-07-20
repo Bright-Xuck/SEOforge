@@ -28,3 +28,4 @@ registerPrompt("skill.generate-product-description", "Generate Product Descripti
 registerPrompt("skill.generate-internal-links", "Generate Internal Links", "Generate internal links using the structured context: {{input}}");
 registerPrompt("skill.expand-thin-content", "Expand Thin Content", "Expand thin content using the structured context: {{input}}");
 registerPrompt("skill.rewrite-heading", "Rewrite Heading", "Rewrite a heading using the structured context: {{input}}");
+registerPrompt("skill.generate-section", "Generate Section", "Generate an improved {{sectionKind}} section. Existing: {{existingSection}}. Keywords: {{targetKeywords}}. Intent: {{intent}}. Audience: {{audience}}. Tone: {{tone}}. Brand: {{brand}}.");

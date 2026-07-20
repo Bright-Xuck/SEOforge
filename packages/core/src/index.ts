@@ -843,3 +843,80 @@ export interface ExecutionProvider extends IProvider {
    */
   updateSchema(payload: UpdateSchemaPayload): Promise<Result<void>>;
 }
+
+// =============================================================================
+// BRAND PROFILE CONTRACTS (Sprint 17)
+// Interfaces only. Actual brand profiles are stored in the Knowledge layer.
+// See ADR-0032.
+// =============================================================================
+
+/**
+ * The voice/tone a brand uses when communicating.
+ */
+export interface BrandVoice {
+  readonly personality: string[];
+  readonly adjectives: string[];
+  readonly avoid: string[];
+}
+
+/**
+ * Allowed tone dimensions for generated content.
+ */
+export interface BrandTone {
+  readonly formality: "casual" | "neutral" | "formal";
+  readonly enthusiasm: "low" | "medium" | "high";
+  readonly humor: "none" | "light" | "playful";
+  readonly perspective: "first-person" | "second-person" | "third-person";
+}
+
+/**
+ * Editorial guidelines that constrain generated content.
+ */
+export interface BrandGuidelines {
+  readonly maxSentenceLength?: number;
+  readonly maxParagraphWords?: number;
+  readonly readingLevel?: string;
+  readonly bannedPhrases: string[];
+  readonly requiredDisclaimers: string[];
+}
+
+/**
+ * A target audience segment for the brand.
+ */
+export interface BrandAudience {
+  readonly segment: string;
+  readonly description: string;
+  readonly painPoints: string[];
+  readonly goals: string[];
+}
+
+/**
+ * A brand value or principle.
+ */
+export interface BrandValue {
+  readonly name: string;
+  readonly description: string;
+}
+
+/**
+ * A hard constraint the generator must respect.
+ */
+export interface BrandConstraint {
+  readonly id: string;
+  readonly description: string;
+  readonly severity: "warning" | "error";
+}
+
+/**
+ * A complete brand profile contract consumed by content generation.
+ * Storage lives in the Knowledge layer (projects/<project>/knowledge/brand.json).
+ */
+export interface BrandProfile {
+  readonly brand: string;
+  readonly voice: BrandVoice;
+  readonly tone: BrandTone;
+  readonly guidelines: BrandGuidelines;
+  readonly audiences: BrandAudience[];
+  readonly values: BrandValue[];
+  readonly constraints: BrandConstraint[];
+}

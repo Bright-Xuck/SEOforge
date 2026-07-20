@@ -11,6 +11,7 @@ export {
   GenerateInternalLinksSkill,
   ExpandThinContentSkill,
   RewriteHeadingSkill,
+  GenerateSectionSkill,
   createSkillStep,
   createSkillPipeline,
 } from "./skill-factory.js";

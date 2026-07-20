@@ -22,6 +22,8 @@ Sprint 15 adds the Homepage Optimization vertical slice:
 `forge homepage analyze`, `forge homepage plan`, `forge homepage preview`, and `forge homepage optimize`.
 Sprint 16 adds the Content Intelligence Engine:
 `forge content analyze`, `forge content graph`, `forge content dna`, `forge content sections`, and `forge content entities`.
+Sprint 17 adds the Section Content Generation Engine:
+`forge generate hero`, `forge generate faq`, `forge generate cta`, `forge generate section`, and `forge generate page` (each with `--preview`, `--provider`, `--model`, `--project`, `--dry-run`, and `--json`).
 
 ---
 

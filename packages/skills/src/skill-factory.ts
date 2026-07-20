@@ -98,6 +98,55 @@ export const GenerateInternalLinksSkill = createSimpleSkill("skill.generate-inte
 export const ExpandThinContentSkill = createSimpleSkill("skill.expand-thin-content", "Expand Thin Content", "Expand thin content.", "expandedContent", (output) => output.length > 50);
 export const RewriteHeadingSkill = createSimpleSkill("skill.rewrite-heading", "Rewrite Heading", "Rewrite heading text.", "heading", validateHeadingLength);
 
+// Sprint 17: section-scoped generation skill backed by @forge/content-generation.
+import { generateContent } from "@forge/content-generation";
+import type { ContentGenerationResult } from "@forge/content-generation";
+
+export const GenerateSectionSkill = (() => {
+  const id = "skill.generate-section";
+  const prompt = skillPromptRegistry.resolve(id);
+  return {
+    ...createMetadata(id, "Generate Section", "Generate an improved section via the content-generation engine.", ["section"], "output", "content"),
+    promptId: id,
+    requiredContext: ["knowledge", "memory", "profile"],
+    inputs: ["knowledge", "memory", "profile", "pageDNA", "sections"],
+    prompt,
+    validatePrompt: (item: typeof prompt) => skillPromptRegistry.validate(item),
+    validate(input: Record<string, unknown>, _context: SkillContext): SkillValidationResult {
+      return { valid: Array.isArray(input.sections) && input.sections.length > 0, errors: [] };
+    },
+    async execute(input: Record<string, unknown>, context: SkillContext, engine: AIEngine): Promise<SkillExecutionResult<{ result: ContentGenerationResult }>> {
+      const result = await generateContent(
+        {
+          project: context.project,
+          pageDNA: input.pageDNA as never,
+          sections: input.sections as never,
+          projectContext: context.profile as never,
+          brand: (context.knowledge as { brand?: never }).brand as never,
+          targetKeyword: (input.targetKeyword as string) ?? "",
+          intent: input.intent as never,
+          audience: input.audience as never,
+        },
+        {
+          engine,
+          registry: skillPromptRegistry,
+          knowledge: context.knowledge as never,
+          memory: context.memorySummary as never,
+          profile: context.profile as never,
+          brand: (context.knowledge as { brand?: never }).brand as never,
+        },
+      );
+      return {
+        skillId: id,
+        status: result.validation.valid ? "success" : "failed",
+        output: { result },
+        validation: result.validation.valid ? { valid: true, errors: [] } : { valid: false, errors: result.validation.errors },
+        provider: context.provider,
+      };
+    },
+  };
+})();
+
 export function createSkillStep<TInput, TOutput>(
   skill: SkillDefinition<TInput, TOutput>,
   input: TInput,

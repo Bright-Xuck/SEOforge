@@ -13,7 +13,7 @@ import {
 } from "@forge/knowledge-engine";
 import { loadMemory, saveMemory } from "@forge/memory-engine";
 import type { WriteProvider } from "@forge/core";
-import type { PipelineStepDefinition } from "./types.js";
+import type { PipelineContext, PipelineStepDefinition } from "./types.js";
 
 export function createWebsiteReaderStep(url: string): PipelineStepDefinition {
   return {
@@ -340,6 +340,146 @@ export function createContentQualityStep(): PipelineStepDefinition {
       const qualityOutput: QualityReportOutput = builder.buildQuality({ scores: quality });
       context.outputs = { ...context.outputs, contentQuality: qualityOutput };
       return qualityOutput;
+    },
+  };
+}
+
+// Sprint 17: Section Content Generation steps (AI, section-scoped only).
+import { AIEngine, ProviderFactory } from "@forge/ai-engine";
+import { PromptRegistry } from "@forge/prompt-registry";
+import { generateContent } from "@forge/content-generation";
+import type { ContentGenerationResult } from "@forge/content-generation";
+
+function getEngine(context: PipelineContext): AIEngine {
+  const provider = context.variables?.["provider"] as string | undefined ?? "openai";
+  const model = context.variables?.["model"] as string | undefined;
+  return new AIEngine(ProviderFactory.create({ provider: provider as never, model }));
+}
+
+function getRegistry(context: PipelineContext): PromptRegistry {
+  const registry = new PromptRegistry();
+  // In a full wiring, prompts would be loaded from storage; for Sprint 17 the
+  // registry is seeded by the skills layer (Part 13). We accept an injected one.
+  if (context.variables?.["registry"]) {
+    return context.variables["registry"] as PromptRegistry;
+  }
+  return registry;
+}
+
+export function createSectionGenerationStep(): PipelineStepDefinition {
+  return {
+    id: "section-generation",
+    name: "Section Generation",
+    version: "1.7.0-beta.1",
+    description: "Generates candidate section improvements via AI (section-scoped only).",
+    type: "website-reader",
+    inputs: ["contentIntelligence", "knowledge", "memory"],
+    outputs: ["generationResult"],
+    dependencies: ["content-intelligence", "knowledge-load"],
+    execute: async (context) => {
+      if (!context.contentIntelligence || !context.knowledge) {
+        throw new Error("Pipeline context missing content intelligence or knowledge");
+      }
+      const engine = getEngine(context);
+      const registry = getRegistry(context);
+      const result = await generateContent(
+        {
+          project: context.project ?? "default",
+          pageDNA: context.contentIntelligence.dna as never,
+          sections: (context.contentIntelligence.dna as never as { sectionInventory: { sections: never[] } }).sectionInventory.sections,
+          projectContext: context.projectProfile as never,
+          brand: (context.knowledge as { brand?: never }).brand as never,
+          targetKeyword: (context.variables?.["targetKeyword"] as string) ?? "",
+          intent: context.variables?.["intent"] as never,
+          audience: context.variables?.["audience"] as never,
+        },
+        {
+          engine,
+          registry,
+          knowledge: context.knowledge as never,
+          memory: (context.memorySummary ?? { project: context.project ?? "default", total: 0, byType: {}, lastEventAt: undefined }) as never,
+          profile: context.projectProfile as never,
+          brand: (context.knowledge as { brand?: never }).brand as never,
+        },
+      );
+      context.outputs = { ...context.outputs, generationResult: result };
+      return result;
+    },
+  };
+}
+
+export function createDiffGenerationStep(): PipelineStepDefinition {
+  return {
+    id: "diff-generation",
+    name: "Diff Generation",
+    version: "1.7.0-beta.1",
+    description: "Builds section diffs for review.",
+    type: "website-reader",
+    inputs: ["generationResult"],
+    outputs: ["sectionDiffs"],
+    dependencies: ["section-generation"],
+    execute: (context) => {
+      const result = context.outputs?.["generationResult"] as ContentGenerationResult | undefined;
+      if (!result) throw new Error("Pipeline context missing generation result");
+      context.outputs = { ...context.outputs, sectionDiffs: result.diffs };
+      return result.diffs;
+    },
+  };
+}
+
+export function createOutputValidationStep(): PipelineStepDefinition {
+  return {
+    id: "output-validation",
+    name: "Output Validation",
+    version: "1.7.0-beta.1",
+    description: "Validates generated section content before packaging.",
+    type: "website-reader",
+    inputs: ["generationResult"],
+    outputs: ["validationReport"],
+    dependencies: ["section-generation"],
+    execute: (context) => {
+      const result = context.outputs?.["generationResult"] as ContentGenerationResult | undefined;
+      if (!result) throw new Error("Pipeline context missing generation result");
+      context.outputs = { ...context.outputs, validationReport: result.validation };
+      return result.validation;
+    },
+  };
+}
+
+export function createPatchCreationStep(): PipelineStepDefinition {
+  return {
+    id: "patch-creation",
+    name: "Patch Creation",
+    version: "1.7.0-beta.1",
+    description: "Packages generated sections into self-contained ContentPatches.",
+    type: "website-reader",
+    inputs: ["generationResult"],
+    outputs: ["patches"],
+    dependencies: ["section-generation"],
+    execute: (context) => {
+      const result = context.outputs?.["generationResult"] as ContentGenerationResult | undefined;
+      if (!result) throw new Error("Pipeline context missing generation result");
+      context.outputs = { ...context.outputs, patches: result.patches };
+      return result.patches;
+    },
+  };
+}
+
+export function createPatchPackagingStep(): PipelineStepDefinition {
+  return {
+    id: "patch-packaging",
+    name: "Patch Packaging",
+    version: "1.7.0-beta.1",
+    description: "Finalizes the ContentGenerationResult for preview/approval (no execution).",
+    type: "website-reader",
+    inputs: ["generationResult", "patches", "sectionDiffs", "validationReport"],
+    outputs: ["contentGenerationResult"],
+    dependencies: ["patch-creation", "diff-generation", "output-validation"],
+    execute: (context) => {
+      const result = context.outputs?.["generationResult"] as ContentGenerationResult | undefined;
+      if (!result) throw new Error("Pipeline context missing generation result");
+      context.outputs = { ...context.outputs, contentGenerationResult: result };
+      return result;
     },
   };
 }

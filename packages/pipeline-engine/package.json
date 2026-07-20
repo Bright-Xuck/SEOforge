@@ -17,9 +17,12 @@
   },
   "dependencies": {
     "@forge/action-engine": "workspace:*",
+    "@forge/ai-engine": "workspace:*",
     "@forge/capabilities": "workspace:*",
+    "@forge/content-generation": "workspace:*",
     "@forge/content-intelligence": "workspace:*",
     "@forge/core": "workspace:*",
+    "@forge/prompt-registry": "workspace:*",
     "cheerio": "^1.0.0",
     "@forge/execution-engine": "workspace:*",
     "@forge/knowledge-engine": "workspace:*",

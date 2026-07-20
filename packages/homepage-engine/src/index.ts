@@ -3,6 +3,7 @@ export { HomepageAnalyzer } from "./analyzer.js";
 export { HomepagePlanner } from "./planner.js";
 export { enrichWithPageDNA } from "./pagedna-consumer/index.js";
 export type { PageDnaEnrichment } from "./pagedna-consumer/index.js";
+export { generateSectionImprovement } from "./section-improvement.js";
 export type {
   HomepageAnalysis,
   HomepageContext,

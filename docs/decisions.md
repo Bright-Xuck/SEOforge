@@ -1332,6 +1332,164 @@ Revisit when a consumer needs historical Page DNA comparison (add persistence/mi
 
 ---
 
+## ADR-0030
+
+### Title
+
+Introduce a Section-Scoped Content Generation Engine
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-20
+
+### Owner
+
+Bright Ndode
+
+### Context
+
+Sprint 17 introduces Forge's first AI-powered content generation layer. The platform already has deterministic Content Intelligence (Sprint 16) as the source of truth. The risk is that AI generation could bypass understanding, rewrite entire pages blindly, or bypass the Prompt Registry and AI Engine. Generation must be scoped, reviewable, and additive.
+
+### Decision
+
+Add `@forge/content-generation` (v1.7.0-beta.1) as a section-scoped generation layer. It consumes Content Intelligence (Page DNA + Content Graph), builds prompts via a dedicated Prompt Builder, calls AI providers through the existing AI Engine, validates output for content safety, and emits self-contained `ContentPatch` + `SectionDiff` + `Preview` artifacts.
+
+Hard rules:
+
+- AI generates only targeted section improvements, never a whole-page rewrite.
+- Content Intelligence is the source of truth; generation never bypasses it.
+- Prompts are composed via the Prompt Builder from registry-backed `PromptDefinition`s — never manual string concatenation.
+- AI providers are reached only through the AI Engine.
+- Every output becomes a `ContentPatch`.
+- No execution, no publishing, no WordPress writes in Sprint 17 (Sprint 18 handles review & apply).
+
+### Alternatives Considered
+
+Whole-page generation. Rejected because it is high-risk, hard to review, and violates the section-scoped policy.
+
+Embedding prompts directly in generators. Rejected because it bypasses the Prompt Registry (ADR-0010) and breaks versioning/testability.
+
+### Consequences
+
+Positive:
+
+- generation is scoped, reviewable, and diffable
+- prompts stay versioned and testable
+- clear boundary between understanding and generation
+
+Negative:
+
+- an additional package and abstraction layer to maintain
+- providers remain mocked in Sprint 17 (real swap deferred)
+
+### Future Review
+
+Revisit in Sprint 18 when adding visual review, approval queue, and execution wiring.
+
+---
+
+## ADR-0031
+
+### Title
+
+Section-Level AI Policy — No Whole-Page Rewrites
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-20
+
+### Owner
+
+Bright Ndode
+
+### Context
+
+AI content generation must improve websites without destroying existing structure or surprising the user. A whole-page rewrite is hard to review, risky to approve, and contradicts Forge's explainability principle (ADR-0015).
+
+### Decision
+
+All AI generation operates at the section level. A generator receives a single `SectionInfo` plus Page DNA, Project Context, Knowledge, Memory, Mission context, Brand, target keyword, intent, and audience. It returns a `GeneratedSection` describing the current and proposed section, the reason, expected SEO impact, confidence, warnings, and estimated token cost. The system never produces a full-page replacement.
+
+### Alternatives Considered
+
+Page-level generation with selective application. Rejected because it is harder to review and contradicts the section-scoped policy.
+
+### Consequences
+
+Positive:
+
+- every change is explainable and reviewable
+- lower risk of destructive edits
+- aligns with ADR-0007 (human approval required)
+
+Negative:
+
+- some cross-section improvements (e.g., global tone) are out of scope for Sprint 17
+
+### Future Review
+
+Revisit if a future mission explicitly requires coordinated multi-section generation.
+
+---
+
+## ADR-0032
+
+### Title
+
+Brand Profile Contracts in Core, Storage in Knowledge
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-20
+
+### Owner
+
+Bright Ndode
+
+### Context
+
+The content generation engine needs brand voice, tone, guidelines, audience, values, and constraints to generate on-brand content. These types must be shared across packages, but the actual brand profiles are project-specific knowledge.
+
+### Decision
+
+Define brand profile contracts (`BrandProfile`, `BrandVoice`, `BrandTone`, `BrandGuidelines`, `BrandAudience`, `BrandValue`, `BrandConstraint`) in `@forge/core` as interfaces only. Store actual brand profiles in the Knowledge layer (`projects/<project>/knowledge/brand.json`) via `knowledge-engine`. The generator asks the Knowledge Engine for the brand profile and never loads the JSON file directly.
+
+### Alternatives Considered
+
+Putting brand types inside content-generation. Rejected because brand is cross-cutting and belongs in core contracts.
+
+Putting brand storage inside content-generation. Rejected because storage belongs to the Knowledge layer (ADR-0024).
+
+### Consequences
+
+Positive:
+
+- brand contracts are shared and stable
+- storage stays in the knowledge layer
+- generators remain decoupled from file I/O
+
+Negative:
+
+- core gains a small set of brand interfaces
+
+### Future Review
+
+Revisit when brand profiles need versioning or multi-brand support.
+
+---
+
 Examples of future ADRs include:
 
 - Database Selection

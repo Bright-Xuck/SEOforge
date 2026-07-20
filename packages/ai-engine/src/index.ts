@@ -19,3 +19,5 @@ export type {
   GenerateResponse,
   StreamChunk,
 } from "./types.js";
+export { ProviderFactory, createProvider } from "./factory.js";
+export type { AIProviderConfig } from "./factory.js";

@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@forge/ai-engine": "workspace:*",
+    "@forge/content-generation": "workspace:*",
     "@forge/context-builder": "workspace:*",
     "@forge/core": "workspace:*",
     "@forge/knowledge-engine": "workspace:*",
