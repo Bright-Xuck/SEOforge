@@ -110,14 +110,28 @@ export interface SectionInfo {
   readonly present: boolean;
   readonly confidence: number;
   readonly evidence: string[];
+  /** Stable section ID (e.g. `hero`, `faq-1`). */
+  readonly id: string;
   /** Stable selector targeting this section in the DOM, when present. */
   readonly selector?: string;
+  /** First graph node id belonging to this section (when present). */
+  readonly startNode?: string;
+  /** Last graph node id belonging to this section (when present). */
+  readonly endNode?: string;
+  /** All graph node ids contained within this section (when present). */
+  readonly containedNodes: string[];
+  /** Parent section id, if nested (when present). */
+  readonly parentSection?: string;
+  /** Child section ids, if any (when present). */
+  readonly childSections: string[];
 }
 
 export interface SectionInventory {
   readonly sections: SectionInfo[];
   readonly present: SectionKind[];
   readonly missing: SectionKind[];
+  /** Sections keyed by stable id. */
+  readonly byId: Record<string, SectionInfo>;
 }
 
 // ---------------------------------------------------------------------------
@@ -382,6 +396,8 @@ export interface PageDNAWarning {
 
 export interface PageDNA {
   readonly schemaVersion: string;
+  readonly dnaVersion: PageDNAVersion;
+  readonly generatorVersion: string;
   readonly url: string;
   readonly analyzedAt: string;
   readonly pageType: PageType;

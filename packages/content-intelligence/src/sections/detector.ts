@@ -4,6 +4,8 @@
 
 import type { CheerioAPI } from "cheerio";
 import type { SectionInfo, SectionInventory, SectionKind, WebsiteSnapshot } from "../types.js";
+import { generateSectionId } from "../page-dna/id-generator.js";
+import { enumerateSectionNodeIds } from "../content-graph/traversal.js";
 
 interface SectionRule {
   readonly kind: SectionKind;
@@ -160,17 +162,32 @@ export function detectSections(snapshot: WebsiteSnapshot, $: CheerioAPI): Sectio
 
   const sections: SectionInfo[] = RULES.map((rule) => {
     const result = rule.detect(ctx);
+    const id = generateSectionId(rule.kind, 0);
+    const selector = result.present ? sectionSelector($, rule.kind) : undefined;
+    const containedNodes = result.present && selector
+      ? enumerateSectionNodeIds($(selector).first().html() ?? "", id)
+      : [];
     return {
       kind: rule.kind,
       present: result.present,
       confidence: result.confidence,
       evidence: result.evidence,
-      selector: result.present ? sectionSelector($, rule.kind) : undefined,
+      id,
+      selector,
+      startNode: containedNodes[0],
+      endNode: containedNodes.length > 0 ? containedNodes[containedNodes.length - 1] : undefined,
+      containedNodes,
+      parentSection: undefined,
+      childSections: [],
     };
   });
 
   const present = sections.filter((section) => section.present).map((section) => section.kind);
   const missing = sections.filter((section) => !section.present).map((section) => section.kind);
+  const byId: Record<string, SectionInfo> = {};
+  for (const section of sections) {
+    byId[section.id] = section;
+  }
 
-  return { sections, present, missing };
+  return { sections, present, missing, byId };
 }

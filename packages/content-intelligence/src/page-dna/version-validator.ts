@@ -9,13 +9,16 @@ export const SCHEMA_COMPATIBILITY: Record<PageDNAVersion, PageDNAVersion[]> = {
 };
 
 const CURRENT_VERSION: PageDNAVersion = "1.0";
+const GENERATOR_VERSION = "0.16.0";
 
 export function createPageDNAWithVersion(
-  data: Omit<PageDNA, "schemaVersion" | "analyzedAt">,
+  data: Omit<PageDNA, "schemaVersion" | "dnaVersion" | "generatorVersion" | "analyzedAt">,
 ): PageDNA {
   return {
     ...data,
     schemaVersion: CURRENT_VERSION,
+    dnaVersion: CURRENT_VERSION,
+    generatorVersion: GENERATOR_VERSION,
     analyzedAt: new Date().toISOString(),
   };
 }

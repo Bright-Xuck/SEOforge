@@ -35,4 +35,19 @@ describe("detectSections", () => {
       expect(section.confidence).toBeGreaterThanOrEqual(0);
     }
   });
+
+  it("populates boundary fields for present sections", () => {
+    const snapshot = makeRichSnapshot();
+    const $ = cheerio.load(snapshot.rawHtml);
+    const inventory = detectSections(snapshot, $);
+    const hero = inventory.byId["hero"];
+    expect(hero).toBeDefined();
+    expect(hero?.present).toBe(true);
+    expect(hero?.id).toBe("hero");
+    expect(hero?.startNode).toBeTruthy();
+    expect(hero?.endNode).toBeTruthy();
+    expect(Array.isArray(hero?.containedNodes)).toBe(true);
+    expect(hero?.containedNodes.length).toBeGreaterThan(0);
+    expect(Array.isArray(hero?.childSections)).toBe(true);
+  });
 });

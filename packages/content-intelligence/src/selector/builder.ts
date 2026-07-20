@@ -83,6 +83,31 @@ export class SelectorBuilder {
     };
   }
 
+  /**
+   * Build a selector for a section by its stable id (e.g. `hero`, `faq-1`).
+   * Describes WHAT (the section) not HOW it is rendered.
+   */
+  static buildSectionSelector(id: string): SectionSelector {
+    return {
+      type: "section",
+      target: "section",
+      kind: id,
+      css: `[data-section-id="${id}"], [id="${id}"], [class*="${id}"]`,
+    };
+  }
+
+  /**
+   * Build a selector for a block by its stable id (e.g. `hero-block-0`).
+   */
+  static buildBlockSelector(blockId: string): BlockSelector {
+    return {
+      type: "block",
+      target: "block",
+      sectionId: blockId,
+      css: `[data-block-id="${blockId}"], [id="${blockId}"]`,
+    };
+  }
+
   build(): AnySelector {
     return this.selector;
   }

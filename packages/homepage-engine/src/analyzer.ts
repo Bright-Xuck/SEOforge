@@ -1,5 +1,8 @@
+import * as cheerio from "cheerio";
+import type { CheerioAPI } from "cheerio";
 import type { Finding } from "@forge/core";
 import type { HomepageAnalysis, HomepageContext } from "./types.js";
+import { buildPageDNA } from "@forge/content-intelligence";
 import { enrichWithPageDNA } from "./pagedna-consumer/index.js";
 
 function createFinding(
@@ -64,7 +67,7 @@ export class HomepageAnalyzer {
         score,
         readabilityScore: readabilityScore(context),
       },
-      pageDna: enrichWithPageDNA(context.snapshot),
+      pageDna: enrichWithPageDNA(buildPageDNA(context.snapshot, cheerio.load(context.snapshot.rawHtml || "") as CheerioAPI)),
     };
   }
 }

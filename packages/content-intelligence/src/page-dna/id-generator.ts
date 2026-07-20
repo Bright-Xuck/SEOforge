@@ -5,11 +5,15 @@
 import type { SectionKind } from "../types.js";
 
 /**
- * Generate a stable section ID from a kind and index.
+ * Generate a stable section ID from a kind and occurrence index.
  * Deterministic: same inputs always produce the same ID.
+ *
+ * Format: bare kind for the first occurrence (index 0), `kind-N` for
+ * subsequent occurrences (index >= 1). Examples: `hero`, `hero-1`,
+ * `faq-1`, `faq-2`, `pricing-1`, `footer-1`.
  */
 export function generateSectionId(kind: SectionKind, index: number): string {
-  return `section-${kind}-${index}`;
+  return index <= 0 ? kind : `${kind}-${index}`;
 }
 
 /**
@@ -17,6 +21,20 @@ export function generateSectionId(kind: SectionKind, index: number): string {
  */
 export function generateBlockId(sectionId: string, index: number): string {
   return `${sectionId}-block-${index}`;
+}
+
+/**
+ * Generate a stable paragraph ID within a block.
+ */
+export function generateParagraphId(blockId: string, index: number): string {
+  return `${blockId}-p-${index}`;
+}
+
+/**
+ * Generate a stable sentence ID within a paragraph.
+ */
+export function generateSentenceId(paragraphId: string, index: number): string {
+  return `${paragraphId}-s-${index}`;
 }
 
 /**

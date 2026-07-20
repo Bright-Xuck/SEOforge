@@ -2,6 +2,7 @@ import type { ExecutionPlan } from "@forge/action-engine";
 import type { WebsiteSnapshot, WriteProvider } from "@forge/core";
 import type { ValidationReport } from "@forge/preflight-validator";
 import type { ExecutionResult } from "@forge/execution-engine";
+import type { ContentSnapshot, ContentGraphOutput, PageDNAOutput } from "@forge/content-intelligence";
 
 export type PipelineStepType =
   | "website-reader"
@@ -30,7 +31,11 @@ export interface PipelineContext {
   memory?: Record<string, unknown>;
   variables?: Record<string, unknown>;
   outputs?: Record<string, unknown>;
-  contentIntelligence?: unknown;
+  contentIntelligence?: {
+    readonly dna: PageDNAOutput;
+    readonly graph: ContentGraphOutput;
+    readonly snapshot: ContentSnapshot;
+  };
 }
 
 export interface PipelineStepResult {

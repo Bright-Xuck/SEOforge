@@ -102,6 +102,16 @@ export { OutputBuilder } from "./pipeline/builder.js";
 // Content Graph
 export { buildContentGraph } from "./content-graph/builder.js";
 
+// Content Snapshot (Hardening Pass)
+export { serializeContentSnapshot } from "./snapshot/builder.js";
+export type {
+  ContentSnapshot,
+  SnapshotId,
+  SnapshotMetadata,
+  ContentFingerprint,
+  SnapshotSummary,
+} from "./snapshot/types.js";
+
 // Gap Detection
 export { detectGaps } from "./gap/detector.js";
 

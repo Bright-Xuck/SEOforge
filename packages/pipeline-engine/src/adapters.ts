@@ -259,6 +259,13 @@ import {
   buildContentGraph,
   detectGaps,
   scoreQuality,
+  serializeContentSnapshot,
+  OutputBuilder,
+  type ContentSnapshot,
+  type GapReportOutput,
+  type PageDNAOutput,
+  type ContentGraphOutput,
+  type QualityReportOutput,
 } from "@forge/content-intelligence";
 
 export function createContentIntelligenceStep(): PipelineStepDefinition {
@@ -278,7 +285,11 @@ export function createContentIntelligenceStep(): PipelineStepDefinition {
       const $ = loadCheerio(context.snapshot.rawHtml || "");
       const dna = buildPageDNA(context.snapshot, $);
       const graph = buildContentGraph(context.snapshot, $);
-      const result = { dna, graph };
+      const builder = new OutputBuilder();
+      const dnaOutput: PageDNAOutput = builder.buildDNA({ dna });
+      const graphOutput: ContentGraphOutput = builder.buildGraph({ graph });
+      const snapshot: ContentSnapshot = serializeContentSnapshot(dna, graph, { source: "pipeline-engine" });
+      const result = { dna: dnaOutput, graph: graphOutput, snapshot };
       context.contentIntelligence = result;
       return result;
     },
@@ -301,8 +312,10 @@ export function createContentGapStep(): PipelineStepDefinition {
       }
       const $ = loadCheerio(context.snapshot.rawHtml || "");
       const gaps = detectGaps(context.snapshot, $);
-      context.outputs = { ...context.outputs, contentGaps: gaps };
-      return gaps;
+      const builder = new OutputBuilder();
+      const gapsOutput: GapReportOutput = builder.buildGaps({ gaps });
+      context.outputs = { ...context.outputs, contentGaps: gapsOutput };
+      return gapsOutput;
     },
   };
 }
@@ -323,8 +336,10 @@ export function createContentQualityStep(): PipelineStepDefinition {
       }
       const $ = loadCheerio(context.snapshot.rawHtml || "");
       const quality = scoreQuality(context.snapshot, $);
-      context.outputs = { ...context.outputs, contentQuality: quality };
-      return quality;
+      const builder = new OutputBuilder();
+      const qualityOutput: QualityReportOutput = builder.buildQuality({ scores: quality });
+      context.outputs = { ...context.outputs, contentQuality: qualityOutput };
+      return qualityOutput;
     },
   };
 }

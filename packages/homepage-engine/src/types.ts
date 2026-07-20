@@ -53,6 +53,8 @@ export interface HomepageAnalysis {
     readonly entityCount: number;
     readonly readingLevel: string;
     readonly contentLength: number;
+    readonly dnaVersion: string;
+    readonly generatorVersion: string;
   };
 }
 

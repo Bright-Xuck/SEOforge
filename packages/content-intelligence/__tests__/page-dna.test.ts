@@ -16,6 +16,8 @@ describe("buildPageDNA", () => {
     const $ = cheerio.load(snapshot.rawHtml);
     const dna = buildPageDNA(snapshot, $);
     expect(dna.schemaVersion).toBe("1.0");
+    expect(dna.dnaVersion).toBe("1.0");
+    expect(dna.generatorVersion).toBeTruthy();
     expect(dna.analyzedAt).toBeTruthy();
     expect(dna.pageType.kind).toBeTruthy();
     expect(dna.intent.primary).toBeTruthy();
@@ -56,6 +58,8 @@ describe("version-validator", () => {
       metadata: { hasTitle: false, hasMetaDescription: false, hasCanonical: false, hasOpenGraph: false, hasTwitterCard: false, hasJsonLd: false, hasLang: false },
     });
     expect(dna.schemaVersion).toBe("1.0");
+    expect(dna.dnaVersion).toBe("1.0");
+    expect(dna.generatorVersion).toBeTruthy();
     expect(getPageDNAWarnings(dna).length).toBeGreaterThan(0);
   });
 });

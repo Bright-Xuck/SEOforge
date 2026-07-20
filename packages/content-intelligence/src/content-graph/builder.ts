@@ -5,7 +5,18 @@
 import type { CheerioAPI } from "cheerio";
 import type { ContentGraph, GraphNode, GraphNodeType, WebsiteSnapshot } from "../types.js";
 import { detectSections } from "../sections/detector.js";
-import { generateSectionId } from "../page-dna/id-generator.js";
+import {
+  generateSectionId,
+  generateBlockId,
+  generateParagraphId,
+  generateSentenceId,
+} from "../page-dna/id-generator.js";
+import {
+  splitBlocks,
+  splitParagraphs,
+  splitSentences,
+  stripHtml,
+} from "./traversal.js";
 
 export function buildContentGraph(snapshot: WebsiteSnapshot, $: CheerioAPI): ContentGraph {
   const pageId = `page-${hashUrl(snapshot.finalUrl || snapshot.originalUrl)}`;
@@ -45,7 +56,7 @@ export function buildContentGraph(snapshot: WebsiteSnapshot, $: CheerioAPI): Con
     let blockIndex = 0;
 
     for (const blockHtml of blocks) {
-      const blockId = `${sectionId}-block-${blockIndex}`;
+      const blockId = generateBlockId(sectionId, blockIndex);
       const blockNode: GraphNode = {
         id: blockId,
         type: "block",
@@ -62,7 +73,7 @@ export function buildContentGraph(snapshot: WebsiteSnapshot, $: CheerioAPI): Con
       for (const paragraphHtml of paragraphs) {
         const paragraphText = stripHtml(paragraphHtml).trim();
         if (!paragraphText) continue;
-        const paragraphId = `${blockId}-p-${paragraphIndex}`;
+        const paragraphId = generateParagraphId(blockId, paragraphIndex);
         const paragraphNode: GraphNode = {
           id: paragraphId,
           type: "paragraph",
@@ -77,7 +88,7 @@ export function buildContentGraph(snapshot: WebsiteSnapshot, $: CheerioAPI): Con
         const sentences = splitSentences(paragraphText);
         let sentenceIndex = 0;
         for (const sentence of sentences) {
-          const sentenceId = `${paragraphId}-s-${sentenceIndex}`;
+          const sentenceId = generateSentenceId(paragraphId, sentenceIndex);
           const sentenceNode: GraphNode = {
             id: sentenceId,
             type: "sentence",
@@ -107,27 +118,6 @@ export function buildContentGraph(snapshot: WebsiteSnapshot, $: CheerioAPI): Con
 
 function cheerioCheerio($: CheerioAPI, kind: string): ReturnType<CheerioAPI> {
   return $(`[class*="${kind}"], [id*="${kind}"], section.${kind}`).first();
-}
-
-function splitBlocks(html: string): string[] {
-  if (!html) return [];
-  const blocks = html.split(/<\/?(section|div|article|ul|ol|table|header|footer)[^>]*>/i).filter((chunk) => chunk.trim().length > 0);
-  return blocks.length > 0 ? blocks : [html];
-}
-
-function splitParagraphs(html: string): string[] {
-  return html.split(/<\/p>|<\/li>|<\/blockquote>|<br\s*\/?>/i).map((chunk) => chunk.trim()).filter(Boolean);
-}
-
-function splitSentences(text: string): string[] {
-  return text.split(/(?<=[.!?])\s+/).map((chunk) => chunk.trim()).filter(Boolean);
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ");
 }
 
 function hashUrl(url: string): string {
