@@ -43,6 +43,17 @@ export interface HomepageAnalysis {
     readonly score: number;
     readonly readabilityScore: number;
   };
+  /** Additive deterministic Page DNA enrichment (Sprint 16). */
+  readonly pageDna?: {
+    readonly pageType: string;
+    readonly intent: string;
+    readonly audience: string;
+    readonly sectionCount: number;
+    readonly topicCount: number;
+    readonly entityCount: number;
+    readonly readingLevel: string;
+    readonly contentLength: number;
+  };
 }
 
 export interface HomepageOptimizationAction {

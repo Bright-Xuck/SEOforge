@@ -10,15 +10,17 @@
     }
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit",
+    "build": "node ../../node_modules/typescript/bin/tsc",
+    "dev": "node ../../node_modules/typescript/bin/tsc --watch",
+    "typecheck": "node ../../node_modules/typescript/bin/tsc --noEmit",
     "clean": "del /q dist 2>nul || rmdir /s /q dist"
   },
   "dependencies": {
     "@forge/action-engine": "workspace:*",
     "@forge/core": "workspace:*",
+    "@forge/content-intelligence": "workspace:*",
     "@forge/execution-engine": "workspace:*",
+    "cheerio": "^1.0.0",
     "@forge/knowledge-engine": "workspace:*",
     "@forge/memory-engine": "workspace:*",
     "@forge/mission-engine": "workspace:*",

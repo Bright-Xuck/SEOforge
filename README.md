@@ -20,6 +20,8 @@ Sprint 14 adds the WordPress Write Provider:
 `forge wp preview`, `forge wp apply`, `forge wp rollback`, `forge execution apply`, and `forge execution rollback`.
 Sprint 15 adds the Homepage Optimization vertical slice:
 `forge homepage analyze`, `forge homepage plan`, `forge homepage preview`, and `forge homepage optimize`.
+Sprint 16 adds the Content Intelligence Engine:
+`forge content analyze`, `forge content graph`, `forge content dna`, `forge content sections`, and `forge content entities`.
 
 ---
 
@@ -90,7 +92,9 @@ forge/
 │   ├── capabilities/     # Analysis rules and engine
 │   ├── plugin-registry/  # Central registry for all extensions
 │   ├── recommendation-engine/  # Deterministic recommendation generation
-│   └── action-engine/    # Execution planning and approval management
+│   ├── action-engine/    # Execution planning and approval management
+│   ├── homepage-engine/  # Deterministic homepage analysis and optimization
+│   └── content-intelligence/  # Deterministic content understanding (Page DNA, Content Graph)
 ├── docs/                 # Architecture and design documentation
 └── tests/                # Repository-level tests
 ```
@@ -214,6 +218,26 @@ Preview homepage optimization changes without writes.
 ### `forge homepage optimize`
 
 Optimize a homepage through the approval-gated execution flow.
+
+### `forge content analyze`
+
+Analyze a page deterministically and produce a structured content-intelligence report (page type, intent, sections, entities, quality, gaps). Supports `--json` and `--project`.
+
+### `forge content graph`
+
+Build a Content Graph (Page → Section → Block → Paragraph → Sentence) for a page. Supports `--json` and `--project`.
+
+### `forge content dna`
+
+Build a Page DNA object summarizing a page's structure, intent, entities, and signals. Supports `--json` and `--project`.
+
+### `forge content sections`
+
+Detect content sections (hero, features, faq, pricing, etc.) on a page. Supports `--json` and `--project`.
+
+### `forge content entities`
+
+Extract deterministic entities (brands, products, people, organizations, etc.) from a page. Supports `--json` and `--project`.
 
 ---
 

@@ -1271,6 +1271,67 @@ Revisit when Sprint 16 introduces content intelligence and richer section-level 
 
 # Future Decisions
 
+## ADR-0029
+
+### Title
+
+Introduce a Deterministic Content Intelligence Engine
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-19
+
+### Owner
+
+Bright Ndode
+
+### Context
+
+Forge must understand website content before AI is allowed to modify it. Sprint 15 delivered a deterministic homepage optimization slice, but the platform still lacked a general, reusable content-understanding layer that future AI generation could depend on. Without it, every future content skill would re-parse raw HTML and re-derive page structure, duplicating logic and producing inconsistent understanding.
+
+### Decision
+
+Add `@forge/content-intelligence` (v0.16.0) as a deterministic, offline content-understanding package. It consumes a `WebsiteSnapshot` (re-parsing `rawHtml` with Cheerio) and produces structured intelligence: page type, search intent, audience profile, section inventory, entity extraction, topic extraction, a Content Graph (Page → Section → Block → Paragraph → Sentence), a Page DNA aggregate, deterministic quality scores, and content-gap detection.
+
+The package must never import AI providers, the Prompt Registry, skill packages, or LLM SDKs. It generates no text and rewrites no content. It is a building block consumed by future Missions, Agents, Strategies, Skills, and the Homepage Engine.
+
+The new understanding flow is:
+
+```text
+Website → DOM → Content Intelligence → Page DNA → Content Graph → Optimization Plan → Content Generation (future)
+```
+
+### Alternatives Considered
+
+Using an LLM for entity extraction and section classification. Rejected because Sprint 16 explicitly forbids AI, requires determinism, and must work fully offline. A gated, optional LLM enrichment layer may be added later without violating this decision (consistent with ADR-0009).
+
+Building the understanding logic directly inside the Homepage Engine and Skills. Rejected because it would duplicate logic and prevent reuse; a shared package keeps the orchestration chain clean (Mission → Agent → Strategy → Pipeline → Skill → Provider).
+
+### Consequences
+
+Positive:
+
+- a single, testable, deterministic source of content understanding
+- reusable pipeline steps (Content Analysis, Content Graph, Page DNA, Gap Detection, Entity Extraction)
+- Homepage Engine can enrich its analysis additively without breaking existing output shapes
+- clear boundary: understanding is separated from generation
+
+Negative:
+
+- an additional package and abstraction layer to maintain
+- entity extraction is heuristic-only (no NER) and limited in accuracy
+- double HTML parsing (html-parser plus content-intelligence re-parse of rawHtml)
+
+### Future Review
+
+Revisit when a consumer needs historical Page DNA comparison (add persistence/migration), or when an optional gated LLM enrichment layer is justified.
+
+---
+
 Examples of future ADRs include:
 
 - Database Selection

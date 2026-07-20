@@ -1,6 +1,9 @@
 import type { PipelineDefinition } from "./types.js";
 import {
   createActionStep,
+  createContentGapStep,
+  createContentIntelligenceStep,
+  createContentQualityStep,
   createExecutionStep,
   createHomepageAnalysisStep,
   createRecommendationStep,
@@ -132,10 +135,27 @@ export function createValidationOnlyPipeline(_url: string): PipelineDefinition {
   };
 }
 
+export function createContentIntelligencePipeline(url: string): PipelineDefinition {
+  return {
+    id: "content-intelligence",
+    name: "Content Intelligence",
+    version: "0.16.0",
+    description: "Deterministic content understanding: Page DNA, content graph, gaps, and quality (no AI).",
+    steps: [
+      createWebsiteReaderStep(url),
+      createContentIntelligenceStep(),
+      createContentGapStep(),
+      createContentQualityStep(),
+    ],
+    metadata: { category: "content-intelligence" },
+  };
+}
+
 export function listDefaultPipelines(): PipelineDefinition[] {
   return [
     createWebsiteAuditPipeline("https://example.com"),
     createWeeklyOptimizationPipeline("https://example.com"),
     createValidationOnlyPipeline("https://example.com"),
+    createContentIntelligencePipeline("https://example.com"),
   ];
 }

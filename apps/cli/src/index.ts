@@ -66,6 +66,15 @@ import {
 import type { WriteOperation, WriteMode } from "@forge/core";
 import { execute as executeExecution, rollbackExecution } from "@forge/execution-engine";
 import { HomepageAnalyzer, HomepageDetector, HomepagePlanner } from "@forge/homepage-engine";
+import {
+  buildPageDNA,
+  buildContentGraph,
+  detectSections,
+  detectGaps,
+  scoreQuality,
+  extractEntities,
+  extractTopics,
+} from "@forge/content-intelligence";
 
 const program = new Command();
 const skillRegistry = new SkillRegistry();
@@ -1473,6 +1482,117 @@ strategyCommand
       return;
     }
     process.stdout.write(`${serializeStrategyToJson(strategy)}\n`);
+  });
+
+// Sprint 16: Content Intelligence commands (deterministic, no AI)
+const contentCommand = program.command("content").description("Deterministic content intelligence (no AI)");
+
+async function loadContentContext(project: string) {
+  const { resolved } = await loadProjectContext(project, "content");
+  const siteUrl = resolveHomepageUrl(resolved.project);
+  const snapshot = await readWebsite(siteUrl);
+  const $ = (await import("cheerio")).load(snapshot.rawHtml || "");
+  return { resolved, siteUrl, snapshot, $ };
+}
+
+contentCommand
+  .command("analyze")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; json?: boolean }) => {
+    const project = options.project ?? "default";
+    const { snapshot, $ } = await loadContentContext(project);
+    const dna = buildPageDNA(snapshot, $);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(dna, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Page type: ${dna.pageType.kind} (${dna.pageType.confidence.toFixed(2)})\n`);
+    process.stdout.write(`Intent: ${dna.intent.primary}\n`);
+    process.stdout.write(`Audience: ${dna.audience.level}\n`);
+    process.stdout.write(`Topics: ${dna.topics.length}, Entities: ${dna.entities.length}\n`);
+  });
+
+contentCommand
+  .command("graph")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; json?: boolean }) => {
+    const project = options.project ?? "default";
+    const { snapshot, $ } = await loadContentContext(project);
+    const graph = buildContentGraph(snapshot, $);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(graph, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Graph nodes: ${graph.nodeCount}\n`);
+    process.stdout.write(`By type: ${JSON.stringify(graph.byType)}\n`);
+  });
+
+contentCommand
+  .command("sections")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; json?: boolean }) => {
+    const project = options.project ?? "default";
+    const { snapshot, $ } = await loadContentContext(project);
+    const sections = detectSections(snapshot, $);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(sections, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Present: ${sections.present.join(", ") || "none"}\n`);
+    process.stdout.write(`Missing: ${sections.missing.join(", ") || "none"}\n`);
+  });
+
+contentCommand
+  .command("entities")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; json?: boolean }) => {
+    const project = options.project ?? "default";
+    const { snapshot, $ } = await loadContentContext(project);
+    const entities = extractEntities(snapshot, $);
+    const topics = extractTopics(snapshot);
+    if (options.json) {
+      process.stdout.write(JSON.stringify({ entities, topics }, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Entities: ${entities.length}, Topics: ${topics.length}\n`);
+  });
+
+contentCommand
+  .command("gaps")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; json?: boolean }) => {
+    const project = options.project ?? "default";
+    const { snapshot, $ } = await loadContentContext(project);
+    const gaps = detectGaps(snapshot, $);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(gaps, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Gaps: ${gaps.length}\n`);
+    for (const gap of gaps) {
+      process.stdout.write(`  [${gap.severity}] ${gap.title}\n`);
+    }
+  });
+
+contentCommand
+  .command("quality")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; json?: boolean }) => {
+    const project = options.project ?? "default";
+    const { snapshot, $ } = await loadContentContext(project);
+    const quality = scoreQuality(snapshot, $);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(quality, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Overall quality: ${quality.overall}\n`);
+    process.stdout.write(`Readability: ${quality.readability.score}, Depth: ${quality.contentDepth.score}\n`);
   });
 
 program.parse(process.argv);

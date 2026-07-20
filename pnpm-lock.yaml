@@ -53,6 +53,9 @@ importers:
       '@forge/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@forge/content-intelligence':
+        specifier: workspace:*
+        version: link:../../packages/content-intelligence
       '@forge/context-builder':
         specifier: workspace:*
         version: link:../../packages/context-builder
@@ -104,6 +107,9 @@ importers:
       '@forge/tools':
         specifier: workspace:*
         version: link:../../packages/tools
+      cheerio:
+        specifier: ^1.0.0
+        version: 1.2.0
       commander:
         specifier: ^15.0.0
         version: 15.0.0
@@ -165,6 +171,18 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/content-intelligence:
+    dependencies:
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@forge/tools':
+        specifier: workspace:*
+        version: link:../tools
+      cheerio:
+        specifier: ^1.0.0
+        version: 1.2.0
+
   packages/context-builder:
     dependencies:
       '@forge/ai-engine':
@@ -197,6 +215,9 @@ importers:
       '@forge/action-engine':
         specifier: workspace:*
         version: link:../action-engine
+      '@forge/content-intelligence':
+        specifier: workspace:*
+        version: link:../content-intelligence
       '@forge/core':
         specifier: workspace:*
         version: link:../core
@@ -227,6 +248,9 @@ importers:
       '@forge/tools':
         specifier: workspace:*
         version: link:../tools
+      cheerio:
+        specifier: ^1.0.0
+        version: 1.2.0
 
   packages/knowledge-engine:
     dependencies:
@@ -275,6 +299,9 @@ importers:
       '@forge/capabilities':
         specifier: workspace:*
         version: link:../capabilities
+      '@forge/content-intelligence':
+        specifier: workspace:*
+        version: link:../content-intelligence
       '@forge/core':
         specifier: workspace:*
         version: link:../core
@@ -296,6 +323,9 @@ importers:
       '@forge/tools':
         specifier: workspace:*
         version: link:../tools
+      cheerio:
+        specifier: ^1.0.0
+        version: 1.2.0
 
   packages/plugin-registry:
     dependencies:

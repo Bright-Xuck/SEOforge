@@ -1,5 +1,6 @@
 import type { Finding } from "@forge/core";
 import type { HomepageAnalysis, HomepageContext } from "./types.js";
+import { enrichWithPageDNA } from "./pagedna-consumer/index.js";
 
 function createFinding(
   id: string,
@@ -63,6 +64,7 @@ export class HomepageAnalyzer {
         score,
         readabilityScore: readabilityScore(context),
       },
+      pageDna: enrichWithPageDNA(context.snapshot),
     };
   }
 }

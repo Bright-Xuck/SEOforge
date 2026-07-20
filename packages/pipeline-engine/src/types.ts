@@ -30,6 +30,7 @@ export interface PipelineContext {
   memory?: Record<string, unknown>;
   variables?: Record<string, unknown>;
   outputs?: Record<string, unknown>;
+  contentIntelligence?: unknown;
 }
 
 export interface PipelineStepResult {

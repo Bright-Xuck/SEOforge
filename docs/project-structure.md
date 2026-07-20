@@ -101,6 +101,7 @@ Sprint 12 adds `packages/strategy-engine` for strategy generation, validation, s
 Sprint 13 adds `packages/mission-engine` for mission templates, planning, execution orchestration, serialization, and mission lifecycle memory events.
 Sprint 14 extends `packages/providers-wordpress` with write operations, `packages/execution-engine` with approval-gated real execution, and `packages/core` with write result models and provider interfaces.
 Sprint 15 adds `packages/homepage-engine` for homepage detection, deterministic homepage analysis, optimization planning, preview generation, and mission integration.
+Sprint 16 adds `packages/content-intelligence` for deterministic content understanding: page type detection, search intent classification, section detection, entity extraction, topic extraction, content graph construction, Page DNA assembly, quality scoring, and content-gap detection. It produces structured intelligence only — no LLM, no text generation, no content rewriting.
 
 ---
 
@@ -152,6 +153,38 @@ Must never import:
 - HTTP libraries
 
 This package represents the language of Forge.
+
+---
+
+# packages/content-intelligence
+
+Purpose:
+
+Deterministic content understanding.
+
+Responsibilities:
+
+- Page type detection
+- Search intent classification
+- Audience profiling
+- Section detection
+- Entity extraction
+- Topic extraction
+- Content graph construction
+- Page DNA assembly
+- Content quality scoring
+- Content gap detection
+
+Rules:
+
+Must never import:
+
+- AI providers
+- Prompt Registry
+- Skill packages
+- LLM SDKs
+
+This package understands content. It does NOT generate content. It produces structured intelligence (Page DNA, Content Graph, scores, gaps) that future AI generation depends on. Everything is deterministic and offline.
 
 ---
 

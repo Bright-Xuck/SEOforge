@@ -8,12 +8,23 @@ describe("HomepagePlanner", () => {
     const planner = new HomepagePlanner();
     const snapshot = {
       finalUrl: "https://example.com/",
+      originalUrl: "https://example.com/",
+      statusCode: 200,
       pageTitle: "",
       metaDescription: "",
       canonicalUrl: "",
-      robots: { noindex: false, nofollow: false, noarchive: false, nosnippet: false },
+      language: "en",
+      charset: "utf-8",
+      favicon: "/favicon.ico",
+      robots: { noindex: false, nofollow: false, noarchive: false, nosnippet: false, index: true, follow: true },
       headings: [],
+      images: [],
+      links: [],
+      scripts: [],
+      stylesheets: [],
       jsonLd: [],
+      openGraph: {},
+      twitterCard: {},
       rawHtml: "<html><body><footer></footer></body></html>",
     } as never;
     const context = detector.detectContext("demo", snapshot, "https://example.com", {

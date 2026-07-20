@@ -13,9 +13,9 @@
     }
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit",
+    "build": "node ../../node_modules/typescript/bin/tsc",
+    "dev": "node ../../node_modules/typescript/bin/tsc --watch",
+    "typecheck": "node ../../node_modules/typescript/bin/tsc --noEmit",
     "clean": "del /q dist 2>nul || rmdir /s /q dist"
   },
   "dependencies": {
@@ -25,6 +25,7 @@
     "@forge/context-builder": "workspace:*",
     "@forge/capabilities": "workspace:*",
     "@forge/config": "workspace:*",
+    "@forge/content-intelligence": "workspace:*",
     "@forge/core": "workspace:*",
     "@forge/execution-engine": "workspace:*",
     "@forge/homepage-engine": "workspace:*",
@@ -41,6 +42,7 @@
     "@forge/skills": "workspace:*",
     "@forge/shared": "workspace:*",
     "@forge/tools": "workspace:*",
+    "cheerio": "^1.0.0",
     "commander": "^15.0.0"
   }
 }

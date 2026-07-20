@@ -251,3 +251,80 @@ export function createProjectProfileStep(): PipelineStepDefinition {
     },
   };
 }
+
+// Sprint 16: Content Intelligence steps (deterministic, no AI)
+import { load as loadCheerio } from "cheerio";
+import {
+  buildPageDNA,
+  buildContentGraph,
+  detectGaps,
+  scoreQuality,
+} from "@forge/content-intelligence";
+
+export function createContentIntelligenceStep(): PipelineStepDefinition {
+  return {
+    id: "content-intelligence",
+    name: "Content Intelligence",
+    version: "0.16.0",
+    description: "Builds deterministic Page DNA and content graph from a snapshot (no AI).",
+    type: "website-reader",
+    inputs: ["snapshot"],
+    outputs: ["contentIntelligence"],
+    dependencies: ["website-reader"],
+    execute: (context) => {
+      if (!context.snapshot) {
+        throw new Error("Pipeline context missing snapshot");
+      }
+      const $ = loadCheerio(context.snapshot.rawHtml || "");
+      const dna = buildPageDNA(context.snapshot, $);
+      const graph = buildContentGraph(context.snapshot, $);
+      const result = { dna, graph };
+      context.contentIntelligence = result;
+      return result;
+    },
+  };
+}
+
+export function createContentGapStep(): PipelineStepDefinition {
+  return {
+    id: "content-gap-detection",
+    name: "Content Gap Detection",
+    version: "0.16.0",
+    description: "Detects content gaps deterministically (no AI).",
+    type: "website-reader",
+    inputs: ["snapshot"],
+    outputs: ["contentGaps"],
+    dependencies: ["website-reader"],
+    execute: (context) => {
+      if (!context.snapshot) {
+        throw new Error("Pipeline context missing snapshot");
+      }
+      const $ = loadCheerio(context.snapshot.rawHtml || "");
+      const gaps = detectGaps(context.snapshot, $);
+      context.outputs = { ...context.outputs, contentGaps: gaps };
+      return gaps;
+    },
+  };
+}
+
+export function createContentQualityStep(): PipelineStepDefinition {
+  return {
+    id: "content-quality-scoring",
+    name: "Content Quality Scoring",
+    version: "0.16.0",
+    description: "Scores content quality deterministically (no AI).",
+    type: "website-reader",
+    inputs: ["snapshot"],
+    outputs: ["contentQuality"],
+    dependencies: ["website-reader"],
+    execute: (context) => {
+      if (!context.snapshot) {
+        throw new Error("Pipeline context missing snapshot");
+      }
+      const $ = loadCheerio(context.snapshot.rawHtml || "");
+      const quality = scoreQuality(context.snapshot, $);
+      context.outputs = { ...context.outputs, contentQuality: quality };
+      return quality;
+    },
+  };
+}

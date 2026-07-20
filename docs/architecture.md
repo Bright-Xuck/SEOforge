@@ -111,6 +111,50 @@ Built-in pipelines currently include:
 
 The CLI now routes legacy commands through pipeline execution and exposes a `forge pipeline` command group for listing, inspecting, and running pipelines.
 
+## Sprint 16 Update: Content Intelligence Engine
+
+Forge must understand website content before AI is allowed to modify it. Sprint 16 introduces a deterministic content-understanding layer that all future AI generation depends on. The output is structured intelligence, not rewritten text.
+
+- Content Intelligence is a reusable understanding layer that sits **below** skills and providers. It consumes a `WebsiteSnapshot` (and re-parses `rawHtml` deterministically) and produces structured intelligence.
+- It must **never** generate content, call an LLM, use the Prompt Registry, or use AI providers. Everything is deterministic and offline.
+- The new understanding flow:
+
+```text
+Website
+
+↓
+
+DOM
+
+↓
+
+Content Intelligence
+
+↓
+
+Page DNA
+
+↓
+
+Content Graph
+
+↓
+
+Optimization Plan
+
+↓
+
+Content Generation (future)
+```
+
+- New package: `packages/content-intelligence` (`@forge/content-intelligence`, v0.16.0).
+- Produces: `PageDNA` (page type, search intent, audience, heading distribution, reading level, section inventory, entities, topics, link/media/trust/schema/metadata summaries), a `ContentGraph` (Page → Section → Block → Paragraph → Sentence), deterministic quality scores, and content-gap detection.
+- CLI gains a `forge content` command group: `analyze`, `graph`, `dna`, `sections`, `entities` (with `--json` and `--project`).
+- Pipeline Engine gains five reusable steps — Content Analysis, Content Graph, Page DNA, Gap Detection, Entity Extraction — composed into a `content-intelligence` pipeline.
+- Homepage Engine now **additively** consumes Content Intelligence outputs (section detection + Page DNA) to enrich its deterministic analysis without changing existing output shapes.
+
+The orchestration chain remains Mission → Agent → Strategy → Pipeline → Skill → Provider. Content Intelligence is a building block that future Missions, Agents, Strategies, and Skills consume.
+
 **Where I disagree, specifically:**
 
 - **Electron.** I'd push back on this one directly (see §11). I don't think you want Electron yet, for reasons below — I think you want a plain local web app, and Electron is a v3/v4 decision, not a v1 one.
@@ -497,6 +541,17 @@ No change in position, just reinforced: Markdown export (cheapest, given structu
 - **v2 — Forge Operator**: Vision Skills turned on for relevant missions; RankMath/Yoast reconciliation plugins; semantic memory fully wired; Prompt Registry metrics feeding back into Mission planning quality; PDF/HTML/CSV export; GSC/GA4 plugins; real plugin hot-loading with sandboxing (still the highest-risk item, unchanged caution from the original doc).
 - **v3 — Forge Agency Platform**: Shopify/Webflow/Ghost/Drupal UWM adapters; multi-site portfolio views; RBAC for agency staff; client-facing report/approval portal; possibly the point where Electron or a hosted SaaS deployment becomes worth its cost, decided based on actual usage pattern at that point rather than guessed now.
 - **v4 — Forge (general AI Operations Platform)**: The UWM generalizes to "Universal Domain Models" for other target types (APIs, docs, codebases) if you actually pursue that — genuinely out of scope to design now, but nothing above blocks it, since the Orchestrator/Skill/Memory/Explainability layers were never SEO-specific or even website-specific in their contracts.
+
+### Sprint 16 — Content Intelligence Engine (v0.16.0)
+
+Forge now understands website content deterministically before any AI is allowed to modify it.
+
+- New package `@forge/content-intelligence` produces structured understanding (Page DNA, Content Graph, quality scores, content gaps) from a `WebsiteSnapshot`.
+- No LLM, no Prompt Registry, no AI providers, no text generation, no content rewriting — everything is deterministic and offline.
+- New flow: `Website → DOM → Content Intelligence → Page DNA → Content Graph → Optimization Plan → Content Generation (future)`.
+- CLI gains `forge content {analyze,graph,dna,sections,entities}` with `--json` and `--project`.
+- Pipeline Engine gains five reusable steps (Content Analysis, Content Graph, Page DNA, Gap Detection, Entity Extraction) composed into a `content-intelligence` pipeline.
+- Homepage Engine additively consumes Content Intelligence outputs to enrich its deterministic analysis while preserving backwards compatibility.
 
 ---
 
