@@ -40,6 +40,7 @@
     "@forge/prompt-registry": "workspace:*",
     "@forge/providers-wordpress": "workspace:*",
     "@forge/recommendation-engine": "workspace:*",
+    "@forge/review-engine": "workspace:*",
     "@forge/strategy-engine": "workspace:*",
     "@forge/skills": "workspace:*",
     "@forge/shared": "workspace:*",

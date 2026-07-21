@@ -101,6 +101,9 @@ importers:
       '@forge/recommendation-engine':
         specifier: workspace:*
         version: link:../../packages/recommendation-engine
+      '@forge/review-engine':
+        specifier: workspace:*
+        version: link:../../packages/review-engine
       '@forge/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -287,6 +290,9 @@ importers:
       '@forge/providers-wordpress':
         specifier: workspace:*
         version: link:../providers-wordpress
+      '@forge/review-engine':
+        specifier: workspace:*
+        version: link:../review-engine
       '@forge/strategy-engine':
         specifier: workspace:*
         version: link:../strategy-engine
@@ -374,6 +380,9 @@ importers:
       '@forge/recommendation-engine':
         specifier: workspace:*
         version: link:../recommendation-engine
+      '@forge/review-engine':
+        specifier: workspace:*
+        version: link:../review-engine
       '@forge/tools':
         specifier: workspace:*
         version: link:../tools
@@ -429,6 +438,30 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
+
+  packages/review-engine:
+    dependencies:
+      '@forge/action-engine':
+        specifier: workspace:*
+        version: link:../action-engine
+      '@forge/content-generation':
+        specifier: workspace:*
+        version: link:../content-generation
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@forge/homepage-engine':
+        specifier: workspace:*
+        version: link:../homepage-engine
+      '@forge/knowledge-engine':
+        specifier: workspace:*
+        version: link:../knowledge-engine
+      '@forge/memory-engine':
+        specifier: workspace:*
+        version: link:../memory-engine
+      '@forge/preflight-validator':
+        specifier: workspace:*
+        version: link:../preflight-validator
 
   packages/shared: {}
 

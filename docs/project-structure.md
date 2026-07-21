@@ -103,6 +103,7 @@ Sprint 14 extends `packages/providers-wordpress` with write operations, `package
 Sprint 15 adds `packages/homepage-engine` for homepage detection, deterministic homepage analysis, optimization planning, preview generation, and mission integration.
 Sprint 16 adds `packages/content-intelligence` for deterministic content understanding: page type detection, search intent classification, section detection, entity extraction, topic extraction, content graph construction, Page DNA assembly, quality scoring, and content-gap detection. It produces structured intelligence only — no LLM, no text generation, no content rewriting.
 Sprint 17 adds `packages/content-generation` for section-scoped AI content generation. It consumes Content Intelligence (Page DNA + Content Graph) as the source of truth, builds prompts via a dedicated Prompt Builder, calls AI providers through the AI Engine, validates output for content safety, and emits self-contained `ContentPatch` + `SectionDiff` + `Preview` artifacts. It depends on `content-intelligence`, `prompt-registry`, `ai-engine`, `skills`, `core`, `knowledge-engine`, `memory-engine`, and `context-builder`. It must NOT be imported by `content-intelligence` (one-way dependency). No execution or publishing occurs in Sprint 17.
+Sprint 18 adds `packages/review-engine` for the deterministic review/approval layer between Content Generation and Execution. It consumes `ContentPatch` artifacts, runs a pure deterministic `compareContent()` comparison, applies approval policies (Strict | Balanced | Automatic | Enterprise), tracks reviewer decisions, computes metrics, and exports Markdown/JSON/HTML reports. It depends on `core`, `action-engine`, `homepage-engine`, `preflight-validator`, `memory-engine`, `knowledge-engine`, and `content-generation` (types only). It must NOT import `ai-engine`, `skills`, or `prompt-registry` (provider-independent, no LLM). No execution or publishing occurs in Sprint 18.
 
 ---
 
@@ -220,6 +221,44 @@ Dependency direction (enforced):
 - MUST NOT be imported by `content-intelligence` (one-way dependency).
 
 This package generates candidate section improvements only. It never rewrites an entire page, never bypasses Content Intelligence, and never executes or publishes. Every output becomes a `ContentPatch` for review in Sprint 18.
+
+---
+
+# packages/review-engine
+
+Purpose:
+
+Deterministic review/approval layer between Content Generation and Execution.
+
+Responsibilities:
+
+- Review session model (`ReviewSession`, `ReviewItem`) — one item per `ContentPatch`
+- Pure deterministic comparison engine (`compareContent()`): word/sentence/entity/keyword/heading deltas, readability + SEO delta
+- Approval policies (Strict, Balanced, Automatic, Enterprise) — AI never approves
+- Filtering and sorting of review items
+- Review metrics (approval rate, rejection rate, average confidence/impact, warnings, high-risk changes, token estimate, execution time)
+- Markdown / JSON / HTML report exports
+- Memory event recording (review-created/approved/rejected/commented/completed)
+- Per-project knowledge tracking (average approval rate, preferred review style, common rejected patterns, frequently edited sections)
+- Pipeline step factories (review-create, review-filter, review-sort, review-approve, review-export, review-summary, review-metrics)
+- Homepage optimization integration (stops at a Review Session)
+
+Rules:
+
+Must never import:
+
+- `ai-engine` (no LLM, fully deterministic)
+- `skills`
+- `prompt-registry`
+- WordPress providers
+- Execution engine (no writes in Sprint 18)
+
+Dependency direction (enforced):
+
+- MAY import `core`, `action-engine`, `homepage-engine`, `preflight-validator`, `memory-engine`, `knowledge-engine`, `content-generation` (types only).
+- MUST NOT be imported by `content-generation` (one-way dependency).
+
+This package reviews candidate section improvements only. It never generates content, never bypasses Content Intelligence, and never executes or publishes. Every output becomes an approved `ExecutionPlan` for the Execution Engine in Sprint 18.
 
 ---
 

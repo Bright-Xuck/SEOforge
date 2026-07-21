@@ -24,7 +24,15 @@ export interface KnowledgeGraph {
   readonly taxonomies: string[];
   readonly schemas: string[];
   readonly mediaInventorySummary?: string;
+  readonly reviewStats?: ReviewStats;
   readonly version: KnowledgeVersion;
+}
+
+export interface ReviewStats {
+  readonly averageApprovalRate: number;
+  readonly preferredReviewStyle?: string;
+  readonly commonRejectedPatterns: string[];
+  readonly frequentlyEditedSections: string[];
 }
 
 export interface KnowledgePatch {
@@ -46,4 +54,5 @@ export interface KnowledgePatch {
   readonly taxonomies?: string[];
   readonly schemas?: string[];
   readonly mediaInventorySummary?: string;
+  readonly reviewStats?: ReviewStats;
 }

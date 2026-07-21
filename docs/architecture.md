@@ -210,6 +210,46 @@ Everything below reflects the agreed changes.
 
 ---
 
+## Sprint 18 Update: Review Engine
+
+Forge's review/approval layer — the gate between Content Generation and Execution. Nothing reaches WordPress until it has passed through Review.
+
+- New package: `packages/review-engine` (`@forge/review-engine`, v0.18.0).
+- **Deterministic and provider-independent.** The Review Engine contains **no LLM calls** and **must never import** `ai-engine`, `skills`, or `prompt-registry`. AI never makes approval decisions and never overrides the reviewer.
+- **One-way dependency:** `review-engine → content-generation` (types only), `action-engine`, `homepage-engine`, `preflight-validator`, `memory-engine`, `knowledge-engine`, `core`. Generation/understanding remain the source of truth; Review sits above them and never feeds back into them.
+- The review workflow:
+
+```text
+ContentPatch (from Content Generation)
+  ↓
+ReviewSession (one item per patch)
+  ↓
+compareContent() — pure deterministic diff (word/sentence/entity/keyword/heading deltas, readability + SEO delta)
+  ↓
+Approval Policies (Strict | Balanced | Automatic | Enterprise)
+  ↓
+Reviewer Decision (approve | reject | edit | comment)
+  ↓
+Metrics + Report (Markdown | JSON | HTML)
+  ↓
+Execution Plan (built from approved patches)
+  ↓
+Execution Engine (dry-run OR real — provider decides)
+  ↓
+Provider (WordPress write)
+```
+
+- A `ReviewSession` aggregates `ReviewItem`s (one per `ContentPatch`), each carrying the deterministic comparison, policy evaluation, and reviewer state.
+- `compareContent()` is a pure function — no network, no randomness, no AI. It produces structured deltas used by both the UI/report and the metrics layer.
+- Approval policies are deterministic rule sets (confidence thresholds, severity gates, keyword-stuffing guards, high-risk change detection). The Automatic policy auto-approves only low-risk, high-confidence, policy-passing patches; everything else requires a human reviewer.
+- Memory events (`review-created`, `review-approved`, `review-rejected`, `review-commented`, `review-completed`) are recorded per session. Per-project knowledge tracks average approval rate, preferred review style, common rejected patterns, and frequently edited sections.
+- Sessions persist under `projects/<project>/reviews/{active,completed}/<sessionId>.json` with a lightweight `index.json` for fast listing.
+- Pipeline Engine gains seven reusable steps — review-create, review-filter, review-sort, review-approve, review-export, review-summary, review-metrics.
+- Homepage Optimization (`forge homepage optimize`) now stops at a Review Session: Analyze → Generate patches → Create Review Session → Stop. Execution begins only after the reviewer applies the session.
+- **Out of scope (Sprint 19+):** visual review UI, scheduling, background workers, publishing, WordPress writes, real AI approval.
+
+---
+
 ## 1. Product Framing
 
 **Product name:** Forge

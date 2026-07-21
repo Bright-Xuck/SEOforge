@@ -483,3 +483,175 @@ export function createPatchPackagingStep(): PipelineStepDefinition {
     },
   };
 }
+
+// Sprint 18: Review Engine steps (deterministic, provider-independent, no AI).
+import {
+  createReviewSession,
+  applyPolicy,
+  filterItems,
+  sortItems,
+  computeMetrics,
+  generateReport,
+  type ReviewFilter,
+  type ReviewPolicy,
+  type ReviewSession,
+  type ReviewSortKey,
+} from "@forge/review-engine";
+import type { ContentPatch } from "@forge/content-generation";
+
+function getPatches(context: PipelineContext): ContentPatch[] {
+  const patches = context.outputs?.["patches"] as ContentPatch[] | undefined;
+  if (!patches || patches.length === 0) {
+    throw new Error("Pipeline context missing patches");
+  }
+  return patches;
+}
+
+export function createReviewCreateStep(): PipelineStepDefinition {
+  return {
+    id: "review-create",
+    name: "Review Create",
+    version: "0.18.0",
+    description: "Creates a review session from content patches (deterministic, no AI).",
+    type: "review",
+    inputs: ["patches"],
+    outputs: ["reviewSession"],
+    dependencies: ["patch-creation"],
+    execute: (context) => {
+      const patches = getPatches(context);
+      const policy = (context.variables?.["reviewPolicy"] as ReviewPolicy | undefined) ?? undefined;
+      const session = createReviewSession({
+        projectId: context.project ?? "default",
+        createdBy: (context.variables?.["createdBy"] as string) ?? "pipeline",
+        patches,
+        policy,
+      });
+      context.outputs = { ...context.outputs, reviewSession: session };
+      return session;
+    },
+  };
+}
+
+export function createReviewFilterStep(): PipelineStepDefinition {
+  return {
+    id: "review-filter",
+    name: "Review Filter",
+    version: "0.18.0",
+    description: "Filters review items by criteria.",
+    type: "review",
+    inputs: ["reviewSession"],
+    outputs: ["reviewSession"],
+    dependencies: ["review-create"],
+    execute: (context) => {
+      const session = context.outputs?.["reviewSession"] as ReviewSession | undefined;
+      if (!session) throw new Error("Pipeline context missing review session");
+      const filter = (context.variables?.["reviewFilter"] as ReviewFilter | undefined) ?? {};
+      const filtered = filterItems(session.items, filter);
+      const next = { ...session, items: filtered };
+      context.outputs = { ...context.outputs, reviewSession: next };
+      return next;
+    },
+  };
+}
+
+export function createReviewSortStep(): PipelineStepDefinition {
+  return {
+    id: "review-sort",
+    name: "Review Sort",
+    version: "0.18.0",
+    description: "Sorts review items by a key and direction.",
+    type: "review",
+    inputs: ["reviewSession"],
+    outputs: ["reviewSession"],
+    dependencies: ["review-create"],
+    execute: (context) => {
+      const session = context.outputs?.["reviewSession"] as ReviewSession | undefined;
+      if (!session) throw new Error("Pipeline context missing review session");
+      const by = (context.variables?.["reviewSortBy"] as ReviewSortKey | undefined) ?? "confidence";
+      const dir = (context.variables?.["reviewSortDir"] as "asc" | "desc" | undefined) ?? "desc";
+      const sorted = sortItems(session.items, by, dir);
+      const next = { ...session, items: sorted };
+      context.outputs = { ...context.outputs, reviewSession: next };
+      return next;
+    },
+  };
+}
+
+export function createReviewApproveStep(): PipelineStepDefinition {
+  return {
+    id: "review-approve",
+    name: "Review Approve",
+    version: "0.18.0",
+    description: "Applies the review policy to auto-approve eligible items.",
+    type: "review",
+    inputs: ["reviewSession"],
+    outputs: ["reviewSession"],
+    dependencies: ["review-create"],
+    execute: (context) => {
+      const session = context.outputs?.["reviewSession"] as ReviewSession | undefined;
+      if (!session) throw new Error("Pipeline context missing review session");
+      const next = applyPolicy(session);
+      context.outputs = { ...context.outputs, reviewSession: next };
+      return next;
+    },
+  };
+}
+
+export function createReviewExportStep(): PipelineStepDefinition {
+  return {
+    id: "review-export",
+    name: "Review Export",
+    version: "0.18.0",
+    description: "Exports a review session as Markdown/JSON/HTML.",
+    type: "review",
+    inputs: ["reviewSession"],
+    outputs: ["reviewReport"],
+    dependencies: ["review-create"],
+    execute: (context) => {
+      const session = context.outputs?.["reviewSession"] as ReviewSession | undefined;
+      if (!session) throw new Error("Pipeline context missing review session");
+      const report = generateReport(session);
+      context.outputs = { ...context.outputs, reviewReport: report };
+      return report;
+    },
+  };
+}
+
+export function createReviewSummaryStep(): PipelineStepDefinition {
+  return {
+    id: "review-summary",
+    name: "Review Summary",
+    version: "0.18.0",
+    description: "Computes the review session summary.",
+    type: "review",
+    inputs: ["reviewSession"],
+    outputs: ["reviewSummary"],
+    dependencies: ["review-create"],
+    execute: (context) => {
+      const session = context.outputs?.["reviewSession"] as ReviewSession | undefined;
+      if (!session) throw new Error("Pipeline context missing review session");
+      context.outputs = { ...context.outputs, reviewSummary: session.summary };
+      return session.summary;
+    },
+  };
+}
+
+export function createReviewMetricsStep(): PipelineStepDefinition {
+  return {
+    id: "review-metrics",
+    name: "Review Metrics",
+    version: "0.18.0",
+    description: "Computes deterministic review metrics.",
+    type: "review",
+    inputs: ["reviewSession"],
+    outputs: ["reviewMetrics"],
+    dependencies: ["review-create"],
+    execute: (context) => {
+      const session = context.outputs?.["reviewSession"] as ReviewSession | undefined;
+      if (!session) throw new Error("Pipeline context missing review session");
+      const metrics = computeMetrics(session);
+      context.outputs = { ...context.outputs, reviewMetrics: metrics };
+      return metrics;
+    },
+  };
+}

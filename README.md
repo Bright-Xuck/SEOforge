@@ -24,6 +24,8 @@ Sprint 16 adds the Content Intelligence Engine:
 `forge content analyze`, `forge content graph`, `forge content dna`, `forge content sections`, and `forge content entities`.
 Sprint 17 adds the Section Content Generation Engine:
 `forge generate hero`, `forge generate faq`, `forge generate cta`, `forge generate section`, and `forge generate page` (each with `--preview`, `--provider`, `--model`, `--project`, `--dry-run`, and `--json`).
+Sprint 18 adds the Review Engine:
+`forge review create`, `forge review show`, `forge review approve`, `forge review reject`, `forge review edit`, `forge review export`, `forge review metrics`, `forge review comments`, `forge review apply`, and `forge review rollback` (each with `--project`, `--json`, and `--format` where relevant). `forge homepage optimize` now stops at a Review Session instead of executing.
 
 ---
 
@@ -439,6 +441,44 @@ The execution plan includes:
 - Risk summary breakdown
 - Approval queue for non-automated actions
 - Estimated duration calculation
+
+---
+
+## Sprint 18 — Review Engine (v0.18.0)
+
+The Review Engine sits between Content Generation and Execution. Nothing reaches WordPress until it has passed through Review.
+
+- ✅ `@forge/review-engine` package created (deterministic, provider-independent, no LLM)
+- ✅ `ReviewSession` / `ReviewItem` model: every `ContentPatch` becomes a reviewable item
+- ✅ Pure deterministic `compareContent()` comparison engine (word/sentence/entity/keyword/heading deltas, readability + SEO delta)
+- ✅ Approval policies: Strict, Balanced, Automatic, Enterprise (AI never approves)
+- ✅ Filtering (section/severity/confidence/status/provider/generator/patch type) and sorting (confidence/severity/impact/createdAt/section)
+- ✅ Review metrics: approval rate, rejection rate, average confidence/impact, warnings, high-risk changes, token estimate, execution time
+- ✅ Markdown / JSON / HTML report exports
+- ✅ Memory events recorded (review-created/approved/rejected/commented/completed)
+- ✅ Per-project knowledge tracking (average approval rate, preferred review style, common rejected patterns, frequently edited sections)
+- ✅ Pipeline Engine gains seven reusable steps — review-create, review-filter, review-sort, review-approve, review-export, review-summary, review-metrics
+- ✅ Homepage Optimization now produces a Review Session instead of executing immediately
+- ✅ CLI gains a `forge review` command group: `create`, `show`, `approve`, `reject`, `edit`, `export`, `metrics`, `comments`, `apply`, `rollback`
+- ✅ Sessions persisted under `projects/<project>/reviews/{active,completed}/<sessionId>.json` with a lightweight `index.json`
+
+**Review flow:**
+
+```text
+ContentPatch
+  ↓
+Review Engine (ReviewSession, compareContent, policies, metrics)
+  ↓
+Approval
+  ↓
+Execution Plan
+  ↓
+Execution Engine (dry-run OR real, provider decides)
+  ↓
+Provider
+```
+
+**Out of scope:** visual review UI, scheduling, background workers, publishing, WordPress writes, real AI approval (Sprint 19+).
 
 ---
 

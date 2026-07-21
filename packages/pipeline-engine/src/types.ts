@@ -10,7 +10,8 @@ export type PipelineStepType =
   | "recommendation-engine"
   | "action-engine"
   | "preflight-validator"
-  | "execution-engine";
+  | "execution-engine"
+  | "review";
 
 export type PipelineStepStatus = "pending" | "running" | "completed" | "skipped" | "failed";
 

@@ -5,6 +5,13 @@ import {
   createContentIntelligenceStep,
   createContentQualityStep,
   createDiffGenerationStep,
+  createReviewCreateStep,
+  createReviewFilterStep,
+  createReviewSortStep,
+  createReviewApproveStep,
+  createReviewExportStep,
+  createReviewSummaryStep,
+  createReviewMetricsStep,
   createExecutionStep,
   createHomepageAnalysisStep,
   createKnowledgeLoadStep,
@@ -177,6 +184,25 @@ export function createSectionGenerationPipeline(url: string): PipelineDefinition
   };
 }
 
+export function createReviewPipeline(): PipelineDefinition {
+  return {
+    id: "review",
+    name: "Review",
+    version: "0.18.0",
+    description: "Deterministic review/approval layer: patches -> review session -> policy -> metrics -> report (no execution).",
+    steps: [
+      createReviewCreateStep(),
+      createReviewFilterStep(),
+      createReviewSortStep(),
+      createReviewApproveStep(),
+      createReviewSummaryStep(),
+      createReviewMetricsStep(),
+      createReviewExportStep(),
+    ],
+    metadata: { category: "review" },
+  };
+}
+
 export function listDefaultPipelines(): PipelineDefinition[] {
   return [
     createWebsiteAuditPipeline("https://example.com"),
@@ -184,5 +210,6 @@ export function listDefaultPipelines(): PipelineDefinition[] {
     createValidationOnlyPipeline("https://example.com"),
     createContentIntelligencePipeline("https://example.com"),
     createSectionGenerationPipeline("https://example.com"),
+    createReviewPipeline(),
   ];
 }

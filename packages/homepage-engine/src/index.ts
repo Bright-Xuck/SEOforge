@@ -4,6 +4,7 @@ export { HomepagePlanner } from "./planner.js";
 export { enrichWithPageDNA } from "./pagedna-consumer/index.js";
 export type { PageDnaEnrichment } from "./pagedna-consumer/index.js";
 export { generateSectionImprovement } from "./section-improvement.js";
+export { createReviewSessionFromHomepage } from "./review-integration.js";
 export type {
   HomepageAnalysis,
   HomepageContext,

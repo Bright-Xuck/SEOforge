@@ -30,6 +30,7 @@
     "@forge/pipeline-engine": "workspace:*",
     "@forge/preflight-validator": "workspace:*",
     "@forge/providers-wordpress": "workspace:*",
+    "@forge/review-engine": "workspace:*",
     "@forge/strategy-engine": "workspace:*",
     "@forge/tools": "workspace:*"
   }

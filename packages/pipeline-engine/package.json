@@ -29,6 +29,7 @@
     "@forge/memory-engine": "workspace:*",
     "@forge/preflight-validator": "workspace:*",
     "@forge/recommendation-engine": "workspace:*",
+    "@forge/review-engine": "workspace:*",
     "@forge/tools": "workspace:*"
   }
 }

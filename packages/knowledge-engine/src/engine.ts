@@ -42,6 +42,7 @@ export function updateKnowledgeGraph(graph: KnowledgeGraph, patch: KnowledgePatc
     installedPlugins: cloneList(patch.installedPlugins ?? graph.installedPlugins),
     taxonomies: cloneList(patch.taxonomies ?? graph.taxonomies),
     schemas: cloneList(patch.schemas ?? graph.schemas),
+    reviewStats: patch.reviewStats ?? graph.reviewStats,
     version: {
       version: graph.version.version + 1,
       createdAt: graph.version.createdAt,

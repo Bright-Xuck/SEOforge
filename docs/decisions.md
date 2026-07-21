@@ -1490,6 +1490,60 @@ Revisit when brand profiles need versioning or multi-brand support.
 
 ---
 
+## ADR-0033
+
+### Title
+
+Review Engine Package and Deterministic Approval Policy
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-21
+
+### Owner
+
+Bright Ndode
+
+### Context
+
+Sprint 17 emits candidate `ContentPatch` artifacts but has no gate before Execution. Without a review layer, generated content could reach WordPress without human approval, and AI could implicitly make approval decisions. We need a deterministic review/approval layer that sits between Content Generation and Execution, enforces "nothing reaches WordPress until it has passed through Review," and guarantees AI never approves or overrides a reviewer.
+
+### Decision
+
+Create `packages/review-engine` (`@forge/review-engine`, v0.18.0) as the review/approval layer. The package is **deterministic and provider-independent**: it contains **no LLM calls** and **must never import** `ai-engine`, `skills`, or `prompt-registry`. Approval is driven by deterministic policies (Strict, Balanced, Automatic, Enterprise) and explicit reviewer decisions; the Automatic policy may only auto-approve low-risk, high-confidence, policy-passing patches. `compareContent()` is a pure function with no network, randomness, or AI. Sessions persist under `projects/<project>/reviews/{active,completed}/<sessionId>.json` with a lightweight `index.json`. `forge homepage optimize` stops at a Review Session rather than executing. `forge review apply` has **no `--force`** flag — it verifies completion + policy, builds an `ExecutionPlan` from approved patches, and hands off to the Execution Engine, which decides dry-run vs real.
+
+### Alternatives Considered
+
+Embedding review inside Content Generation. Rejected because it would blur the one-way dependency and let generation depend on reviewer state.
+
+Letting the Execution Engine perform approval. Rejected because approval is a distinct concern and Execution must remain a pure executor.
+
+Adding a `--force` flag to `review apply`. Rejected because it would bypass the completion/policy gate and violate "nothing reaches WordPress until reviewed."
+
+### Consequences
+
+Positive:
+
+- a single deterministic gate before any WordPress write
+- AI is provably excluded from approval decisions
+- reviewer state is explicit, persisted, and auditable
+- homepage optimization is safely preview-first
+
+Negative:
+
+- an additional package and pipeline steps to maintain
+- reviewers must act before any execution can occur
+
+### Future Review
+
+Revisit when a visual review UI, scheduling, or background workers are introduced (Sprint 19+).
+
+---
+
 Examples of future ADRs include:
 
 - Database Selection

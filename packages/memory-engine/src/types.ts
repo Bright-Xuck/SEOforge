@@ -24,6 +24,11 @@ export interface MemoryEvent {
     | "approval"
     | "rejection"
     | "pipeline-execution"
+    | "review-created"
+    | "review-approved"
+    | "review-rejected"
+    | "review-commented"
+    | "review-completed"
     | "error"
     | "warning";
   readonly project: string;

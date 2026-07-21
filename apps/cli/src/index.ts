@@ -65,7 +65,9 @@ import {
 } from "@forge/pipeline-engine";
 import type { WriteOperation, WriteMode } from "@forge/core";
 import { execute as executeExecution, rollbackExecution } from "@forge/execution-engine";
-import { HomepageAnalyzer, HomepageDetector, HomepagePlanner } from "@forge/homepage-engine";
+import { HomepageAnalyzer, HomepageDetector, HomepagePlanner, createReviewSessionFromHomepage } from "@forge/homepage-engine";
+import { decideItem, generateReport, computeMetrics, saveReviewSession, loadReviewSession, listReviewSessions, REVIEW_POLICIES, type ReviewSession, type ReviewPolicyName } from "@forge/review-engine";
+import type { ExecutionPlan } from "@forge/action-engine";
 import {
   buildPageDNA,
   buildContentGraph,
@@ -817,9 +819,9 @@ homepageCommand
 homepageCommand
   .command("optimize")
   .option("--project <project>", "Project ID")
-  .option("--dry-run", "Simulate without writing", true)
+  .option("--policy <policy>", "Review policy: strict|balanced|automatic|enterprise", "balanced")
   .option("--json", "Output result as JSON")
-  .action(async (options: { project?: string; dryRun?: boolean; json?: boolean }) => {
+  .action(async (options: { project?: string; policy?: string; json?: boolean }) => {
     const project = options.project ?? "default";
     const { context } = await loadHomepageProjectContext(project);
     const analyzer = new HomepageAnalyzer();
@@ -827,17 +829,16 @@ homepageCommand
     const analysis = analyzer.analyze(context);
     const plan = planner.plan(context, analysis);
     const preview = planner.preview(plan);
-    const provider = createWordPressProviderFromEnv();
-    const executionPlan = planner.toExecutionPlan(plan);
-    const dryRun = options.dryRun ?? true;
-    const execution = dryRun
-      ? await executeExecution(executionPlan, provider, { dryRun: true, stopOnBlocked: true })
-      : await executeExecution(executionPlan, provider, { dryRun: false, stopOnBlocked: true });
+    // Sprint 18: stop at a Review Session. No execution, no provider writes.
+    const policyName = (options.policy as ReviewPolicyName) ?? "balanced";
+    const session = createReviewSessionFromHomepage(plan, REVIEW_POLICIES[policyName]);
+    const rootDir = "projects";
+    await saveReviewSession(rootDir, session);
     if (options.json) {
-      process.stdout.write(JSON.stringify({ analysis, plan, preview, execution }, null, 2) + "\n");
+      process.stdout.write(JSON.stringify({ analysis, plan, preview, reviewSession: session }, null, 2) + "\n");
       return;
     }
-    process.stdout.write(`Homepage optimization ${dryRun ? "previewed" : "executed"} for ${project}\n`);
+    process.stdout.write(`Homepage optimization produced review session ${session.sessionId} for ${project} (${session.items.length} items). Review before applying.\n`);
   });
 
 executionCommand
@@ -1687,6 +1688,304 @@ generateCommand
   .option("--dry-run", "Dry run")
   .option("--json", "Output JSON")
   .action(async (options) => runGenerate(["faq"], options));
+
+// Sprint 18: Review Engine command group (deterministic, provider-independent).
+const reviewCommand = program.command("review").description("Review session management (Sprint 18)");
+
+function resolveRootDir(): string {
+  return "projects";
+}
+
+reviewCommand
+  .command("create")
+  .description("Create a review session from a generation result or homepage plan JSON")
+  .option("--project <project>", "Project ID", "default")
+  .option("--policy <policy>", "Review policy: strict|balanced|automatic|enterprise", "balanced")
+  .option("--from <file>", "Path to a JSON file with { patches: ContentPatch[] }")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; policy?: string; from?: string; json?: boolean }) => {
+    const rootDir = resolveRootDir();
+    const project = options.project ?? "default";
+    let patches: never[] = [];
+    if (options.from) {
+      const fs = await import("node:fs/promises");
+      const raw = await fs.readFile(options.from, "utf8");
+      const parsed = JSON.parse(raw) as { patches?: never[] };
+      patches = parsed.patches ?? [];
+    }
+    const policyName = (options.policy as ReviewPolicyName) ?? "balanced";
+    const session = createReviewSessionFromInput(project, patches, policyName);
+    await saveReviewSession(rootDir, session);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(session, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Created review session ${session.sessionId} for ${project} (${session.items.length} items).\n`);
+  });
+
+reviewCommand
+  .command("show")
+  .description("Show a review session")
+  .argument("<sessionId>", "Review session ID")
+  .option("--project <project>", "Project ID", "default")
+  .option("--json", "Output result as JSON")
+  .action(async (sessionId: string, options: { project?: string; json?: boolean }) => {
+    const rootDir = resolveRootDir();
+    const session = await loadReviewSession(rootDir, options.project ?? "default", sessionId);
+    if (!session) {
+      process.stderr.write(`Review session not found: ${sessionId}\n`);
+      return;
+    }
+    if (options.json) {
+      process.stdout.write(JSON.stringify(session, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Session ${session.sessionId} — status: ${session.status}, items: ${session.items.length}\n`);
+    for (const item of session.items) {
+      process.stdout.write(`  [${item.decision ?? "pending"}] ${item.section} (${item.id}) conf=${item.confidence}\n`);
+    }
+  });
+
+reviewCommand
+  .command("approve")
+  .description("Approve a review item")
+  .argument("<itemId>", "Review item ID")
+  .option("--project <project>", "Project ID", "default")
+  .option("--session <sessionId>", "Review session ID")
+  .option("--by <author>", "Reviewer name", "cli")
+  .option("--json", "Output result as JSON")
+  .action(async (itemId: string, options: { project?: string; session?: string; by?: string; json?: boolean }) => {
+    const { session, rootDir } = await requireSession(options.project ?? "default", options.session);
+    const updated = decideItem(session, itemId, "APPROVE", options.by ?? "cli");
+    await saveReviewSession(rootDir, updated);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(updated, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Approved item ${itemId} in session ${updated.sessionId}.\n`);
+  });
+
+reviewCommand
+  .command("reject")
+  .description("Reject a review item")
+  .argument("<itemId>", "Review item ID")
+  .option("--project <project>", "Project ID", "default")
+  .option("--session <sessionId>", "Review session ID")
+  .option("--by <author>", "Reviewer name", "cli")
+  .option("--json", "Output result as JSON")
+  .action(async (itemId: string, options: { project?: string; session?: string; by?: string; json?: boolean }) => {
+    const { session, rootDir } = await requireSession(options.project ?? "default", options.session);
+    const updated = decideItem(session, itemId, "REJECT", options.by ?? "cli");
+    await saveReviewSession(rootDir, updated);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(updated, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Rejected item ${itemId} in session ${updated.sessionId}.\n`);
+  });
+
+reviewCommand
+  .command("edit")
+  .description("Edit a review item's proposed content")
+  .argument("<itemId>", "Review item ID")
+  .requiredOption("--content <text>", "Edited content")
+  .option("--project <project>", "Project ID", "default")
+  .option("--session <sessionId>", "Review session ID")
+  .option("--by <author>", "Reviewer name", "cli")
+  .option("--json", "Output result as JSON")
+  .action(async (itemId: string, options: { content: string; project?: string; session?: string; by?: string; json?: boolean }) => {
+    const { session, rootDir } = await requireSession(options.project ?? "default", options.session);
+    const updated = decideItem(session, itemId, "EDIT", options.by ?? "cli", options.content);
+    await saveReviewSession(rootDir, updated);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(updated, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Edited item ${itemId} in session ${updated.sessionId}.\n`);
+  });
+
+reviewCommand
+  .command("comments")
+  .description("List comments for a review session")
+  .argument("<sessionId>", "Review session ID")
+  .option("--project <project>", "Project ID", "default")
+  .option("--json", "Output result as JSON")
+  .action(async (sessionId: string, options: { project?: string; json?: boolean }) => {
+    const rootDir = resolveRootDir();
+    const session = await loadReviewSession(rootDir, options.project ?? "default", sessionId);
+    if (!session) {
+      process.stderr.write(`Review session not found: ${sessionId}\n`);
+      return;
+    }
+    if (options.json) {
+      process.stdout.write(JSON.stringify(session.comments, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Session ${sessionId} has ${session.comments.length} session-level comments.\n`);
+    for (const item of session.items) {
+      if (item.comments.length > 0) {
+        process.stdout.write(`  ${item.id}: ${item.comments.length} comment(s)\n`);
+      }
+    }
+  });
+
+reviewCommand
+  .command("export")
+  .description("Export a review session as markdown/json/html")
+  .argument("<sessionId>", "Review session ID")
+  .option("--project <project>", "Project ID", "default")
+  .option("--format <format>", "Export format: md|json|html", "md")
+  .action(async (sessionId: string, options: { project?: string; format?: string }) => {
+    const rootDir = resolveRootDir();
+    const session = await loadReviewSession(rootDir, options.project ?? "default", sessionId);
+    if (!session) {
+      process.stderr.write(`Review session not found: ${sessionId}\n`);
+      return;
+    }
+    const report = generateReport(session);
+    const format = options.format ?? "md";
+    const output = format === "json" ? report.json : format === "html" ? report.html : report.markdown;
+    process.stdout.write(output + "\n");
+  });
+
+reviewCommand
+  .command("metrics")
+  .description("Show metrics for a review session")
+  .argument("<sessionId>", "Review session ID")
+  .option("--project <project>", "Project ID", "default")
+  .option("--json", "Output result as JSON")
+  .action(async (sessionId: string, options: { project?: string; json?: boolean }) => {
+    const rootDir = resolveRootDir();
+    const session = await loadReviewSession(rootDir, options.project ?? "default", sessionId);
+    if (!session) {
+      process.stderr.write(`Review session not found: ${sessionId}\n`);
+      return;
+    }
+    const metrics = computeMetrics(session);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(metrics, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Session ${sessionId} metrics:\n`);
+    process.stdout.write(`  approvalRate: ${(metrics.approvalRate * 100).toFixed(1)}%\n`);
+    process.stdout.write(`  rejectionRate: ${(metrics.rejectionRate * 100).toFixed(1)}%\n`);
+    process.stdout.write(`  averageConfidence: ${metrics.averageConfidence.toFixed(2)}\n`);
+    process.stdout.write(`  highRiskChanges: ${metrics.highRiskChanges}\n`);
+  });
+
+reviewCommand
+  .command("apply")
+  .description("Apply an approved, completed review session (no --force; hands off to Execution Engine)")
+  .argument("<sessionId>", "Review session ID")
+  .option("--project <project>", "Project ID", "default")
+  .option("--dry-run", "Dry-run the execution (provider decides)", true)
+  .option("--json", "Output result as JSON")
+  .action(async (sessionId: string, options: { project?: string; dryRun?: boolean; json?: boolean }) => {
+    const rootDir = resolveRootDir();
+    const session = await loadReviewSession(rootDir, options.project ?? "default", sessionId);
+    if (!session) {
+      process.stderr.write(`Review session not found: ${sessionId}\n`);
+      return;
+    }
+    // DECISION 2: verify completion + policy before handing off to Execution Engine.
+    if (session.status !== "completed") {
+      process.stderr.write(`Cannot apply: review session ${sessionId} is not completed (status: ${session.status}).\n`);
+      return;
+    }
+    const pending = session.items.filter((item) => item.decision === undefined);
+    if (pending.length > 0) {
+      process.stderr.write(`Cannot apply: ${pending.length} item(s) still undecided.\n`);
+      return;
+    }
+    const rejected = session.items.filter((item) => item.decision === "REJECT");
+    if (rejected.length > 0) {
+      process.stderr.write(`Cannot apply: ${rejected.length} item(s) rejected. Resolve before applying.\n`);
+      return;
+    }
+    const approved = session.items.filter((item) => item.decision === "APPROVE");
+    const provider = createWordPressProviderFromEnv();
+    const executionPlan = buildExecutionPlanFromSession(session, approved);
+    const dryRun = options.dryRun ?? true;
+    const result = dryRun
+      ? await executeExecution(executionPlan, provider, { dryRun: true, stopOnBlocked: true })
+      : await executeExecution(executionPlan, provider, { dryRun: false, stopOnBlocked: true });
+    if (options.json) {
+      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Applied review session ${sessionId} (${approved.length} approved items) ${dryRun ? "dry-run" : "for real"}.\n`);
+  });
+
+reviewCommand
+  .command("rollback")
+  .description("Roll back a previously applied review session")
+  .argument("<sessionId>", "Review session ID")
+  .option("--project <project>", "Project ID", "default")
+  .option("--json", "Output result as JSON")
+  .action(async (sessionId: string, options: { project?: string; json?: boolean }) => {
+    const provider = createWordPressProviderFromEnv();
+    const result = await rollbackExecution(
+      {
+        url: options.project ?? "default",
+        executedAt: new Date().toISOString(),
+        completedActions: [],
+        failedActions: [],
+        skippedActions: [],
+        rollbackPlan: [],
+        executionTime: "0ms",
+        rollbackRequired: true,
+      },
+      provider,
+    );
+    if (options.json) {
+      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Rolled back review session ${sessionId} for ${options.project ?? "default"}.\n`);
+  });
+
+async function requireSession(project: string, sessionId?: string): Promise<{ session: ReviewSession; rootDir: string }> {
+  const rootDir = resolveRootDir();
+  let session: ReviewSession | undefined;
+  if (sessionId) {
+    session = await loadReviewSession(rootDir, project, sessionId);
+  } else {
+    const entries = await listReviewSessions(rootDir, project);
+    const active = entries.filter((e) => e.status !== "completed").at(-1);
+    if (active) session = await loadReviewSession(rootDir, project, active.id);
+  }
+  if (!session) {
+    throw new Error(`No active review session found for project ${project}`);
+  }
+  return { session, rootDir };
+}
+
+function createReviewSessionFromInput(project: string, patches: never[], policyName: ReviewPolicyName): ReviewSession {
+  const { createReviewSession } = require("@forge/review-engine");
+  return createReviewSession({ projectId: project, createdBy: "cli", patches, policy: REVIEW_POLICIES[policyName] });
+}
+
+function buildExecutionPlanFromSession(_session: ReviewSession, approved: ReviewSession["items"]): ExecutionPlan {
+  const { generateExecutionPlan } = require("@forge/action-engine");
+  const actions = approved.map((item) => ({
+    id: item.id,
+    recommendationId: item.id,
+    findingId: item.id,
+    type: "content.update-content",
+    title: `Review: ${item.section}`,
+    description: `Apply approved review item ${item.id}`,
+    priority: item.severity === "critical" ? "critical" : item.severity === "high" ? "high" : item.severity === "medium" ? "medium" : "low",
+    risk: item.severity === "critical" ? "critical" : item.severity === "high" ? "high" : item.severity === "medium" ? "moderate" : "safe",
+    automatable: item.severity === "safe",
+    requiresApproval: item.severity !== "safe",
+    rollbackSupported: true,
+    estimatedDuration: "5m",
+    requiredProvider: "wordpress",
+    payload: { content: item.editedContent ?? item.after },
+    status: item.severity === "safe" ? "approved" : "pending",
+  } as never));
+  return generateExecutionPlan({ actions } as never);
+}
 
 generateCommand
   .command("cta").description("Generate a CTA section improvement")
