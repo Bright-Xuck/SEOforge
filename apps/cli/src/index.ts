@@ -37,7 +37,7 @@ import {
   PerformanceAgent,
   LearningAgent,
 } from "@forge/agent-engine";
-import { AIEngine, OpenAIProvider, AnthropicProvider, GeminiProvider, OpenRouterProvider, OllamaProvider } from "@forge/ai-engine";
+import { AIEngine, ProviderFactory, CostTracker, ProviderLogger, PromptHistory } from "@forge/ai-engine";
 import {
   SkillRegistry,
   skillPromptRegistry,
@@ -247,16 +247,7 @@ for (const agent of [
 }
 
 function createProvider(providerId?: string): AIEngine {
-  const provider =
-    providerId === "anthropic"
-      ? AnthropicProvider
-      : providerId === "gemini"
-        ? GeminiProvider
-        : providerId === "openrouter"
-          ? OpenRouterProvider
-          : providerId === "ollama"
-            ? OllamaProvider
-            : OpenAIProvider;
+  const provider = ProviderFactory.create({ provider: (providerId ?? "openai") as never });
   return new AIEngine(provider);
 }
 
@@ -2023,6 +2014,168 @@ generateCommand
   .option("--dry-run", "Dry run")
   .option("--json", "Output JSON")
   .action(async (options) => runGenerate([], options));
+
+// Sprint 19: AI provider commands
+const aiCommand = program.command("ai").description("AI provider commands (Sprint 19)");
+
+aiCommand
+  .command("providers")
+  .description("List available AI providers")
+  .option("--json", "Output as JSON")
+  .action((options: { json?: boolean }) => {
+    const providers = ProviderFactory.listProviders();
+    if (options.json) {
+      process.stdout.write(JSON.stringify(providers, null, 2) + "\n");
+      return;
+    }
+    for (const p of providers) {
+      process.stdout.write(`${p.id} - ${p.name} (${p.status})\n`);
+    }
+  });
+
+aiCommand
+  .command("models")
+  .description("List available models for a provider")
+  .argument("[provider]", "Provider ID (default: configured default)")
+  .option("--json", "Output as JSON")
+  .action(async (providerId: string | undefined, options: { json?: boolean }) => {
+    const provider = ProviderFactory.create({ provider: (providerId ?? "openai") as never });
+    const models = provider.capabilityMatrix();
+    if (options.json) {
+      process.stdout.write(JSON.stringify(models, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Provider: ${providerId ?? "default"}\n`);
+    process.stdout.write(`Streaming: ${models.supportsStreaming}\n`);
+    process.stdout.write(`JSON mode: ${models.supportsJSON}\n`);
+    process.stdout.write(`Vision: ${models.supportsVision}\n`);
+    process.stdout.write(`Max tokens: ${models.maxOutputTokens}\n`);
+  });
+
+aiCommand
+  .command("test")
+  .description("Test an AI provider connection")
+  .argument("[provider]", "Provider ID (default: configured default)")
+  .option("--model <model>", "Model name")
+  .option("--json", "Output as JSON")
+  .action(async (providerId: string | undefined, options: { model?: string; json?: boolean }) => {
+    const provider = ProviderFactory.create({ provider: (providerId ?? "openai") as never, model: options.model });
+    const engine = new AIEngine(provider);
+    const healthy = await engine.health();
+    if (options.json) {
+      process.stdout.write(JSON.stringify({ provider: providerId ?? "default", healthy }, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Provider ${providerId ?? "default"}: ${healthy ? "✓ healthy" : "✗ unreachable"}\n`);
+  });
+
+aiCommand
+  .command("benchmark")
+  .description("Run a quick benchmark against a provider")
+  .argument("[provider]", "Provider ID (default: configured default)")
+  .option("--model <model>", "Model name")
+  .option("--json", "Output as JSON")
+  .action(async (providerId: string | undefined, options: { model?: string; json?: boolean }) => {
+    const provider = ProviderFactory.create({ provider: (providerId ?? "openai") as never, model: options.model });
+    const engine = new AIEngine(provider);
+    const start = Date.now();
+    const healthy = await engine.health();
+    const latency = Date.now() - start;
+    if (options.json) {
+      process.stdout.write(JSON.stringify({ provider: providerId ?? "default", healthy, latencyMs: latency }, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Provider ${providerId ?? "default"}: ${healthy ? "✓" : "✗"} (${latency}ms)\n`);
+  });
+
+aiCommand
+  .command("cost")
+  .description("Show cost tracking summary")
+  .option("--provider <provider>", "Filter by provider")
+  .option("--project <project>", "Filter by project")
+  .option("--month <month>", "Filter by month (YYYY-MM)")
+  .option("--json", "Output as JSON")
+  .action(async (options: { provider?: string; project?: string; month?: string; json?: boolean }) => {
+    const { CostTracker } = await import("@forge/ai-engine");
+    const tracker = new CostTracker();
+    const summary = tracker.getSummary(options.provider, options.project, options.month);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(summary, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Total cost: $${summary.totalCost.toFixed(4)}\n`);
+    process.stdout.write(`Requests: ${summary.totalRequests}\n`);
+    process.stdout.write(`Tokens: ${summary.totalTokens}\n`);
+  });
+
+aiCommand
+  .command("prompt")
+  .description("Show prompt registry info")
+  .argument("[promptId]", "Prompt ID")
+  .option("--json", "Output as JSON")
+  .action(async (promptId: string | undefined, options: { json?: boolean }) => {
+    const { PromptRegistry } = await import("@forge/prompt-registry");
+    const registry = new PromptRegistry();
+    if (promptId) {
+      const prompt = registry.get(promptId);
+      if (options.json) {
+        process.stdout.write(JSON.stringify(prompt, null, 2) + "\n");
+        return;
+      }
+      process.stdout.write(`Prompt: ${prompt.id}\n`);
+      process.stdout.write(`Version: ${prompt.version}\n`);
+      process.stdout.write(`Variables: ${prompt.variables?.join(", ") ?? "none"}\n`);
+      return;
+    }
+    const prompts = registry.list();
+    if (options.json) {
+      process.stdout.write(JSON.stringify(prompts, null, 2) + "\n");
+      return;
+    }
+    for (const p of prompts) {
+      process.stdout.write(`${p.id} v${p.version}\n`);
+    }
+  });
+
+aiCommand
+  .command("logs")
+  .description("Show provider logs")
+  .option("--provider <provider>", "Filter by provider")
+  .option("--limit <n>", "Limit results", "50")
+  .option("--json", "Output as JSON")
+  .action(async (options: { provider?: string; limit?: string; json?: boolean }) => {
+    const { ProviderLogger } = await import("@forge/ai-engine");
+    const logger = new ProviderLogger();
+    const logs = logger.query({ provider: options.provider, limit: parseInt(options.limit ?? "50", 10) });
+    if (options.json) {
+      process.stdout.write(JSON.stringify(logs, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Recent logs (${logs.length}):\n`);
+    for (const log of logs) {
+      process.stdout.write(`  [${log.timestamp}] ${log.provider}/${log.model} - ${log.tokens} tokens, ${log.latency}ms\n`);
+    }
+  });
+
+aiCommand
+  .command("history")
+  .description("Show prompt execution history")
+  .option("--project <project>", "Filter by project")
+  .option("--limit <n>", "Limit results", "20")
+  .option("--json", "Output as JSON")
+  .action(async (options: { project?: string; limit?: string; json?: boolean }) => {
+    const { PromptHistory } = await import("@forge/ai-engine");
+    const history = new PromptHistory();
+    const entries = history.query({ project: options.project, limit: parseInt(options.limit ?? "20", 10) });
+    if (options.json) {
+      process.stdout.write(JSON.stringify(entries, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Prompt history (${entries.length}):\n`);
+    for (const entry of entries) {
+      process.stdout.write(`  [${entry.timestamp}] ${entry.provider}/${entry.model} - ${entry.tokens} tokens\n`);
+    }
+  });
 
 program.parse(process.argv);
 

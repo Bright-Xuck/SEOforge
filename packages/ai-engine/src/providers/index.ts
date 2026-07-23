@@ -1,0 +1,12 @@
+export { OpenAIProvider } from "./openai.js";
+export type { OpenAIConfig } from "./openai.js";
+export { AnthropicProvider } from "./anthropic.js";
+export type { AnthropicConfig } from "./anthropic.js";
+export { GeminiProvider } from "./gemini.js";
+export type { GeminiConfig } from "./gemini.js";
+export { OpenRouterProvider } from "./openrouter.js";
+export type { OpenRouterConfig } from "./openrouter.js";
+export { OllamaProvider } from "./ollama.js";
+export type { OllamaConfig } from "./ollama.js";
+export { BaseAIProvider, createCapabilityMatrix, capabilitiesFromMatrix, makeProviderRequest, createGenerateResponse } from "./base.js";
+export type { BaseProviderConfig } from "./base.js";

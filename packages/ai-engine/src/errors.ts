@@ -55,3 +55,55 @@ export class PromptRenderError extends ForgeError {
     this.name = "PromptRenderError";
   }
 }
+
+export class RetryExhaustedError extends ForgeError {
+  constructor(provider: string, attempts: number, cause?: unknown) {
+    super("AI_RETRY_EXHAUSTED", `Provider "${provider}" exhausted after ${attempts} retries.`, cause);
+    this.name = "RetryExhaustedError";
+  }
+}
+
+export class RateLimitError extends ForgeError {
+  constructor(provider: string, retryAfter?: number) {
+    super(
+      "AI_RATE_LIMIT",
+      `Rate limited by provider "${provider}"${retryAfter ? `. Retry after ${retryAfter}ms.` : "."}`,
+    );
+    this.name = "RateLimitError";
+  }
+}
+
+export class ProviderFallbackError extends ForgeError {
+  constructor(providersTried: string[]) {
+    super("AI_PROVIDER_FALLBACK", `All providers failed: ${providersTried.join(", ")}`);
+    this.name = "ProviderFallbackError";
+  }
+}
+
+export class AuthenticationError extends ForgeError {
+  constructor(provider: string, cause?: unknown) {
+    super("AI_AUTHENTICATION", `Authentication failed for provider "${provider}".`, cause);
+    this.name = "AuthenticationError";
+  }
+}
+
+export class InvalidRequestError extends ForgeError {
+  constructor(message: string, cause?: unknown) {
+    super("AI_INVALID_REQUEST", message, cause);
+    this.name = "InvalidRequestError";
+  }
+}
+
+export class CostTrackingError extends ForgeError {
+  constructor(message: string, cause?: unknown) {
+    super("AI_COST_TRACKING", message, cause);
+    this.name = "CostTrackingError";
+  }
+}
+
+export class ProviderLoggingError extends ForgeError {
+  constructor(message: string, cause?: unknown) {
+    super("AI_PROVIDER_LOGGING", message, cause);
+    this.name = "ProviderLoggingError";
+  }
+}

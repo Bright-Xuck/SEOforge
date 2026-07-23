@@ -26,6 +26,8 @@ Sprint 17 adds the Section Content Generation Engine:
 `forge generate hero`, `forge generate faq`, `forge generate cta`, `forge generate section`, and `forge generate page` (each with `--preview`, `--provider`, `--model`, `--project`, `--dry-run`, and `--json`).
 Sprint 18 adds the Review Engine:
 `forge review create`, `forge review show`, `forge review approve`, `forge review reject`, `forge review edit`, `forge review export`, `forge review metrics`, `forge review comments`, `forge review apply`, and `forge review rollback` (each with `--project`, `--json`, and `--format` where relevant). `forge homepage optimize` now stops at a Review Session instead of executing.
+Sprint 19 adds Production AI Providers and the Optimization Composer:
+`forge ai providers`, `forge ai models`, `forge ai test`, `forge ai benchmark`, `forge ai cost`, `forge ai prompt`, `forge ai logs`, `forge ai history`, `forge compose`, `forge compose graph`, `forge compose bundles`, `forge compose conflicts`, `forge compose preview`, `forge compose validate`, and `forge compose execute`.
 
 ---
 
@@ -98,7 +100,10 @@ forge/
 │   ├── recommendation-engine/  # Deterministic recommendation generation
 │   ├── action-engine/    # Execution planning and approval management
 │   ├── homepage-engine/  # Deterministic homepage analysis and optimization
-│   └── content-intelligence/  # Deterministic content understanding (Page DNA, Content Graph)
+│   ├── content-intelligence/  # Deterministic content understanding (Page DNA, Content Graph)
+│   ├── ai-engine/        # AI provider abstraction, retry engine, rate limiting, cost tracking
+│   ├── optimization-composer/  # PatchGraph, conflict detection, bundles, goals, priorities, preview
+│   └── execution-engine/ # Execution with rollback groups
 ├── docs/                 # Architecture and design documentation
 └── tests/                # Repository-level tests
 ```
@@ -243,6 +248,66 @@ Detect content sections (hero, features, faq, pricing, etc.) on a page. Supports
 
 Extract deterministic entities (brands, products, people, organizations, etc.) from a page. Supports `--json` and `--project`.
 
+### `forge ai providers`
+
+List configured AI providers with their capabilities (streaming, vision, JSON mode, etc.).
+
+### `forge ai models`
+
+List available models for a given provider.
+
+### `forge ai test`
+
+Test a provider connection by making a lightweight health check.
+
+### `forge ai benchmark`
+
+Benchmark provider performance (latency, tokens/second).
+
+### `forge ai cost`
+
+Show cost tracking report per provider, project, mission, and month.
+
+### `forge ai prompt`
+
+Manage the prompt registry: list, info, render, validate.
+
+### `forge ai logs`
+
+View AI request logs (provider, model, tokens, latency, cost, errors).
+
+### `forge ai history`
+
+View prompt execution history per project.
+
+### `forge compose`
+
+Run the Optimization Composer on a review session. Transforms reviewed patches into structured, dependency-aware, prioritized bundles.
+
+### `forge compose graph`
+
+Show the PatchGraph for a session — a DAG of patch dependencies.
+
+### `forge compose bundles`
+
+List patch bundles grouped by optimization goal.
+
+### `forge compose conflicts`
+
+Show detected conflicts where multiple patches touch the same selector.
+
+### `forge compose preview`
+
+Generate an optimization preview with estimated SEO/UX/content quality impact.
+
+### `forge compose validate`
+
+Run batch validation on composed bundles.
+
+### `forge compose execute`
+
+Execute composed patches in priority order (critical → high → medium → low).
+
 ---
 
 ## Packages
@@ -308,6 +373,38 @@ Execution planning and approval management for Sprint 5.
 - `isAutomatable(risk)` — Check if action can be auto-executed
 - `requiresApproval(risk)` — Check if action requires approval
 - `Action`, `ExecutionPlan`, `RiskLevel`, `ActionType` types
+
+### `@forge/ai-engine`
+
+AI provider abstraction layer with production provider implementations.
+
+**Exports:**
+
+- `AIProvider` interface with `generate()`, `stream()`, `health()` methods
+- `ProviderFactory` — creates providers from configuration
+- `AIRequest`, `AIResponse`, `ProviderCapabilities` types
+- `RetryEngine` — deterministic retry with exponential backoff
+- `RateLimiter` — in-memory per-provider throttling
+- `FallbackChain` — OpenAI → Anthropic → Gemini → OpenRouter → Ollama
+- `CostTracker` — per-provider, per-project, per-mission cost tracking
+- `AIRequestLogger` — structured AI request logging
+- `PromptHistory` — persistent prompt execution history
+- Provider implementations: OpenAI, Anthropic, Gemini, OpenRouter, Ollama
+
+### `@forge/optimization-composer`
+
+Transforms reviewed patches into structured, dependency-aware, prioritized bundles.
+
+**Exports:**
+
+- `compose(patches)` — Main composition function
+- `PatchGraph` — DAG of patch dependencies
+- `ConflictDetector` — selector-level conflict detection
+- `PatchBundler` — groups patches into logical bundles
+- `GoalAssigner` — assigns optimization goals to bundles
+- `PriorityAssigner` — assigns critical/high/medium/low priorities
+- `PreviewGenerator` — deterministic optimization preview
+- `PatchBundle`, `PatchConflict`, `OptimizationGoal`, `OptimizationPreview` types
 
 ---
 
@@ -479,6 +576,65 @@ Provider
 ```
 
 **Out of scope:** visual review UI, scheduling, background workers, publishing, WordPress writes, real AI approval (Sprint 19+).
+
+---
+
+## Sprint 19 — Production AI Providers + Optimization Composer (v0.19.0)
+
+Sprint 19 replaces all mock AI providers with production-ready implementations and introduces the Optimization Composer layer between Review and Execution.
+
+### Production AI Providers
+
+- ✅ Five production providers: OpenAI, Anthropic, Google Gemini, OpenRouter, Ollama
+- ✅ All providers implement the common `AIProvider` interface
+- ✅ Provider configuration system via `@forge/config` (no hardcoded values)
+- ✅ `ProviderFactory` creates providers from configuration
+- ✅ Provider capabilities: streaming, system prompts, JSON mode, vision, reasoning, function calling, large context
+- ✅ `AIRequest` / `AIResponse` models with full metadata
+- ✅ Deterministic retry engine (429/503/timeout only, exponential backoff)
+- ✅ In-memory rate limiting (per-provider, sliding window)
+- ✅ Provider-aware fallback chain (OpenAI → Anthropic → Gemini → OpenRouter → Ollama)
+- ✅ Cost tracking per provider, project, mission, month
+- ✅ AI request logging (never stores API keys)
+- ✅ Prompt execution history persisted to disk
+- ✅ Prompt registry expanded with versions, provider overrides, schema validation, compatibility
+- ✅ Prompt rendering upgraded with conditionals, loops, partials, escaping, strict validation
+- ✅ Context builder expanded with project profile, knowledge graph, memory timeline, mission, strategy, Page DNA, section, brand profile, competitor snapshot, review summary, previous patches
+- ✅ CLI commands: `forge ai providers`, `forge ai models`, `forge ai test`, `forge ai benchmark`, `forge ai cost`, `forge ai prompt`, `forge ai logs`, `forge ai history`
+- ✅ Pipeline integration: ai-request, ai-response, prompt-render, provider-select, provider-fallback, cost-record, history-record
+- ✅ Homepage generation uses real providers
+- ✅ Section generation uses real providers
+- ✅ Mock providers removed
+
+### Optimization Composer
+
+The Composer sits between Review and Execution, transforming flat patch lists into structured, dependency-aware, prioritized bundles.
+
+- ✅ **PatchGraph** — DAG of patch dependencies (e.g., Hero → CTA → FAQ → Schema)
+- ✅ **Conflict Detection** — detects when multiple patches touch the same selector
+- ✅ **Patch Bundles** — groups patches into logical bundles (Homepage Optimization, Blog Improvements, etc.)
+- ✅ **Optimization Goals** — every bundle knows WHY it exists (Increase conversions, Improve Local SEO, etc.)
+- ✅ **Rollback Groups** — rollback entire bundles as one transaction
+- ✅ **Optimization Preview** — deterministic preview with estimated SEO/UX/content quality impact
+- ✅ **Batch Validation** — validates patches together, not separately
+- ✅ **Patch Priorities** — critical → high → medium → low execution order
+- ✅ CLI commands: `forge compose`, `forge compose graph`, `forge compose bundles`, `forge compose conflicts`, `forge compose preview`, `forge compose validate`, `forge compose execute`
+
+**New flow:**
+
+```text
+Generate
+  ↓
+Review
+  ↓
+Compose (PatchGraph → Conflict Detection → Bundles → Goals → Priorities → Preview)
+  ↓
+Validate (Batch Validation)
+  ↓
+Execute (Priority order, Rollback Groups)
+```
+
+**Out of scope:** scheduling, dashboard, analytics, cloud sync, database, background workers, publishing, automatic execution.
 
 ---
 

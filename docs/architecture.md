@@ -250,6 +250,139 @@ Provider (WordPress write)
 
 ---
 
+## Sprint 19 Update: Production AI Providers + Optimization Composer
+
+Forge now replaces all mock AI providers with production-ready implementations and introduces the Optimization Composer layer between Review and Execution.
+
+### Production AI Providers
+
+- Five production providers implemented: OpenAI, Anthropic, Google Gemini, OpenRouter, Ollama.
+- Each provider implements the common `AIProvider` interface with `generate()`, `stream()`, and `health()` methods.
+- Provider configuration loads through `@forge/config` via environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `DEFAULT_PROVIDER`, `DEFAULT_MODEL`, `TEMPERATURE`, `MAX_TOKENS`, `TIMEOUT`, `MAX_RETRIES`, `RETRY_DELAY`). No hardcoded values.
+- `ProviderFactory` creates providers from configuration. No package instantiates providers directly.
+- Each provider declares capabilities: `supportsStreaming`, `supportsSystemPrompts`, `supportsJSON`, `supportsVision`, `supportsReasoning`, `supportsFunctionCalling`, `supportsLargeContext`, `maxContextTokens`, `maxOutputTokens`, `costTier`, `speedTier`.
+- `AIRequest` model: `prompt`, `systemPrompt`, `context`, `temperature`, `maxTokens`, `expectedFormat`, `metadata`, `projectId`, `sessionId`, `traceId`.
+- `AIResponse` model: `content`, `provider`, `model`, `usage`, `finishReason`, `latency`, `costEstimate`, `warnings`, `rawResponseMetadata`.
+
+### Retry Engine
+
+- Deterministic retry logic with exponential backoff.
+- Retry only for: 429 (Rate Limit), 503 (Service Unavailable), timeouts, connection failures.
+- Never retry validation failures (400, 401, 403, 404, 422).
+- Configurable: `maxRetries` (default 3), `baseDelay` (default 1000ms), `maxDelay` (default 30000ms).
+- Deterministic jitter using seeded random.
+
+### Rate Limiting
+
+- In-memory token bucket algorithm per provider.
+- Tracks: requests/minute, tokens/minute, concurrent requests.
+- Sliding window for rate calculation.
+- No external Redis — in-memory only.
+
+### Provider Logging
+
+- Every AI request is logged with: provider, model, tokens, latency, cost estimate, errors, retry count, timestamp.
+- Never stores API keys, raw prompts, or raw responses.
+- Output: structured JSON lines to `logs/ai-requests.log`.
+
+### Prompt History
+
+- Prompt executions persisted under `projects/<project>/prompts/`.
+- Each execution stores: prompt version, provider, model, rendered variables, token usage, latency, result checksum (SHA-256).
+
+### Cost Tracking
+
+- Estimated costs tracked per: provider, project, mission, month.
+- Per-provider pricing table (input/output tokens per 1K).
+- Stored locally in `projects/<project>/costs/`.
+
+### Prompt Registry Expansion
+
+- Each prompt supports: versions, provider overrides, variables, schema validation, compatibility, required capabilities, recommended models.
+- New methods: `validateVariables()`, `getCompatibleProviders()`, `getRecommendedModel()`, `checkCompatibility()`.
+
+### Prompt Rendering Upgrade
+
+- New `PromptRenderer` supports: conditionals (`{{#if}}`), loops (`{{#each}}`), partials (`{{>}}`), escaping (`{{escape}}`), strict validation, missing variable detection.
+
+### Context Builder Expansion
+
+- Expanded `AIContext` includes: Project Profile, Knowledge Graph, Memory Timeline, Mission, Strategy, Page DNA, Section, Brand Profile, Competitor Snapshot, Review Summary, Previous approved patches.
+
+### Fallback Logic
+
+- Provider fallback chain: OpenAI → Anthropic → Gemini → OpenRouter → Ollama.
+- Fallback only when compatible (capability check).
+- `ProviderFallbackError` when all providers fail.
+
+### CLI Commands
+
+- `forge ai providers` — List configured providers with capabilities.
+- `forge ai models` — List available models for a provider.
+- `forge ai test` — Test a provider connection.
+- `forge ai benchmark` — Benchmark provider performance.
+- `forge ai cost` — Show cost tracking report.
+- `forge ai prompt` — Prompt registry management.
+- `forge ai logs` — View AI request logs.
+- `forge ai history` — View prompt execution history.
+
+### Pipeline Integration
+
+- New pipeline steps: ai-request, ai-response, prompt-render, provider-select, provider-fallback, cost-record, history-record.
+
+### Homepage and Content Generation
+
+- Homepage generation now uses real providers through `ProviderFactory`.
+- Section generators use production providers.
+- No interface changes — consumers remain unchanged.
+- Still produces `ContentPatch` → `Review` flow. Never publishes automatically.
+
+### Optimization Composer
+
+The Composer sits between Review and Execution, transforming flat patch lists into structured, dependency-aware, prioritized bundles.
+
+- **PatchGraph** — DAG of patch dependencies (e.g., Hero → CTA → FAQ → Schema). Execution Engine executes the graph, never random patches.
+- **Conflict Detection** — detects when multiple patches touch the same selector. Forge immediately reports: "Conflict detected. Section: Hero. Patches: Patch 21, Patch 43. Resolution required."
+- **Patch Bundles** — groups patches into logical bundles (Homepage Optimization, Blog Improvements, etc.) instead of showing 37 individual patches.
+- **Optimization Goals** — every bundle knows WHY it exists (Increase conversions, Improve Local SEO, Improve topical authority). Every patch belongs to a goal.
+- **Rollback Groups** — rollback entire bundles as one transaction, not individual patches.
+- **Optimization Preview** — deterministic preview with estimated SEO impact, UX impact, content quality, affected sections, expected ranking improvement. No AI needed.
+- **Batch Validation** — validates patches together (title + canonical + schema), not separately.
+- **Patch Priorities** — every patch gets Critical, High, Medium, or Low. Composer executes Critical → High → Medium → Low.
+
+The new flow is:
+
+```text
+Generate
+  ↓
+Review
+  ↓
+Compose (PatchGraph → Conflict Detection → Bundles → Goals → Priorities → Preview)
+  ↓
+Validate (Batch Validation)
+  ↓
+Execute (Priority order, Rollback Groups)
+```
+
+Review never leads to immediate execution. The flow always goes through Compose → Validate → Execute.
+
+### New Package: `@forge/optimization-composer`
+
+- `types.ts` — Core types: `PatchPriority`, `OptimizationGoal`, `PatchBundle`, `PatchGraphNode`, `PatchGraph`, `PatchConflict`, `OptimizationPreview`, `BundlePreview`.
+- `graph.ts` — PatchGraph builder: DAG construction, cycle detection, topological sort.
+- `conflict.ts` — Conflict detection: selector-level grouping, resolution strategies.
+- `bundler.ts` — Patch bundler: groups patches into logical bundles.
+- `goals.ts` — Optimization goals: assignment, matching criteria.
+- `preview.ts` — Optimization preview: deterministic impact estimation.
+- `priorities.ts` — Priority assignment: critical/high/medium/low based on patch type and section.
+- `composer.ts` — Main orchestrator: detectConflicts → createBundles → assignGoals → buildGraph → assignPriorities → generatePreview.
+
+### Out of Scope (Sprint 20+)
+
+Scheduling, dashboard, analytics, cloud sync, database, background workers, publishing, automatic execution.
+
+---
+
 ## 1. Product Framing
 
 **Product name:** Forge

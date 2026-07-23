@@ -1680,6 +1680,258 @@ Revisit if a package's responsibility grows to justify splitting (e.g., if `pack
 
 ---
 
+## ADR-0034
+
+### Title
+
+Replace Mock AI Providers with Production Implementations
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-22
+
+### Context
+
+Sprint 17 introduced mock AI providers behind the `AIProvider` interface. Sprint 19 requires production-ready implementations for five providers: OpenAI, Anthropic, Google Gemini, OpenRouter, and Ollama. The provider abstraction must be preserved so no consumer code changes when switching providers.
+
+### Decision
+
+Implement five production providers, each in its own file under `packages/ai-engine/src/providers/`. Each implements the `AIProvider` interface with `generate()`, `stream()`, and `health()` methods. Configuration loads through `@forge/config` via environment variables — no hardcoded values. The `ProviderFactory` creates providers from configuration; no package instantiates providers directly.
+
+### Alternatives Considered
+
+Keeping mock providers. Rejected because real API integration is required for production use.
+
+Using a single monolithic provider file. Rejected in favor of one file per provider for testability and maintainability.
+
+### Consequences
+
+Positive: Production-ready AI integration. No consumer code changes needed.
+
+Negative: API keys must be configured per environment.
+
+---
+
+## ADR-0035
+
+### Title
+
+Deterministic Retry Engine with Exponential Backoff
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-22
+
+### Context
+
+AI provider calls can fail transiently (429 rate limits, 503 service unavailable, timeouts, connection failures). Validation failures (400, 401, 403, 404, 422) should never be retried. Retry logic must be deterministic and configurable.
+
+### Decision
+
+Implement `RetryEngine` with configurable `maxRetries` (default 3), `baseDelay` (default 1000ms), `maxDelay` (default 30000ms). Uses exponential backoff with deterministic jitter. Retries only for 429, 503, timeouts, and connection failures. Never retries validation failures.
+
+### Alternatives Considered
+
+Using a third-party retry library. Rejected to keep the dependency footprint minimal and ensure deterministic behavior.
+
+Retrying all errors. Rejected because validation failures indicate a bug, not a transient condition.
+
+### Consequences
+
+Positive: Resilient provider calls. Predictable retry behavior.
+
+Negative: Slightly more code to maintain.
+
+---
+
+## ADR-0036
+
+### Title
+
+In-Memory Rate Limiting per Provider
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-22
+
+### Context
+
+AI providers have rate limits (requests/minute, tokens/minute, concurrent requests). Forge must throttle requests to avoid hitting provider limits. No external Redis dependency is allowed.
+
+### Decision
+
+Implement in-memory token bucket algorithm per provider. Tracks requests/minute, tokens/minute, and concurrent requests using a sliding window. No external Redis — in-memory only.
+
+### Alternatives Considered
+
+External Redis-based rate limiting. Rejected because it adds infrastructure complexity for a single-user desktop application.
+
+No rate limiting. Rejected because it would cause provider errors and wasted API calls.
+
+### Consequences
+
+Positive: Provider-safe request throttling. No infrastructure dependencies.
+
+Negative: Rate limits reset on process restart.
+
+---
+
+## ADR-0037
+
+### Title
+
+Provider-Aware Fallback Chain
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-22
+
+### Context
+
+When a provider fails (after retries), Forge should fall back to another provider rather than failing the entire request. Fallback must only occur when the fallback provider is compatible with the request's capabilities.
+
+### Decision
+
+Implement `FallbackChain` with the order: OpenAI → Anthropic → Gemini → OpenRouter → Ollama. Fallback only when the provider is compatible (capability check). `ProviderFallbackError` when all providers fail.
+
+### Alternatives Considered
+
+Random fallback order. Rejected because deterministic order is more predictable and debuggable.
+
+No fallback. Rejected because it reduces reliability.
+
+### Consequences
+
+Positive: Graceful degradation when providers are unavailable.
+
+Negative: Fallback adds latency when primary provider fails.
+
+---
+
+## ADR-0038
+
+### Title
+
+Cost Tracking per Provider, Project, Mission, and Month
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-22
+
+### Context
+
+AI provider usage incurs costs. Forge must track estimated costs to help users understand spending. Costs vary by provider, model, and usage patterns.
+
+### Decision
+
+Implement `CostTracker` that tracks estimated costs per provider, project, mission, and month. Uses a per-provider pricing table (input/output tokens per 1K). Stores data locally in `projects/<project>/costs/`. Costs are estimates based on token counts and published pricing.
+
+### Alternatives Considered
+
+Real-time billing API integration. Rejected as over-engineering — estimates are sufficient for a single-user tool.
+
+No cost tracking. Rejected because users need visibility into AI spending.
+
+### Consequences
+
+Positive: Visibility into AI provider costs. Local storage means no external dependencies.
+
+Negative: Costs are estimates, not actual bills.
+
+---
+
+## ADR-0039
+
+### Title
+
+Optimization Composer Layer between Review and Execution
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-22
+
+### Context
+
+Review produces a flat list of approved patches. Executing them in random order is risky — patches may conflict, have dependencies, or need prioritization. A composition layer is needed between Review and Execution.
+
+### Decision
+
+Create `@forge/optimization-composer` package with: PatchGraph (DAG of dependencies), ConflictDetector (selector-level conflict detection), PatchBundler (logical grouping), GoalAssigner (optimization goals), PriorityAssigner (critical/high/medium/low), PreviewGenerator (deterministic impact estimation), and BatchValidator (validates patches together). The flow is always Generate → Review → Compose → Validate → Execute. Review never leads to immediate execution.
+
+### Alternatives Considered
+
+Executing patches directly from Review. Rejected because it risks conflicts and ignores dependencies.
+
+Adding composition logic to the Execution Engine. Rejected because composition is a distinct concern.
+
+### Consequences
+
+Positive: Safe, dependency-aware, prioritized execution. Clear separation of concerns.
+
+Negative: Additional step in the pipeline adds minor latency.
+
+---
+
+## ADR-0040
+
+### Title
+
+Prompt Registry Expansion with Versions, Provider Overrides, and Schema Validation
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-22
+
+### Context
+
+Sprint 10 introduced a basic prompt registry. Sprint 19 requires expanded capabilities: versioning, provider-specific overrides, variable schema validation, compatibility checks, and recommended model hints.
+
+### Decision
+
+Expand `PromptRegistry` with: `versions` (semver), `providerOverrides` (per-provider prompt variants), `variables` (with schema validation), `compatibility` (required capabilities), `recommendedModels`. New methods: `validateVariables()`, `getCompatibleProviders()`, `getRecommendedModel()`, `checkCompatibility()`. Upgrade `PromptRenderer` to support conditionals (`{{#if}}`), loops (`{{#each}}`), partials (`{{>}}`), escaping (`{{escape}}`), strict validation, and missing variable detection.
+
+### Alternatives Considered
+
+Keeping the simple string-based registry. Rejected because it doesn't scale to multiple providers and versions.
+
+Using a third-party template engine. Rejected to keep the dependency footprint minimal.
+
+### Consequences
+
+Positive: Versioned, validated, provider-aware prompts. Better prompt quality and debuggability.
+
+Negative: More complex prompt definitions.
+
+---
+
 # Decision Review Policy
 
 Architectural decisions should be reviewed when:

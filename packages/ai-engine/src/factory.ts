@@ -1,48 +1,121 @@
-// @forge/ai-engine
-// ProviderFactory: swaps Mock -> Real providers without changing callers (ADR-0030).
-// Sprint 17 keeps providers mocked; real API wiring lands later.
-
 import type { AIProvider } from "./types.js";
-import {
-  OpenAIProvider,
-  AnthropicProvider,
-  GeminiProvider,
-  OpenRouterProvider,
-  OllamaProvider,
-} from "./providers.js";
+import { ProviderUnavailableError } from "./errors.js";
+import { OpenAIProvider } from "./providers/openai.js";
+import { AnthropicProvider } from "./providers/anthropic.js";
+import { GeminiProvider } from "./providers/gemini.js";
+import { OpenRouterProvider } from "./providers/openrouter.js";
+import { OllamaProvider } from "./providers/ollama.js";
+import type { AIProviderConfig } from "@forge/config";
 
-/**
- * Configuration for constructing an AI provider.
- */
-export interface AIProviderConfig {
-  readonly provider: "openai" | "anthropic" | "gemini" | "openrouter" | "ollama";
-  readonly apiKey?: string;
-  readonly model?: string;
-  readonly baseUrl?: string;
+export type ProviderType = "openai" | "anthropic" | "gemini" | "openrouter" | "ollama";
+
+export class ProviderFactory {
+  private providers: Map<string, AIProvider> = new Map();
+  private config: AIProviderConfig;
+
+  constructor(config: AIProviderConfig) {
+    this.config = config;
+  }
+
+  getProvider(type: ProviderType): AIProvider {
+    const existing = this.providers.get(type);
+    if (existing) return existing;
+
+    const provider = this.createProvider(type);
+    this.providers.set(type, provider);
+    return provider;
+  }
+
+  getDefaultProvider(): AIProvider {
+    return this.getProvider(this.config.defaultProvider as ProviderType);
+  }
+
+  getAllProviders(): AIProvider[] {
+    const result: AIProvider[] = [];
+    if (this.config.openaiApiKey) result.push(this.getProvider("openai"));
+    if (this.config.anthropicApiKey) result.push(this.getProvider("anthropic"));
+    if (this.config.geminiApiKey) result.push(this.getProvider("gemini"));
+    if (this.config.openrouterApiKey) result.push(this.getProvider("openrouter"));
+    result.push(this.getProvider("ollama"));
+    return result;
+  }
+
+  /**
+   * Static helper: create a provider from a partial config object.
+   * Used by CLI commands.
+   */
+  static create(opts: { provider: ProviderType; model?: string }): AIProvider {
+    const config: AIProviderConfig = {
+      openaiApiKey: process.env.OPENAI_API_KEY ?? "",
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
+      geminiApiKey: process.env.GEMINI_API_KEY ?? "",
+      openrouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
+      ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
+      ollamaModel: process.env.OLLAMA_MODEL ?? "llama3",
+      defaultProvider: opts.provider,
+      defaultModel: opts.model ?? process.env.DEFAULT_MODEL ?? "gpt-4",
+      temperature: parseFloat(process.env.TEMPERATURE ?? "0.7"),
+      maxTokens: parseInt(process.env.MAX_TOKENS ?? "4096", 10),
+      timeout: parseInt(process.env.TIMEOUT ?? "30000", 10),
+      maxRetries: parseInt(process.env.MAX_RETRIES ?? "3", 10),
+      retryDelay: parseInt(process.env.RETRY_DELAY ?? "1000", 10),
+    };
+    const factory = new ProviderFactory(config);
+    return factory.getProvider(opts.provider);
+  }
+
+  /**
+   * Static helper: list available providers.
+   */
+  static listProviders(): Array<{ id: string; name: string; status: string }> {
+    const providers: Array<{ id: string; name: string; status: string }> = [
+      { id: "openai", name: "OpenAI", status: process.env.OPENAI_API_KEY ? "configured" : "missing key" },
+      { id: "anthropic", name: "Anthropic", status: process.env.ANTHROPIC_API_KEY ? "configured" : "missing key" },
+      { id: "gemini", name: "Google Gemini", status: process.env.GEMINI_API_KEY ? "configured" : "missing key" },
+      { id: "openrouter", name: "OpenRouter", status: process.env.OPENROUTER_API_KEY ? "configured" : "missing key" },
+      { id: "ollama", name: "Ollama", status: "always available" },
+    ];
+    return providers;
+  }
+
+  private createProvider(type: ProviderType): AIProvider {
+    switch (type) {
+      case "openai":
+        if (!this.config.openaiApiKey) throw new ProviderUnavailableError("openai");
+        return new OpenAIProvider({
+          apiKey: this.config.openaiApiKey,
+          model: this.config.defaultModel,
+          timeout: this.config.timeout,
+        });
+      case "anthropic":
+        if (!this.config.anthropicApiKey) throw new ProviderUnavailableError("anthropic");
+        return new AnthropicProvider({
+          apiKey: this.config.anthropicApiKey,
+          model: this.config.defaultModel,
+          timeout: this.config.timeout,
+        });
+      case "gemini":
+        if (!this.config.geminiApiKey) throw new ProviderUnavailableError("gemini");
+        return new GeminiProvider({
+          apiKey: this.config.geminiApiKey,
+          model: this.config.defaultModel,
+          timeout: this.config.timeout,
+        });
+      case "openrouter":
+        if (!this.config.openrouterApiKey) throw new ProviderUnavailableError("openrouter");
+        return new OpenRouterProvider({
+          apiKey: this.config.openrouterApiKey,
+          model: this.config.defaultModel,
+          timeout: this.config.timeout,
+        });
+      case "ollama":
+        return new OllamaProvider({
+          baseUrl: this.config.ollamaBaseUrl,
+          model: this.config.ollamaModel,
+          timeout: this.config.timeout,
+        });
+      default:
+        throw new ProviderUnavailableError(type);
+    }
+  }
 }
-
-const PROVIDER_MAP = {
-  openai: OpenAIProvider,
-  anthropic: AnthropicProvider,
-  gemini: GeminiProvider,
-  openrouter: OpenRouterProvider,
-  ollama: OllamaProvider,
-} as const;
-
-/**
- * Create a provider from config. Currently returns the mocked implementation
- * for every provider; the factory boundary lets us swap in real clients later
- * without touching any caller.
- */
-export function createProvider(config: AIProviderConfig): AIProvider {
-  return PROVIDER_MAP[config.provider];
-}
-
-/**
- * ProviderFactory namespace for ergonomic construction.
- */
-export const ProviderFactory = {
-  create(config: AIProviderConfig): AIProvider {
-    return createProvider(config);
-  },
-};

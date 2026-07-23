@@ -158,6 +158,9 @@ importers:
 
   packages/ai-engine:
     dependencies:
+      '@forge/config':
+        specifier: workspace:*
+        version: link:../config
       '@forge/core':
         specifier: workspace:*
         version: link:../core
@@ -341,6 +344,16 @@ importers:
       '@forge/strategy-engine':
         specifier: workspace:*
         version: link:../strategy-engine
+
+  packages/optimization-composer:
+    dependencies:
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
 
   packages/pipeline-engine:
     dependencies:
