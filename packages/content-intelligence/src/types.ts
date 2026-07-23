@@ -23,10 +23,10 @@ export interface ContentIntelligenceInput {
  * Used so the engine can accept either a WebsiteSnapshot or a parsed document.
  */
 export interface ParsedHtmlLike {
-  readonly headings: ReadonlyArray<{ readonly level: 1 | 2 | 3 | 4 | 5 | 6; readonly text: string }>;
-  readonly links: ReadonlyArray<{ readonly href: string; readonly text: string; readonly isInternal: boolean }>;
-  readonly images: ReadonlyArray<{ readonly src: string; readonly alt: string }>;
-  readonly jsonLd: ReadonlyArray<Record<string, unknown>>;
+  readonly headings: readonly { readonly level: 1 | 2 | 3 | 4 | 5 | 6; readonly text: string }[];
+  readonly links: readonly { readonly href: string; readonly text: string; readonly isInternal: boolean }[];
+  readonly images: readonly { readonly src: string; readonly alt: string }[];
+  readonly jsonLd: readonly Record<string, unknown>[];
 }
 
 // ---------------------------------------------------------------------------

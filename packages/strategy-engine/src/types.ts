@@ -1,8 +1,36 @@
 import type { KnowledgeGraph, ProjectProfile, MemorySummaryLike } from "@forge/knowledge-engine";
-import type { PipelineDefinition } from "@forge/pipeline-engine";
-import type { SkillDefinition } from "@forge/skills";
 
 export type StrategyRisk = "low" | "moderate" | "high" | "critical";
+
+interface LocalSkillDefinition {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly description: string;
+  readonly category: string;
+  readonly tags: string[];
+  readonly difficulty: "beginner" | "intermediate" | "advanced";
+  readonly costEstimate: string;
+  readonly estimatedTokens: number;
+  readonly supportedProviders: string[];
+  readonly requiredKnowledge: string[];
+  readonly requiredMemory: string[];
+  readonly requiredInputs: string[];
+  readonly outputs: string[];
+  readonly validator: string;
+}
+
+interface LocalPipelineDefinition {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly description: string;
+  readonly steps: unknown[];
+  readonly metadata?: Record<string, unknown>;
+}
+
+export type SkillDefinition = LocalSkillDefinition;
+export type PipelineDefinition = LocalPipelineDefinition;
 
 export interface StrategyGoal {
   readonly id: string;
@@ -98,7 +126,7 @@ export interface StrategyContext {
     exists(id: string): boolean;
   };
   readonly providerRegistry: {
-    list(): Array<{ readonly id: string; readonly name: string }>;
+    list(): ({ readonly id: string; readonly name: string })[];
     exists(id: string): boolean;
   };
   readonly currentTask?: string;

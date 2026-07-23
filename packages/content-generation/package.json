@@ -23,7 +23,6 @@
     "@forge/knowledge-engine": "workspace:*",
     "@forge/memory-engine": "workspace:*",
     "@forge/mission-engine": "workspace:*",
-    "@forge/prompt-registry": "workspace:*",
-    "@forge/skills": "workspace:*"
+    "@forge/prompt-registry": "workspace:*"
   }
 }

@@ -1,14 +1,25 @@
 import type { RollbackGroup } from './types.js';
 
+/**
+ * Generate a rollback group ID for reference by the Execution Engine.
+ */
+export function generateRollbackGroupId(bundleId: string): string {
+  return `rollback-${bundleId}`;
+}
+
+/**
+ * Rollback Manager — stub for future implementation.
+ * Full rollback group ownership lives in @forge/execution-engine.
+ */
 export class RollbackManager {
-  private groups: Map<string, RollbackGroup> = new Map();
+  private groups: Map<string, RollbackGroup> = new Map<string, RollbackGroup>();
 
   /**
    * Create a rollback group for a bundle.
    */
   createGroup(bundleId: string, name: string, patchIds: string[]): RollbackGroup {
     const group: RollbackGroup = {
-      id: `rollback-${bundleId}`,
+      id: generateRollbackGroupId(bundleId),
       bundleId,
       name,
       patches: patchIds,

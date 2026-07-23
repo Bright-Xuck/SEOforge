@@ -5,7 +5,7 @@ import { PatchBundler } from './bundler.js';
 import { GoalAssigner } from './goals.js';
 import { PreviewGenerator } from './preview.js';
 import { BatchValidator } from './validator.js';
-import { RollbackManager } from './rollback.js';
+import { generateRollbackGroupId } from './rollback.js';
 
 export class OptimizationComposer {
   private dag: PatchDAG;
@@ -14,7 +14,6 @@ export class OptimizationComposer {
   private goalAssigner: GoalAssigner;
   private previewGenerator: PreviewGenerator;
   private validator: BatchValidator;
-  private rollbackManager: RollbackManager;
 
   constructor() {
     this.dag = new PatchDAG();
@@ -23,7 +22,6 @@ export class OptimizationComposer {
     this.goalAssigner = new GoalAssigner();
     this.previewGenerator = new PreviewGenerator();
     this.validator = new BatchValidator();
-    this.rollbackManager = new RollbackManager();
   }
 
   /**
@@ -69,6 +67,7 @@ export class OptimizationComposer {
         preview,
         conflicts: conflictResult.conflicts,
         priorities: new Map(),
+        rollbackGroupIds: [],
         validationErrors: validationResult.errors,
         validationWarnings: validationResult.warnings,
       };
@@ -94,11 +93,8 @@ export class OptimizationComposer {
       priorities.set(patch.id, patch.priority);
     }
 
-    // Step 9: Create rollback group
-    if (patches.length > 0) {
-      const bundleName = bundles[0]?.name || "Optimization";
-      this.rollbackManager.createGroup(bundles[0]?.id || "bundle-optimization", bundleName, patches.map((p) => p.id));
-    }
+    // Step 9: Generate rollback group IDs (ownership lives in execution-engine)
+    const rollbackGroupIds: string[] = updatedBundles.map((b) => generateRollbackGroupId(b.id));
 
     return {
       bundles: updatedBundles,
@@ -107,14 +103,8 @@ export class OptimizationComposer {
       preview,
       conflicts: conflictResult.conflicts,
       priorities,
+      rollbackGroupIds,
     };
-  }
-
-  /**
-   * Get the rollback manager for undoing optimization bundles.
-   */
-  getRollbackManager(): RollbackManager {
-    return this.rollbackManager;
   }
 
   /**

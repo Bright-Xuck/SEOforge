@@ -254,6 +254,222 @@ Provider (WordPress write)
 
 Forge now replaces all mock AI providers with production-ready implementations and introduces the Optimization Composer layer between Review and Execution.
 
+## Sprint 19.5 Update: AI Reliability Hardening
+
+Sprint 19.5 adds no new user-facing features. It strengthens the AI infrastructure before Sprint 20 begins.
+
+### Corrected Architecture Flow
+
+The full orchestration chain after Sprint 19.5 is:
+
+```text
+Mission
+  ↓
+Agent
+  ↓
+Strategy
+  ↓
+Pipeline
+  ↓
+Skill
+  ↓
+Content Generation
+  ↓
+Review
+  ↓
+Optimization Composer
+  ↓
+Action Engine
+  ↓
+Preflight Validator
+  ↓
+Execution Engine
+  ↓
+Provider (WordPress, etc.)
+```
+
+### Composer Responsibilities (Clarified Boundary)
+
+The Optimization Composer owns:
+
+- Deduplicate patches
+- Merge compatible patches
+- Detect conflicts (same-section/same-selector)
+- Create dependency graph (explicit first, inference second)
+- Create optimization bundles
+- Prioritize execution (critical → high → medium → low)
+- Estimate SEO/UX/content quality impact
+- Estimate risk
+- Estimate rollback complexity
+- Determine execution order (topological sort + priority)
+- Produce rollback group references (not the implementation)
+- Generate execution-ready plans
+
+### Execution Responsibilities (Clarified Boundary)
+
+The Execution Engine owns:
+
+- Execute approved actions
+- Rollback (owns RollbackGroup, RollbackOperation, RollbackResult)
+- Execution history
+- Provider calls (WordPress write, etc.)
+
+### Dependency Graph: Explicit First, Inference Second
+
+- Generators declare explicit dependencies: `dependsOn: ["hero"]`
+- Composer can optionally infer additional relationships from section structure
+- Rule: explicit is source of truth. Never infer if explicit already exists.
+- Rule: never create circular dependencies.
+- Example: if FAQ changes, explicit `faq-schema → faq`. If Hero changes, inferred `cta → hero` (no override needed).
+
+### Bundle Naming
+
+- Auto-generated names: "Weekly Homepage Optimization", "FAQ Expansion Bundle"
+- Human-readable names supported: `forge optimize bundle create --name "Black Friday Homepage Update"`
+- Internal ID format: `optimization_2026_07_23_001`
+- Bundle metadata: `id`, `name`, `goalId`, `patches`, `createdAt`
+
+### Provider Capability Matrix
+
+Expanded from simple boolean flags to a complete matrix per provider:
+
+```ts
+interface ProviderCapabilityMatrix {
+  chat: boolean;
+  json: boolean;
+  streaming: boolean;
+  vision: boolean;
+  functionCalling: boolean;
+  maxContext: number;
+  supportsTemperature: boolean;
+  supportsTopP: boolean;
+  supportsReasoning: boolean;
+  supportsImageInput: boolean;
+  supportsImageOutput: boolean;
+  supportsToolCalling: boolean;
+}
+```
+
+A `CapabilityValidator` rejects AI requests before they reach a provider if the provider doesn't support the required capability.
+
+### Token Budget Manager (New Package: `@forge/token-manager`)
+
+Every AI request goes through TokenManager:
+
+- Estimate prompt tokens
+- Estimate completion tokens
+- Prevent context overflow
+- Automatically trim history
+- Reserve response tokens
+
+No provider calculates token budgets itself.
+
+### Prompt Cache
+
+In-memory LRU cache:
+
+- Key: `SHA256(promptVersion + provider + model + sortedVariables + knowledgeVersion + memoryVersion)`
+- Value: Cached AIResponse (with `cached: true` flag)
+- Configurable TTL
+- Skip for streaming requests
+- Cleared when prompt definitions change
+
+### Better Prompt Rendering
+
+Renderer upgraded from `{{variable}}` to:
+
+- Loops: `{{#sections}}{{title}}{{/sections}}`
+- Conditionals: `{{#hasTable}}...{{/hasTable}}`
+- Partials: `{{>partialName}}`
+- Nested objects: `{{section.heading.level}}`
+- Lists: `{{#each items}}{{.}}{{/each}}`
+- Strict validation: error on missing variables, unknown helpers
+
+Still deterministic. No template language.
+
+### AI Request Fingerprints
+
+Every request gets `SHA256(promptVersion + provider + model + sortedVariables + knowledgeVersion + memoryVersion + projectVersion)`. Used for: caching, history, replay, regression testing.
+
+### Structured Provider Errors
+
+New error types:
+- `ContextOverflowError` — request exceeds context window
+- `SafetyError` — provider safety filter blocked response
+- `QuotaExceededError` — billing/payment
+- `UnavailableError` — provider temporarily down
+- `ModelNotFoundError` — model removed/renamed
+
+Existing errors: `AuthenticationError`, `RateLimitError`, `TimeoutError`, `RetryExhaustedError`.
+
+### AI Session Object
+
+```ts
+interface AISession {
+  sessionId: string;
+  project: string;
+  mission: string;
+  provider: string;
+  model: string;
+  cost: number;
+  requests: AIRequest[];
+  responses: AIResponse[];
+  duration: number;
+  tokenTotals: { prompt: number; completion: number; total: number };
+  status: "active" | "closed";
+}
+```
+
+Every Mission will eventually own one.
+
+### Provider Health Tracking
+
+Per-provider rolling metrics: latency (average), success rate, 429 frequency, timeout count. `ProviderFactory.selectHealthiestProvider()` prefers healthy providers. Health feeds into fallback logic.
+
+### Better Cost Tracking
+
+Granularity: per-provider, per-model, per-mission, per-project, per-day, per-month, per-year, per-section (hero, faq, etc.), per-category (prompt, generation, review, execution).
+
+CLI: `forge ai cost --by day|month|year|section|category`.
+
+### Full AI Flow (Post-Sprint 19.5)
+
+```text
+Mission
+  ↓
+Strategy
+  ↓
+Pipeline
+  ↓
+Skill
+  ↓
+Prompt Registry
+  ↓
+Context Builder
+  ↓
+Token Manager
+  ↓
+Prompt Renderer
+  ↓
+Provider Factory (select by capability + health)
+  ↓
+Capability Validator
+  ↓
+Retry Engine
+  ↓
+Provider
+  ↓
+Prompt Cache
+  ↓
+History
+  ↓
+Cost Tracker
+```
+
+### Out of Scope (Sprint 20+)
+
+Scheduling, dashboard, analytics, cloud sync, database, background workers, publishing, automatic execution.
+
 ### Production AI Providers
 
 - Five production providers implemented: OpenAI, Anthropic, Google Gemini, OpenRouter, Ollama.

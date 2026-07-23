@@ -20,7 +20,6 @@
     "@forge/action-engine": "workspace:*",
     "@forge/content-generation": "workspace:*",
     "@forge/core": "workspace:*",
-    "@forge/homepage-engine": "workspace:*",
     "@forge/knowledge-engine": "workspace:*",
     "@forge/memory-engine": "workspace:*",
     "@forge/preflight-validator": "workspace:*"

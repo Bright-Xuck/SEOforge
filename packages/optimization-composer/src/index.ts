@@ -5,7 +5,7 @@ export { PatchBundler } from "./bundler.js";
 export { GoalAssigner, COMMON_GOALS } from "./goals.js";
 export { PreviewGenerator } from "./preview.js";
 export { BatchValidator } from "./validator.js";
-export { RollbackManager } from "./rollback.js";
+export { generateRollbackGroupId } from "./rollback.js";
 export type {
   ContentPatchRef,
   PatchBundle,
@@ -19,7 +19,6 @@ export type {
   OptimizationPreview,
   ValidationResult,
   ValidationError,
-  RollbackGroup,
   PatchPriority,
 } from "./types.js";
 export { PRIORITY_RANK } from "./types.js";

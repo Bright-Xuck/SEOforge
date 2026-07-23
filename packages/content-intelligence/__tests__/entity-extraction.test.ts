@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as cheerio from "cheerio";
-import { extractEntities, extractTopics } from "../src/page-dna/entity-extractor.js";
+import { extractEntities } from "../src/page-dna/entity-extractor.js";
 import { extractTopics as extractTopicsFn } from "../src/page-dna/topic-extractor.js";
 import { makeRichSnapshot } from "./fixtures.js";
 

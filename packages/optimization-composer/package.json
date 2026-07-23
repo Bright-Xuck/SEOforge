@@ -5,8 +5,15 @@
   "type": "module",
   "exports": {
     ".": {
-      "import": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "del /q dist 2>nul || rmdir /s /q dist"
   },
   "dependencies": {
     "@forge/core": "workspace:*"

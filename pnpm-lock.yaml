@@ -209,9 +209,6 @@ importers:
       '@forge/prompt-registry':
         specifier: workspace:*
         version: link:../prompt-registry
-      '@forge/skills':
-        specifier: workspace:*
-        version: link:../skills
 
   packages/content-intelligence:
     dependencies:
@@ -329,18 +326,12 @@ importers:
 
   packages/mission-engine:
     dependencies:
-      '@forge/agent-engine':
-        specifier: workspace:*
-        version: link:../agent-engine
       '@forge/knowledge-engine':
         specifier: workspace:*
         version: link:../knowledge-engine
       '@forge/memory-engine':
         specifier: workspace:*
         version: link:../memory-engine
-      '@forge/pipeline-engine':
-        specifier: workspace:*
-        version: link:../pipeline-engine
       '@forge/strategy-engine':
         specifier: workspace:*
         version: link:../strategy-engine
@@ -463,9 +454,6 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
-      '@forge/homepage-engine':
-        specifier: workspace:*
-        version: link:../homepage-engine
       '@forge/knowledge-engine':
         specifier: workspace:*
         version: link:../knowledge-engine
@@ -522,12 +510,6 @@ importers:
       '@forge/memory-engine':
         specifier: workspace:*
         version: link:../memory-engine
-      '@forge/pipeline-engine':
-        specifier: workspace:*
-        version: link:../pipeline-engine
-      '@forge/skills':
-        specifier: workspace:*
-        version: link:../skills
 
   packages/tools:
     dependencies:

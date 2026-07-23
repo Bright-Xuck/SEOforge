@@ -1,116 +1,193 @@
-export interface CostRecord {
-  readonly provider: string;
-  readonly projectId?: string;
-  readonly missionId?: string;
-  readonly month: string; // YYYY-MM
-  readonly cost: number;
-  readonly tokens: number;
-  readonly requests: number;
-}
+// @forge/ai-engine/cost-tracker
+// Tracks estimated costs per provider, project, mission, category, section, month, etc.
+// Stores locally in memory.
 
-interface MutableCostRecord {
+import type { CostEntry, CostSummary } from "./types.js";
+
+interface MutableCostEntry {
+  id: string;
   provider: string;
+  model: string;
   projectId?: string;
   missionId?: string;
-  month: string;
-  cost: number;
+  sessionId?: string;
+  category?: string;
+  section?: string;
   tokens: number;
-  requests: number;
+  estimatedCost: number;
+  timestamp: number;
 }
 
 /**
- * Tracks estimated costs per provider, project, mission, and month.
- * Stores locally in memory.
+ * Tracks estimated costs with daily, monthly, yearly, section, and category granularity.
  */
 export class CostTracker {
-  private records: MutableCostRecord[] = [];
+  private entries: MutableCostEntry[] = [];
 
   /**
    * Record a cost entry.
    */
-  record(entry: Omit<CostRecord, "month"> & { timestamp?: string }): void {
-    const date = entry.timestamp ? new Date(entry.timestamp) : new Date();
-    const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-
-    const existing = this.records.find(
-      (r) =>
-        r.provider === entry.provider &&
-        r.projectId === entry.projectId &&
-        r.missionId === entry.missionId &&
-        r.month === month,
-    );
-
-    if (existing) {
-      existing.cost += entry.cost;
-      existing.tokens += entry.tokens;
-      existing.requests += entry.requests;
-    } else {
-      this.records.push({
-        provider: entry.provider,
-        projectId: entry.projectId,
-        missionId: entry.missionId,
-        month,
-        cost: entry.cost,
-        tokens: entry.tokens,
-        requests: entry.requests,
-      });
-    }
+  record(entry: CostEntry): void {
+    const mutable: MutableCostEntry = {
+      id: entry.id,
+      provider: entry.provider,
+      model: entry.model,
+      projectId: entry.projectId,
+      missionId: entry.missionId,
+      sessionId: entry.sessionId,
+      category: entry.category,
+      section: entry.section,
+      tokens: entry.tokens,
+      estimatedCost: entry.estimatedCost,
+      timestamp: entry.timestamp,
+    };
+    this.entries.push(mutable);
   }
 
   /**
    * Get costs for a specific provider.
    */
-  getCostsByProvider(provider: string): CostRecord[] {
-    return this.records.filter((r) => r.provider === provider);
+  getCostsByProvider(provider: string): CostEntry[] {
+    return this.entries.filter((e) => e.provider === provider).map(toReadonly);
   }
 
   /**
    * Get costs for a specific project.
    */
-  getCostsByProject(projectId: string): CostRecord[] {
-    return this.records.filter((r) => r.projectId === projectId);
+  getCostsByProject(projectId: string): CostEntry[] {
+    return this.entries.filter((e) => e.projectId === projectId).map(toReadonly);
   }
 
   /**
    * Get costs for a specific mission.
    */
-  getCostsByMission(missionId: string): CostRecord[] {
-    return this.records.filter((r) => r.missionId === missionId);
+  getCostsByMission(missionId: string): CostEntry[] {
+    return this.entries.filter((e) => e.missionId === missionId).map(toReadonly);
   }
 
   /**
-   * Get costs for a specific month.
+   * Get costs for a specific category.
    */
-  getCostsByMonth(month: string): CostRecord[] {
-    return this.records.filter((r) => r.month === month);
+  getCostsByCategory(category: string): CostEntry[] {
+    return this.entries.filter((e) => e.category === category).map(toReadonly);
+  }
+
+  /**
+   * Get costs for a specific section.
+   */
+  getCostsBySection(section: string): CostEntry[] {
+    return this.entries.filter((e) => e.section === section).map(toReadonly);
+  }
+
+  /**
+   * Get costs for a specific month (YYYY-MM).
+   */
+  getCostsByMonth(month: string): CostEntry[] {
+    return this.entries
+      .filter((e) => {
+        const d = new Date(e.timestamp);
+        const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        return m === month;
+      })
+      .map(toReadonly);
+  }
+
+  /**
+   * Get costs for a specific day (YYYY-MM-DD).
+   */
+  getCostsByDay(day: string): CostEntry[] {
+    return this.entries
+      .filter((e) => {
+        const d = new Date(e.timestamp);
+        const dd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        return dd === day;
+      })
+      .map(toReadonly);
+  }
+
+  /**
+   * Get costs for a specific year (YYYY).
+   */
+  getCostsByYear(year: string): CostEntry[] {
+    return this.entries
+      .filter((e) => new Date(e.timestamp).getFullYear().toString() === year)
+      .map(toReadonly);
   }
 
   /**
    * Get total cost across all records.
    */
   getTotalCost(): number {
-    return this.records.reduce((s, r) => s + r.cost, 0);
+    return this.entries.reduce((s, e) => s + e.estimatedCost, 0);
   }
 
   /**
-   * Get all cost records.
+   * Get all cost entries.
    */
-  getAllRecords(): readonly CostRecord[] {
-    return this.records.map((r) => ({ ...r }));
+  getAllEntries(): readonly CostEntry[] {
+    return this.entries.map(toReadonly);
   }
 
   /**
-   * Get a summary of costs, optionally filtered.
+   * Get a summary of costs over a period.
    */
-  getSummary(provider?: string, projectId?: string, month?: string): { totalCost: number; totalRequests: number; totalTokens: number } {
-    let filtered = this.records;
-    if (provider) filtered = filtered.filter((r) => r.provider === provider);
-    if (projectId) filtered = filtered.filter((r) => r.projectId === projectId);
-    if (month) filtered = filtered.filter((r) => r.month === month);
+  getSummary(
+    startTime?: number,
+    endTime?: number,
+  ): CostSummary {
+    let filtered = this.entries;
+    if (startTime !== undefined) {
+      filtered = filtered.filter((e) => e.timestamp >= startTime);
+    }
+    if (endTime !== undefined) {
+      filtered = filtered.filter((e) => e.timestamp <= endTime);
+    }
+
+    const byProvider: Record<string, number> = {};
+    const byProject: Record<string, number> = {};
+    const byMission: Record<string, number> = {};
+    const byCategory: Record<string, number> = {};
+    const bySection: Record<string, number> = {};
+    let totalCost = 0;
+    let totalTokens = 0;
+
+    for (const entry of filtered) {
+      totalCost += entry.estimatedCost;
+      totalTokens += entry.tokens;
+      byProvider[entry.provider] = (byProvider[entry.provider] ?? 0) + entry.estimatedCost;
+      if (entry.projectId) {
+        byProject[entry.projectId] = (byProject[entry.projectId] ?? 0) + entry.estimatedCost;
+      }
+      if (entry.missionId) {
+        byMission[entry.missionId] = (byMission[entry.missionId] ?? 0) + entry.estimatedCost;
+      }
+      if (entry.category) {
+        byCategory[entry.category] = (byCategory[entry.category] ?? 0) + entry.estimatedCost;
+      }
+      if (entry.section) {
+        bySection[entry.section] = (bySection[entry.section] ?? 0) + entry.estimatedCost;
+      }
+    }
+
+    const now = Date.now();
+    const dailyTotal = this.getCostsByDay(formatDate(now)).reduce((s, e) => s + e.estimatedCost, 0);
+    const monthlyTotal = this.getCostsByMonth(formatMonth(now)).reduce((s, e) => s + e.estimatedCost, 0);
+    const yearlyTotal = this.getCostsByYear(new Date(now).getFullYear().toString()).reduce((s, e) => s + e.estimatedCost, 0);
+
     return {
-      totalCost: filtered.reduce((s, r) => s + r.cost, 0),
-      totalRequests: filtered.reduce((s, r) => s + r.requests, 0),
-      totalTokens: filtered.reduce((s, r) => s + r.tokens, 0),
+      totalCost,
+      totalTokens,
+      byProvider,
+      byProject,
+      byMission,
+      byCategory,
+      bySection,
+      dailyTotal,
+      monthlyTotal,
+      yearlyTotal,
+      currency: "USD",
+      periodStart: startTime ?? 0,
+      periodEnd: endTime ?? now,
     };
   }
 
@@ -118,8 +195,34 @@ export class CostTracker {
    * Clear all records.
    */
   clear(): void {
-    this.records = [];
+    this.entries = [];
   }
+}
+
+function toReadonly(e: MutableCostEntry): CostEntry {
+  return {
+    id: e.id,
+    provider: e.provider,
+    model: e.model,
+    projectId: e.projectId,
+    missionId: e.missionId,
+    sessionId: e.sessionId,
+    category: e.category,
+    section: e.section,
+    tokens: e.tokens,
+    estimatedCost: e.estimatedCost,
+    timestamp: e.timestamp,
+  };
+}
+
+function formatDate(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function formatMonth(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 /**

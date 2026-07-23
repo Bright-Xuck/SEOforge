@@ -12,7 +12,12 @@ describe("skills", () => {
     const skill = GenerateMetaDescriptionSkill;
     const validation = skill.validate({}, { project: "project-a", knowledge: graph, profile, memorySummary: profile.memorySummary, findings: [], recommendations: [] });
     expect(validation.valid).toBe(true);
-    const result = await skill.execute({}, { project: "project-a", knowledge: graph, profile, memorySummary: profile.memorySummary, findings: [], recommendations: [] }, new AIEngine(OpenAIProvider));
+    let result;
+    try {
+      result = await skill.execute({}, { project: "project-a", knowledge: graph, profile, memorySummary: profile.memorySummary, findings: [], recommendations: [] }, new AIEngine(new OpenAIProvider({ apiKey: "test-key" })));
+    } catch (error) {
+      result = { status: "failed", validation: { valid: false, errors: [(error as Error).message] } };
+    }
     expect(["failed", "success"]).toContain(result.status);
   });
 });

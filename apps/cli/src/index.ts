@@ -37,7 +37,7 @@ import {
   PerformanceAgent,
   LearningAgent,
 } from "@forge/agent-engine";
-import { AIEngine, ProviderFactory, CostTracker, ProviderLogger, PromptHistory } from "@forge/ai-engine";
+import { AIEngine, ProviderFactory } from "@forge/ai-engine";
 import {
   SkillRegistry,
   skillPromptRegistry,
@@ -78,7 +78,6 @@ import {
   extractTopics,
 } from "@forge/content-intelligence";
 import { generateContent, buildProjectContext } from "@forge/content-generation";
-import { ProviderFactory } from "@forge/ai-engine";
 import { PromptRegistry } from "@forge/prompt-registry";
 
 const program = new Command();
@@ -873,6 +872,7 @@ executionCommand
           },
         ],
         executionTime: "0ms",
+        rollbackGroups: [],
         rollbackRequired: true,
       },
       provider,
@@ -1924,6 +1924,7 @@ reviewCommand
         skippedActions: [],
         rollbackPlan: [],
         executionTime: "0ms",
+        rollbackGroups: [],
         rollbackRequired: true,
       },
       provider,
@@ -2040,16 +2041,28 @@ aiCommand
   .option("--json", "Output as JSON")
   .action(async (providerId: string | undefined, options: { json?: boolean }) => {
     const provider = ProviderFactory.create({ provider: (providerId ?? "openai") as never });
-    const models = provider.capabilityMatrix();
+    const matrix = provider.capabilityMatrix?.() ?? {
+      supportsStreaming: false,
+      supportsSystemPrompts: false,
+      supportsJSON: false,
+      supportsVision: false,
+      supportsReasoning: false,
+      supportsFunctionCalling: false,
+      supportsLargeContext: false,
+      maxContextTokens: 4096,
+      maxOutputTokens: 1024,
+      costTier: "medium",
+      speedTier: "medium",
+    } as const;
     if (options.json) {
-      process.stdout.write(JSON.stringify(models, null, 2) + "\n");
+      process.stdout.write(JSON.stringify(matrix, null, 2) + "\n");
       return;
     }
     process.stdout.write(`Provider: ${providerId ?? "default"}\n`);
-    process.stdout.write(`Streaming: ${models.supportsStreaming}\n`);
-    process.stdout.write(`JSON mode: ${models.supportsJSON}\n`);
-    process.stdout.write(`Vision: ${models.supportsVision}\n`);
-    process.stdout.write(`Max tokens: ${models.maxOutputTokens}\n`);
+    process.stdout.write(`Streaming: ${matrix.supportsStreaming}\n`);
+    process.stdout.write(`JSON mode: ${matrix.supportsJSON}\n`);
+    process.stdout.write(`Vision: ${matrix.supportsVision}\n`);
+    process.stdout.write(`Max tokens: ${matrix.maxOutputTokens}\n`);
   });
 
 aiCommand
@@ -2098,14 +2111,13 @@ aiCommand
   .action(async (options: { provider?: string; project?: string; month?: string; json?: boolean }) => {
     const { CostTracker } = await import("@forge/ai-engine");
     const tracker = new CostTracker();
-    const summary = tracker.getSummary(options.provider, options.project, options.month);
+    const summary = tracker.getSummary();
     if (options.json) {
       process.stdout.write(JSON.stringify(summary, null, 2) + "\n");
       return;
     }
     process.stdout.write(`Total cost: $${summary.totalCost.toFixed(4)}\n`);
-    process.stdout.write(`Requests: ${summary.totalRequests}\n`);
-    process.stdout.write(`Tokens: ${summary.totalTokens}\n`);
+    process.stdout.write(`Total tokens: ${summary.totalTokens}\n`);
   });
 
 aiCommand
@@ -2123,7 +2135,7 @@ aiCommand
         return;
       }
       process.stdout.write(`Prompt: ${prompt.id}\n`);
-      process.stdout.write(`Version: ${prompt.version}\n`);
+      process.stdout.write(`Version: ${prompt.versions.at(-1)?.version ?? "0.0.0"}\n`);
       process.stdout.write(`Variables: ${prompt.variables?.join(", ") ?? "none"}\n`);
       return;
     }
@@ -2133,7 +2145,7 @@ aiCommand
       return;
     }
     for (const p of prompts) {
-      process.stdout.write(`${p.id} v${p.version}\n`);
+      process.stdout.write(`${p.id} v${p.versions.at(-1)?.version ?? "0.0.0"}\n`);
     }
   });
 
@@ -2173,7 +2185,7 @@ aiCommand
     }
     process.stdout.write(`Prompt history (${entries.length}):\n`);
     for (const entry of entries) {
-      process.stdout.write(`  [${entry.timestamp}] ${entry.provider}/${entry.model} - ${entry.tokens} tokens\n`);
+      process.stdout.write(`  [${entry.timestamp}] ${entry.provider}/${entry.model} - ${entry.tokenUsage.total} tokens\n`);
     }
   });
 

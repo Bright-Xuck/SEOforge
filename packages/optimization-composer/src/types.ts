@@ -89,6 +89,7 @@ export interface ComposedPlan {
   readonly preview: OptimizationPreview;
   readonly conflicts: PatchConflict[];
   readonly priorities: Map<string, PatchPriority>;
+  readonly rollbackGroupIds: string[]; // references to execution-engine RollbackGroup
   readonly validationErrors?: ValidationError[];
   readonly validationWarnings?: string[];
 }

@@ -49,6 +49,7 @@ export async function execute(
         failedActions: [],
         skippedActions: plan.actions.map((a) => a.id),
         rollbackPlan: [],
+        rollbackGroups: [],
         executionTime: `${Date.now() - startTime}ms`,
         rollbackRequired: false,
       };
@@ -128,6 +129,7 @@ export async function execute(
     failedActions,
     skippedActions,
     rollbackPlan,
+    rollbackGroups: [],
     executionTime,
     rollbackRequired: rollbackPlan.length > 0,
   };
@@ -192,6 +194,7 @@ export async function executeWithValidation(
         failedActions: [],
         skippedActions: plan.actions.map((a) => a.id),
         rollbackPlan: [],
+        rollbackGroups: [],
         executionTime: `${Date.now() - startTime}ms`,
         rollbackRequired: false,
       },

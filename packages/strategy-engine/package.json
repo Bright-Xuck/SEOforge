@@ -20,8 +20,6 @@
     "@forge/context-builder": "workspace:*",
     "@forge/core": "workspace:*",
     "@forge/knowledge-engine": "workspace:*",
-    "@forge/memory-engine": "workspace:*",
-    "@forge/pipeline-engine": "workspace:*",
-    "@forge/skills": "workspace:*"
+    "@forge/memory-engine": "workspace:*"
   }
 }
