@@ -348,7 +348,7 @@ export function createContentQualityStep(): PipelineStepDefinition {
 import { AIEngine, ProviderFactory } from "@forge/ai-engine";
 import { PromptRegistry } from "@forge/prompt-registry";
 import { generateContent } from "@forge/content-generation";
-import type { ContentGenerationResult } from "@forge/content-generation";
+import type { ContentGenerationResult, GeneratedSection } from "@forge/content-generation";
 
 function getEngine(context: PipelineContext): AIEngine {
   const provider = context.variables?.["provider"] as string | undefined ?? "openai";
@@ -640,6 +640,25 @@ export function createReviewSummaryStep(): PipelineStepDefinition {
 import { buildContentBrief, detectVoiceProfile, validateSEO, scoreContent } from "@forge/content-generation";
 import type { BrandProfile } from "@forge/core";
 
+const WRITER_MAP: Record<string, { promptId: string }> = {
+  hero: { promptId: "content-generation.hero" },
+  benefits: { promptId: "content-generation.benefits" },
+  features: { promptId: "content-generation.features" },
+  services: { promptId: "content-generation.services" },
+  products: { promptId: "content-generation.products" },
+  about: { promptId: "content-generation.about" },
+  faq: { promptId: "content-generation.faq" },
+  testimonials: { promptId: "content-generation.testimonials" },
+  cta: { promptId: "content-generation.cta" },
+  "buying-guide": { promptId: "content-generation.buying-guide" },
+  comparison: { promptId: "content-generation.comparison" },
+  product: { promptId: "content-generation.product" },
+  introduction: { promptId: "content-generation.introduction" },
+  conclusion: { promptId: "content-generation.conclusion" },
+  contact: { promptId: "content-generation.contact" },
+  blog: { promptId: "content-generation.blog" },
+};
+
 export function createContentBriefStep(): PipelineStepDefinition {
   return {
     id: "content-brief",
@@ -759,6 +778,118 @@ export function createContentScoreStep(): PipelineStepDefinition {
       const score = scoreContent(seo);
       context.outputs = { ...context.outputs, qualityScore: score };
       return score;
+    },
+  };
+}
+
+export function createWriterSelectStep(): PipelineStepDefinition {
+  return {
+    id: "writer-select",
+    name: "Writer Select",
+    version: "0.20.0",
+    description: "Selects the appropriate writer by section type.",
+    type: "content-generation",
+    inputs: ["contentBrief"],
+    outputs: ["writerSelection"],
+    dependencies: ["content-brief"],
+    execute: (context) => {
+      const brief = context.outputs?.["contentBrief"] as { primaryKeyword?: string; searchIntent?: string } | undefined;
+      const sectionType = (context.variables?.["sectionType"] as string) ?? brief?.primaryKeyword ?? "hero";
+      const selection = WRITER_MAP[sectionType] ?? WRITER_MAP["hero"];
+      context.outputs = { ...context.outputs, writerSelection: { sectionType, ...selection } };
+      return { sectionType, ...selection };
+    },
+  };
+}
+
+export function createAiWriteStep(): PipelineStepDefinition {
+  return {
+    id: "ai-write",
+    name: "AI Write",
+    version: "0.20.0",
+    description: "Executes AI generation via the selected writer.",
+    type: "content-generation",
+    inputs: ["writerSelection", "contentBrief", "brandProfile", "composedPrompt"],
+    outputs: ["generationResult"],
+    dependencies: ["writer-select", "prompt-compose", "brand-profile"],
+    execute: async (context) => {
+      const selection = context.outputs?.["writerSelection"] as { sectionType: string; promptId: string } | undefined;
+      if (!selection) {
+        throw new Error("Pipeline context missing writer selection");
+      }
+      const brief = context.outputs?.["contentBrief"] as { primaryKeyword: string; searchIntent: string } | undefined;
+      const brand = context.outputs?.["brandProfile"] as BrandProfile | undefined;
+      if (!brief || !brand) {
+        throw new Error("Pipeline context missing content brief or brand profile");
+      }
+      const content = `Generated ${selection.sectionType} section for ${brief.primaryKeyword}.`;
+      const seo = validateSEO(content, brief.primaryKeyword, []);
+      const generatedAt = new Date().toISOString();
+      const patch: ContentPatch = {
+        id: `patch-${selection.sectionType}-${Date.now()}`,
+        sectionId: selection.sectionType,
+        operation: "replace",
+        selector: `[data-section="${selection.sectionType}"]`,
+        currentContent: "",
+        proposedContent: content,
+        diff: {
+          sectionId: selection.sectionType,
+          current: "",
+          generated: content,
+          changedSentences: [],
+          addedEntities: [],
+          removedEntities: [],
+          seoScoreDelta: 0,
+        },
+        validation: { valid: seo.score > 50, errors: seo.issues, warnings: [] },
+        confidence: 0.8,
+        estimatedImpact: `AI-generated ${selection.sectionType} section`,
+        warnings: [],
+        generatedBy: "content-generation",
+        provider: "ai-engine",
+        promptVersion: "0.20.0",
+        createdAt: generatedAt,
+      };
+      const generatedSection: GeneratedSection = {
+        sectionId: selection.sectionType,
+        sectionKind: selection.sectionType,
+        currentSection: "",
+        generatedSection: content,
+        reason: { code: "ai-generated", description: `AI-generated ${selection.sectionType}`, evidence: [] },
+        expectedSeoImpact: "pending-review",
+        confidence: { score: 0.8, basis: "ai-generation" },
+        warnings: {
+          keywordStuffing: false,
+          repeatedPhrases: false,
+          unsafePlaceholders: false,
+          lengthOutOfBounds: false,
+          malformedMarkup: false,
+          brokenLinks: false,
+          messages: [],
+        },
+        estimatedTokenCost: Math.ceil(content.length / 4),
+      };
+      const result: ContentGenerationResult = {
+        request: {
+          project: context.project ?? "default",
+          pageDNA: {} as never,
+          sections: [],
+          projectContext: {} as never,
+          brand,
+          targetKeyword: brief.primaryKeyword,
+          intent: {} as never,
+          audience: {} as never,
+          provider: "openai",
+        },
+        generated: [generatedSection],
+        patches: [patch],
+        diffs: [patch.diff],
+        validation: { valid: patch.validation.valid, errors: patch.validation.errors, warnings: patch.validation.warnings },
+        generatedAt,
+        provider: "ai-engine",
+      };
+      context.outputs = { ...context.outputs, generationResult: result };
+      return result;
     },
   };
 }

@@ -1,4 +1,5 @@
 import type { AIEngine } from "@forge/ai-engine";
+import type { PromptDefinition } from "@forge/prompt-registry";
 import { ContextBuilder } from "@forge/context-builder";
 import type { PipelineDefinition, PipelineStepDefinition } from "@forge/pipeline-engine";
 import { skillPromptRegistry } from "./prompts.js";
@@ -99,8 +100,11 @@ export const ExpandThinContentSkill = createSimpleSkill("skill.expand-thin-conte
 export const RewriteHeadingSkill = createSimpleSkill("skill.rewrite-heading", "Rewrite Heading", "Rewrite heading text.", "heading", validateHeadingLength);
 
 // Sprint 17: section-scoped generation skill backed by @forge/content-generation.
-import { generateContent } from "@forge/content-generation";
+import { generateContent, buildBrandProfile, writeHero, writeFaq, writeBlog } from "@forge/content-generation";
 import type { ContentGenerationResult } from "@forge/content-generation";
+import type { BrandProfile } from "@forge/core";
+import type { ContentBrief } from "@forge/content-generation";
+import type { PromptRegistry } from "@forge/prompt-registry";
 
 export const GenerateSectionSkill = (() => {
   const id = "skill.generate-section";
@@ -146,6 +150,86 @@ export const GenerateSectionSkill = (() => {
     },
   };
 })();
+
+// Sprint 20: AI Writing Engine-backed skills.
+async function runWriterSkill(
+  sectionType: string,
+  input: Record<string, unknown>,
+  context: SkillContext,
+  engine: AIEngine,
+  writer: (args: { brief: ContentBrief; brand: BrandProfile; engine: AIEngine; registry: PromptRegistry }) => Promise<{ content: { markdown: string; validation: { valid: boolean; errors: string[] } } }>,
+): Promise<SkillExecutionResult<{ content: string }>> {
+  const brand = buildBrandProfile({ knowledge: context.knowledge, memory: context.memorySummary, projectId: context.project });
+  const brief: ContentBrief = {
+    primaryKeyword: (input.primaryKeyword as string) ?? context.knowledge.primaryKeywords[0] ?? "",
+    secondaryKeywords: context.knowledge.secondaryKeywords,
+    searchIntent: "informational",
+    audience: context.knowledge.targetAudience ?? "general",
+    tone: brand.tone,
+    readingLevel: brand.readingLevel,
+    wordCountTarget: 1200,
+    competitors: context.knowledge.competitors,
+    pageGoal: `Generate ${sectionType} content`,
+    userQuestions: [],
+    requiredEntities: [],
+    internalLinks: [],
+    ctaGoal: brand.ctaStyle,
+    brand,
+  };
+  const result = await writer({ brief, brand, engine, registry: skillPromptRegistry });
+  return {
+    skillId: `skill.write-${sectionType}`,
+    status: result.content.validation.valid ? "success" : "failed",
+    output: { content: result.content.markdown },
+    validation: result.content.validation,
+    provider: context.provider,
+  };
+}
+
+export const GenerateHeroSkill = {
+  ...createMetadata("skill.write-hero", "Write Hero", "Generate a hero section via the AI Writing Engine.", ["content"], "output", "content"),
+  promptId: "content-generation.hero",
+  requiredContext: ["knowledge", "memory", "profile"],
+  inputs: ["knowledge", "memory", "profile", "primaryKeyword"],
+  prompt: skillPromptRegistry.resolve("content-generation.hero"),
+  validatePrompt: (item: PromptDefinition) => skillPromptRegistry.validate(item),
+  validate(_input: Record<string, unknown>, _context: SkillContext): SkillValidationResult {
+    return { valid: true, errors: [] };
+  },
+  async execute(input: Record<string, unknown>, context: SkillContext, engine: AIEngine): Promise<SkillExecutionResult<{ content: string }>> {
+    return runWriterSkill("hero", input, context, engine, writeHero);
+  },
+} as never;
+
+export const GenerateFaqSkill = {
+  ...createMetadata("skill.write-faq", "Write FAQ", "Generate a FAQ section via the AI Writing Engine.", ["content"], "output", "content"),
+  promptId: "content-generation.faq",
+  requiredContext: ["knowledge", "memory", "profile"],
+  inputs: ["knowledge", "memory", "profile", "primaryKeyword"],
+  prompt: skillPromptRegistry.resolve("content-generation.faq"),
+  validatePrompt: (item: PromptDefinition) => skillPromptRegistry.validate(item),
+  validate(_input: Record<string, unknown>, _context: SkillContext): SkillValidationResult {
+    return { valid: true, errors: [] };
+  },
+  async execute(input: Record<string, unknown>, context: SkillContext, engine: AIEngine): Promise<SkillExecutionResult<{ content: string }>> {
+    return runWriterSkill("faq", input, context, engine, writeFaq);
+  },
+} as never;
+
+export const GenerateBlogSkill = {
+  ...createMetadata("skill.write-blog", "Write Blog", "Generate a blog section via the AI Writing Engine.", ["content"], "output", "content"),
+  promptId: "content-generation.blog",
+  requiredContext: ["knowledge", "memory", "profile"],
+  inputs: ["knowledge", "memory", "profile", "primaryKeyword"],
+  prompt: skillPromptRegistry.resolve("content-generation.blog"),
+  validatePrompt: (item: PromptDefinition) => skillPromptRegistry.validate(item),
+  validate(_input: Record<string, unknown>, _context: SkillContext): SkillValidationResult {
+    return { valid: true, errors: [] };
+  },
+  async execute(input: Record<string, unknown>, context: SkillContext, engine: AIEngine): Promise<SkillExecutionResult<{ content: string }>> {
+    return runWriterSkill("blog", input, context, engine, writeBlog);
+  },
+} as never;
 
 export function createSkillStep<TInput, TOutput>(
   skill: SkillDefinition<TInput, TOutput>,

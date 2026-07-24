@@ -126,7 +126,7 @@ describe("PromptBuilder", () => {
       audience: { level: "general" } as AudienceProfile,
       intent: { primary: "informational" } as SearchIntent,
       tone: "bold",
-      brand: { brand: "Acme" } as BrandProfile,
+      brand: { companyName: "Acme" } as BrandProfile,
       existingSection: "old",
       targetKeywords: ["shoes"],
       missingTopics: [],
@@ -148,7 +148,7 @@ describe("generateContent (mock engine)", () => {
     const knowledge = { brandVoice: "bold" } as unknown as KnowledgeGraph;
     const memory = { project: "p", total: 0, byType: {} } as unknown as MemorySummaryLike;
     const profile = { project: "p", knowledge, memorySummary: memory } as unknown as ProjectProfile;
-    const brand = { brand: "Acme" } as BrandProfile;
+    const brand = { companyName: "Acme" } as BrandProfile;
 
     const result = await generateContent(
       {

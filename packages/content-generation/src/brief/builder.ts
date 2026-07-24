@@ -23,6 +23,7 @@ export interface ContentBrief {
   readonly requiredEntities: string[];
   readonly internalLinks: string[];
   readonly ctaGoal: string;
+  readonly brand: BrandProfile;
 }
 
 /**
@@ -52,6 +53,7 @@ export function buildContentBrief(
     requiredEntities: extractRequiredEntities(pageDNA, brand),
     internalLinks: [],
     ctaGoal: brand.ctaStyle || "learn-more",
+    brand,
   };
 }
 

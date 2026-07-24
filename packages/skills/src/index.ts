@@ -12,6 +12,9 @@ export {
   ExpandThinContentSkill,
   RewriteHeadingSkill,
   GenerateSectionSkill,
+  GenerateHeroSkill,
+  GenerateFaqSkill,
+  GenerateBlogSkill,
   createSkillStep,
   createSkillPipeline,
 } from "./skill-factory.js";

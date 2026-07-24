@@ -107,6 +107,31 @@ export interface ValidationReport {
 }
 
 /**
+ * Content validation report used by GeneratedContent.
+ */
+export type ContentValidationReport = ValidationReport;
+
+/**
+ * A single generated content artifact from an AI writer.
+ */
+export interface GeneratedContent {
+  readonly sectionType: string;
+  readonly markdown: string;
+  readonly html: string;
+  readonly plainText: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly confidence: number;
+  readonly seoScore: number;
+  readonly eeatScore: number;
+  readonly readabilityScore: number;
+  readonly naturalnessScore: number;
+  readonly brandVoiceScore: number;
+  readonly overallScore: number;
+  readonly validation: ContentValidationReport;
+}
+
+/**
  * A request to generate content for one or more sections.
  */
 export interface ContentGenerationRequest {

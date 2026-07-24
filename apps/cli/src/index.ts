@@ -51,6 +51,10 @@ import {
   GenerateInternalLinksSkill,
   ExpandThinContentSkill,
   RewriteHeadingSkill,
+  GenerateSectionSkill,
+  GenerateHeroSkill,
+  GenerateFaqSkill,
+  GenerateBlogSkill,
   createSkillPipeline,
 } from "@forge/skills";
 import {
@@ -66,6 +70,7 @@ import {
 import type { WriteOperation, WriteMode } from "@forge/core";
 import { execute as executeExecution, rollbackExecution } from "@forge/execution-engine";
 import { HomepageAnalyzer, HomepageDetector, HomepagePlanner, createReviewSessionFromHomepage } from "@forge/homepage-engine";
+import type { HomepageOptimizationPlan, HomepagePreviewItem } from "@forge/homepage-engine";
 import { decideItem, generateReport, computeMetrics, saveReviewSession, loadReviewSession, listReviewSessions, REVIEW_POLICIES, type ReviewSession, type ReviewPolicyName } from "@forge/review-engine";
 import type { ExecutionPlan } from "@forge/action-engine";
 import {
@@ -78,6 +83,28 @@ import {
   extractTopics,
 } from "@forge/content-intelligence";
 import { generateContent, buildProjectContext } from "@forge/content-generation";
+import {
+  writeHero,
+  writeBenefits,
+  writeFeatures,
+  writeServices,
+  writeProducts,
+  writeAbout,
+  writeFaq,
+  writeTestimonials,
+  writeCta,
+  writeBuyingGuide,
+  writeComparison,
+  writeProduct,
+  writeIntroduction,
+  writeConclusion,
+  writeContact,
+  writeBlog,
+  validateSEO,
+  scoreContent,
+  detectVoiceProfile,
+  buildBrandProfile,
+} from "@forge/content-generation";
 import { PromptRegistry } from "@forge/prompt-registry";
 
 const program = new Command();
@@ -229,6 +256,10 @@ for (const skill of [
   GenerateInternalLinksSkill,
   ExpandThinContentSkill,
   RewriteHeadingSkill,
+  GenerateSectionSkill,
+  GenerateHeroSkill,
+  GenerateFaqSkill,
+  GenerateBlogSkill,
 ]) {
   skillRegistry.register(skill);
 }
@@ -810,25 +841,41 @@ homepageCommand
   .command("optimize")
   .option("--project <project>", "Project ID")
   .option("--policy <policy>", "Review policy: strict|balanced|automatic|enterprise", "balanced")
+  .option("--ai", "Use AI writing engine for content generation")
+  .option("--provider <provider>", "AI provider (with --ai)")
+  .option("--model <model>", "Model name (with --ai)")
   .option("--json", "Output result as JSON")
-  .action(async (options: { project?: string; policy?: string; json?: boolean }) => {
+  .action(async (options: { project?: string; policy?: string; ai?: boolean; provider?: string; model?: string; json?: boolean }) => {
     const project = options.project ?? "default";
     const { context } = await loadHomepageProjectContext(project);
     const analyzer = new HomepageAnalyzer();
     const planner = new HomepagePlanner();
     const analysis = analyzer.analyze(context);
-    const plan = planner.plan(context, analysis);
-    const preview = planner.preview(plan);
-    // Sprint 18: stop at a Review Session. No execution, no provider writes.
-    const policyName = (options.policy as ReviewPolicyName) ?? "balanced";
-    const session = createReviewSessionFromHomepage(plan, REVIEW_POLICIES[policyName]);
+    let plan: HomepageOptimizationPlan;
+    let preview: HomepagePreviewItem[];
+    let reviewSession: ReviewSession;
+
+    if (options.ai) {
+      const engine = new AIEngine(ProviderFactory.create({ provider: (options.provider ?? "openai") as never, model: options.model }));
+      const registry = new PromptRegistry();
+      const result = await planner.optimizeWithAI(context, engine, registry);
+      plan = result.plan;
+      preview = result.preview;
+      reviewSession = result.reviewSession;
+    } else {
+      plan = planner.plan(context, analysis);
+      preview = planner.preview(plan);
+      const policyName = (options.policy as ReviewPolicyName) ?? "balanced";
+      reviewSession = createReviewSessionFromHomepage(plan, REVIEW_POLICIES[policyName]);
+    }
+
     const rootDir = "projects";
-    await saveReviewSession(rootDir, session);
+    await saveReviewSession(rootDir, reviewSession);
     if (options.json) {
-      process.stdout.write(JSON.stringify({ analysis, plan, preview, reviewSession: session }, null, 2) + "\n");
+      process.stdout.write(JSON.stringify({ analysis, plan, preview, reviewSession }, null, 2) + "\n");
       return;
     }
-    process.stdout.write(`Homepage optimization produced review session ${session.sessionId} for ${project} (${session.items.length} items). Review before applying.\n`);
+    process.stdout.write(`Homepage optimization produced review session ${reviewSession.sessionId} for ${project} (${reviewSession.items.length} items). Review before applying.\n`);
   });
 
 executionCommand
@@ -2015,6 +2062,370 @@ generateCommand
   .option("--dry-run", "Dry run")
   .option("--json", "Output JSON")
   .action(async (options) => runGenerate([], options));
+
+// Sprint 20: AI Writing Engine commands.
+const writeCommand = program.command("write").description("AI content generation (Sprint 20)");
+
+async function runWrite(
+  sectionType: string,
+  options: {
+    project?: string;
+    provider?: string;
+    model?: string;
+    json?: boolean;
+    preview?: boolean;
+    dryRun?: boolean;
+  },
+) {
+  const project = options.project ?? "default";
+  const { resolved, knowledge, profile } = await loadProjectContext(project, "write");
+  const brand = buildBrandProfile({ knowledge, memory: profile.memorySummary, projectId: resolved.project });
+  const engine = new AIEngine(ProviderFactory.create({ provider: (options.provider ?? "openai") as never, model: options.model }));
+  const registry = new PromptRegistry();
+
+  const brief = {
+    primaryKeyword: knowledge.primaryKeywords[0] ?? "",
+    secondaryKeywords: knowledge.secondaryKeywords,
+    searchIntent: "informational" as const,
+    audience: knowledge.targetAudience ?? "general",
+    tone: brand.tone,
+    readingLevel: brand.readingLevel,
+    wordCountTarget: 1200,
+    competitors: knowledge.competitors,
+    pageGoal: `Generate ${sectionType} content`,
+    userQuestions: [],
+    requiredEntities: [],
+    internalLinks: [],
+    ctaGoal: brand.ctaStyle,
+    brand,
+  };
+
+  let result: { content: unknown; patch: unknown };
+  switch (sectionType) {
+    case "hero":
+      result = await writeHero({ brief, brand, engine, registry });
+      break;
+    case "benefits":
+      result = await writeBenefits({ brief, brand, engine, registry });
+      break;
+    case "features":
+      result = await writeFeatures({ brief, brand, engine, registry });
+      break;
+    case "services":
+      result = await writeServices({ brief, brand, engine, registry });
+      break;
+    case "products":
+      result = await writeProducts({ brief, brand, engine, registry });
+      break;
+    case "about":
+      result = await writeAbout({ brief, brand, engine, registry });
+      break;
+    case "faq":
+      result = await writeFaq({ brief, brand, engine, registry });
+      break;
+    case "testimonials":
+      result = await writeTestimonials({ brief, brand, engine, registry });
+      break;
+    case "cta":
+      result = await writeCta({ brief, brand, engine, registry });
+      break;
+    case "buying-guide":
+      result = await writeBuyingGuide({ brief, brand, engine, registry });
+      break;
+    case "comparison":
+      result = await writeComparison({ brief, brand, engine, registry });
+      break;
+    case "product":
+      result = await writeProduct({ brief, brand, engine, registry });
+      break;
+    case "introduction":
+      result = await writeIntroduction({ brief, brand, engine, registry });
+      break;
+    case "conclusion":
+      result = await writeConclusion({ brief, brand, engine, registry });
+      break;
+    case "contact":
+      result = await writeContact({ brief, brand, engine, registry });
+      break;
+    case "blog":
+      result = await writeBlog({ brief, brand, engine, registry });
+      break;
+    default:
+      process.stderr.write(`Unknown section type: ${sectionType}\n`);
+      return;
+  }
+
+  if (options.json) {
+    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+    return;
+  }
+  process.stdout.write(`Generated ${sectionType} section for project "${resolved.project}".\n`);
+  if (options.preview) {
+    process.stdout.write("Preview mode: no changes applied.\n");
+  }
+}
+
+writeCommand
+  .command("hero")
+  .description("Generate a hero section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("hero", options));
+
+writeCommand
+  .command("benefits")
+  .description("Generate a benefits section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("benefits", options));
+
+writeCommand
+  .command("features")
+  .description("Generate a features section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("features", options));
+
+writeCommand
+  .command("services")
+  .description("Generate a services section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("services", options));
+
+writeCommand
+  .command("products")
+  .description("Generate a products section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("products", options));
+
+writeCommand
+  .command("about")
+  .description("Generate an about section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("about", options));
+
+writeCommand
+  .command("faq")
+  .description("Generate a FAQ section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("faq", options));
+
+writeCommand
+  .command("testimonials")
+  .description("Generate a testimonials section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("testimonials", options));
+
+writeCommand
+  .command("cta")
+  .description("Generate a CTA section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("cta", options));
+
+writeCommand
+  .command("buying-guide")
+  .description("Generate a buying guide section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("buying-guide", options));
+
+writeCommand
+  .command("comparison")
+  .description("Generate a comparison section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("comparison", options));
+
+writeCommand
+  .command("product")
+  .description("Generate a product section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("product", options));
+
+writeCommand
+  .command("introduction")
+  .description("Generate an introduction section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("introduction", options));
+
+writeCommand
+  .command("conclusion")
+  .description("Generate a conclusion section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("conclusion", options));
+
+writeCommand
+  .command("contact")
+  .description("Generate a contact section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("contact", options));
+
+writeCommand
+  .command("blog")
+  .description("Generate a blog section")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (options) => runWrite("blog", options));
+
+writeCommand
+  .command("section")
+  .description("Generate a specific section by type")
+  .argument("<type>", "Section type")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--preview", "Preview only")
+  .option("--dry-run", "Dry run")
+  .option("--json", "Output JSON")
+  .action(async (type: string, options) => runWrite(type, options));
+
+writeCommand
+  .command("preview")
+  .description("Preview generated content without applying")
+  .option("--project <project>", "Project ID")
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--json", "Output JSON")
+  .action(async (options) => {
+    const project = options.project ?? "default";
+    const { resolved, knowledge, profile } = await loadProjectContext(project, "write");
+    const brand = buildBrandProfile({ knowledge, memory: profile.memorySummary, projectId: resolved.project });
+    const voice = detectVoiceProfile({} as never);
+    const result = {
+      project: resolved.project,
+      brand: { companyName: brand.companyName, tone: brand.tone, readingLevel: brand.readingLevel },
+      voice: { primaryVoice: voice.primaryVoice, confidence: voice.confidence },
+      availableWriters: [
+        "hero", "benefits", "features", "services", "products", "about", "faq",
+        "testimonials", "cta", "buying-guide", "comparison", "product",
+        "introduction", "conclusion", "contact", "blog",
+      ],
+    };
+    if (options.json) {
+      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Project: ${result.project}\n`);
+    process.stdout.write(`Brand: ${result.brand.companyName} (${result.brand.tone})\n`);
+    process.stdout.write(`Voice: ${result.voice.primaryVoice} (confidence: ${result.voice.confidence})\n`);
+    process.stdout.write(`Writers: ${result.availableWriters.join(", ")}\n`);
+  });
+
+writeCommand
+  .command("validate")
+  .description("Validate existing content")
+  .argument("[content]", "Content to validate")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output JSON")
+  .action(async (content: string | undefined, options: { project?: string; json?: boolean }) => {
+    const text = content ?? "Sample content for validation.";
+    const report = validateSEO(text, "keyword", ["secondary"]);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`SEO Score: ${report.score}\n`);
+    process.stdout.write(`Word Count: ${report.wordCount}\n`);
+    process.stdout.write(`Issues: ${report.issues.length}\n`);
+    for (const issue of report.issues) {
+      process.stdout.write(`  - ${issue}\n`);
+    }
+  });
+
+writeCommand
+  .command("score")
+  .description("Score existing content")
+  .argument("[content]", "Content to score")
+  .option("--project <project>", "Project ID")
+  .option("--json", "Output JSON")
+  .action(async (content: string | undefined, options: { project?: string; json?: boolean }) => {
+    const text = content ?? "Sample content for scoring.";
+    const seo = validateSEO(text, "keyword", ["secondary"]);
+    const quality = scoreContent(seo);
+    if (options.json) {
+      process.stdout.write(JSON.stringify({ seo, quality }, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`SEO Score: ${quality.seoScore}\n`);
+    process.stdout.write(`Readability: ${quality.readabilityScore}\n`);
+    process.stdout.write(`Naturalness: ${quality.naturalnessScore}\n`);
+    process.stdout.write(`Brand Voice: ${quality.brandVoiceScore}\n`);
+    process.stdout.write(`Overall: ${quality.overallScore}\n`);
+  });
 
 // Sprint 19: AI provider commands
 const aiCommand = program.command("ai").description("AI provider commands (Sprint 19)");

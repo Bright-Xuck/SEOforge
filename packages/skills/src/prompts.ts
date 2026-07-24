@@ -29,3 +29,7 @@ registerPrompt("skill.generate-internal-links", "Generate Internal Links", "Gene
 registerPrompt("skill.expand-thin-content", "Expand Thin Content", "Expand thin content using the structured context: {{input}}");
 registerPrompt("skill.rewrite-heading", "Rewrite Heading", "Rewrite a heading using the structured context: {{input}}");
 registerPrompt("skill.generate-section", "Generate Section", "Generate an improved {{sectionKind}} section. Existing: {{existingSection}}. Keywords: {{targetKeywords}}. Intent: {{intent}}. Audience: {{audience}}. Tone: {{tone}}. Brand: {{brand}}.");
+
+registerPrompt("content-generation.hero", "Hero Section", "Generate a hero section for {{primaryKeyword}}. Tone: {{tone}}. Audience: {{audience}}.");
+registerPrompt("content-generation.faq", "FAQ Section", "Generate an FAQ section for {{primaryKeyword}}. Tone: {{tone}}. Audience: {{audience}}.");
+registerPrompt("content-generation.blog", "Blog Section", "Generate a blog section for {{primaryKeyword}}. Tone: {{tone}}. Audience: {{audience}}.");
