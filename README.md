@@ -28,6 +28,8 @@ Sprint 18 adds the Review Engine:
 `forge review create`, `forge review show`, `forge review approve`, `forge review reject`, `forge review edit`, `forge review export`, `forge review metrics`, `forge review comments`, `forge review apply`, and `forge review rollback` (each with `--project`, `--json`, and `--format` where relevant). `forge homepage optimize` now stops at a Review Session instead of executing.
 Sprint 19 adds Production AI Providers and the Optimization Composer:
 `forge ai providers`, `forge ai models`, `forge ai test`, `forge ai benchmark`, `forge ai cost`, `forge ai prompt`, `forge ai logs`, `forge ai history`, `forge compose`, `forge compose graph`, `forge compose bundles`, `forge compose conflicts`, `forge compose preview`, `forge compose validate`, and `forge compose execute`.
+Sprint 20 adds the AI Content Generation Engine to `@forge/content-generation`:
+`forge write hero`, `forge write faq`, `forge write blog`, `forge write section`, `forge write preview`, `forge write validate`, `forge write score`, alongside brand-aware writing, deterministic validation, quality scoring, and expanded pipeline integration.
 
 ---
 
@@ -635,6 +637,71 @@ Execute (Priority order, Rollback Groups)
 ```
 
 **Out of scope:** scheduling, dashboard, analytics, cloud sync, database, background workers, publishing, automatic execution.
+
+---
+
+## Sprint 20 — AI Content Generation Engine (v0.20.0)
+
+Sprint 20 builds Forge's first production-grade AI writing system capable of generating high-quality, EEAT-focused, 2026-standard SEO content. It expands `@forge/content-generation` with brand-aware writers, deterministic validation, quality scoring, and full pipeline integration.
+
+**Architectural correction:** No new `ai-writing-engine` package was created. All AI writing capabilities belong inside `@forge/content-generation`, which already owns content generation.
+
+### Brand Profile in `@forge/core`
+
+- ✅ `BrandProfile` interface moved to `@forge/core` (reused across content-generation, context-builder, homepage-engine, CLI)
+
+### Content Generation Expansion
+
+- ✅ **ContentBriefBuilder** — deterministic brief construction from PageDNA + BrandProfile + KnowledgeGraph + MemoryStore
+- ✅ **VoiceProfile** — deterministic voice detection (Professional, Friendly, Luxury, Technical, Medical, Legal, Playful, Corporate, Educational, Conversational, Minimalist, Authoritative) plus sentence/paragraph/passive voice/reading grade metrics
+- ✅ **15 Specialized Writers** — hero, benefits, features, services, products, about, FAQ, buying guide, comparison, testimonials, CTA, contact, introduction, conclusion, blog
+- ✅ **BaseSectionWriter** — shared base class for all writers (provider selection, prompt composition, response parsing, validation, patch creation)
+- ✅ **PromptComposer** — registry-backed prompt composition (integrates with existing `@forge/prompt-registry`)
+- ✅ **Deterministic Validator** — SEO, quality, EEAT, readability, compliance (no LLM calls)
+- ✅ **Quality Scorer** — seoScore, eeatScore, readabilityScore, naturalnessScore, brandVoiceScore, overallScore
+
+### Pipeline Integration
+
+- ✅ 8 new pipeline steps: content-brief, brand-profile, voice-profile, writer-select, prompt-compose, ai-write, content-validate, content-score
+
+### Homepage Engine Update
+
+- ✅ Homepage optimization now uses: PageDNA → BrandProfile → ContentBrief → Writer → Validation → Scoring → ContentPatch → Review
+
+### CLI
+
+- ✅ `forge write hero`, `forge write faq`, `forge write blog`, `forge write section`, `forge write preview`, `forge write validate`, `forge write score`
+- ✅ All support `--project`, `--provider`, `--model`, `--json`, `--preview`, `--dry-run`
+
+### Constraints
+
+- ❌ No automatic publishing, WordPress execution, scheduling, background jobs, dashboards, analytics, cloud sync, database, autonomous execution
+- ✅ All content becomes `ContentPatch` → `Review` → `Compose` → `Execute`
+- ✅ Provider-agnostic through `@forge/ai-engine`
+
+**Architecture flow after Sprint 20:**
+
+```text
+Mission
+  ↓
+Agent
+  ↓
+Strategy
+  ↓
+Pipeline
+  ↓
+Content Intelligence (PageDNA, ContentGraph)
+  ↓
+Content Generation (ContentBrief → BrandProfile → Voice → Writer → Validate → Score)
+  ↓
+ContentPatch
+  ↓
+Review
+  ↓
+Optimization Composer
+  ↓
+Execution
+```
 
 ---
 

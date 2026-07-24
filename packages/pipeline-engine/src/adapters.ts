@@ -636,6 +636,133 @@ export function createReviewSummaryStep(): PipelineStepDefinition {
   };
 }
 
+// Sprint 20: AI Writing Engine steps.
+import { buildContentBrief, detectVoiceProfile, validateSEO, scoreContent } from "@forge/content-generation";
+import type { BrandProfile } from "@forge/core";
+
+export function createContentBriefStep(): PipelineStepDefinition {
+  return {
+    id: "content-brief",
+    name: "Content Brief",
+    version: "0.20.0",
+    description: "Builds a deterministic ContentBrief from PageDNA + BrandProfile + Knowledge + Memory.",
+    type: "content-generation",
+    inputs: ["contentIntelligence", "knowledge", "memory"],
+    outputs: ["contentBrief"],
+    dependencies: ["content-intelligence", "knowledge-load"],
+    execute: (context) => {
+      if (!context.contentIntelligence) throw new Error("Pipeline context missing content intelligence");
+      const dna = (context.contentIntelligence as { dna: { dna?: unknown } }).dna?.dna as never;
+      const brand = (context.knowledge as { brand?: BrandProfile })?.brand as BrandProfile;
+      const brief = buildContentBrief(dna, brand, context.knowledge as never, context.memory as never);
+      context.outputs = { ...context.outputs, contentBrief: brief };
+      return brief;
+    },
+  };
+}
+
+export function createBrandProfileStep(): PipelineStepDefinition {
+  return {
+    id: "brand-profile",
+    name: "Brand Profile",
+    version: "0.20.0",
+    description: "Loads or detects the BrandProfile from project knowledge.",
+    type: "content-generation",
+    inputs: ["knowledge"],
+    outputs: ["brandProfile"],
+    dependencies: ["knowledge-load"],
+    execute: (context) => {
+      const brand = (context.knowledge as { brand?: BrandProfile })?.brand as BrandProfile;
+      context.outputs = { ...context.outputs, brandProfile: brand };
+      return brand;
+    },
+  };
+}
+
+export function createVoiceProfileStep(): PipelineStepDefinition {
+  return {
+    id: "voice-profile",
+    name: "Voice Profile",
+    version: "0.20.0",
+    description: "Detects brand voice from existing content.",
+    type: "content-generation",
+    inputs: ["snapshot"],
+    outputs: ["voiceProfile"],
+    dependencies: ["website-reader"],
+    execute: (context) => {
+      if (!context.snapshot) throw new Error("Pipeline context missing snapshot");
+      const voice = detectVoiceProfile(context.snapshot);
+      context.outputs = { ...context.outputs, voiceProfile: voice };
+      return voice;
+    },
+  };
+}
+
+export function createPromptComposeStep(): PipelineStepDefinition {
+  return {
+    id: "prompt-compose",
+    name: "Prompt Compose",
+    version: "0.20.0",
+    description: "Composes a registry-backed prompt from ContentBrief + BrandProfile.",
+    type: "content-generation",
+    inputs: ["contentBrief", "brandProfile"],
+    outputs: ["composedPrompt"],
+    dependencies: ["content-brief"],
+    execute: (context) => {
+      const brief = context.outputs?.["contentBrief"];
+      context.outputs = { ...context.outputs, composedPrompt: { brief } };
+      return { brief };
+    },
+  };
+}
+
+export function createContentValidateStep(): PipelineStepDefinition {
+  return {
+    id: "content-validate",
+    name: "Content Validate",
+    version: "0.20.0",
+    description: "Validates generated content deterministically (no AI).",
+    type: "content-generation",
+    inputs: ["generationResult"],
+    outputs: ["seoValidation"],
+    dependencies: ["section-generation"],
+    execute: (context) => {
+      const result = context.outputs?.["generationResult"] as { patches?: { proposedContent?: string }[] } | undefined;
+      if (!result?.patches?.length) {
+        context.outputs = { ...context.outputs, seoValidation: null };
+        return null;
+      }
+      const content = result.patches[0]?.proposedContent || "";
+      const seo = validateSEO(content, "", []);
+      context.outputs = { ...context.outputs, seoValidation: seo };
+      return seo;
+    },
+  };
+}
+
+export function createContentScoreStep(): PipelineStepDefinition {
+  return {
+    id: "content-score",
+    name: "Content Score",
+    version: "0.20.0",
+    description: "Scores generated content quality deterministically.",
+    type: "content-generation",
+    inputs: ["seoValidation"],
+    outputs: ["qualityScore"],
+    dependencies: ["content-validate"],
+    execute: (context) => {
+      const seo = context.outputs?.["seoValidation"] as Parameters<typeof scoreContent>[0] | undefined;
+      if (!seo) {
+        context.outputs = { ...context.outputs, qualityScore: null };
+        return null;
+      }
+      const score = scoreContent(seo);
+      context.outputs = { ...context.outputs, qualityScore: score };
+      return score;
+    },
+  };
+}
+
 export function createReviewMetricsStep(): PipelineStepDefinition {
   return {
     id: "review-metrics",

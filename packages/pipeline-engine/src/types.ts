@@ -11,7 +11,8 @@ export type PipelineStepType =
   | "action-engine"
   | "preflight-validator"
   | "execution-engine"
-  | "review";
+  | "review"
+  | "content-generation";
 
 export type PipelineStepStatus = "pending" | "running" | "completed" | "skipped" | "failed";
 

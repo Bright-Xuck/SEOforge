@@ -51,7 +51,7 @@ export class PromptBuilder {
       intent: context.intent.primary,
       audience: context.audience.level,
       tone: context.tone,
-      brand: context.brand.brand,
+      brand: context.brand.companyName,
       knowledge: context.knowledge.brand ?? "",
       memory: context.memory.project,
     };

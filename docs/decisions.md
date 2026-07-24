@@ -1946,6 +1946,270 @@ Changes should create new ADRs rather than rewriting history.
 
 ---
 
+## ADR-0026
+
+### Title
+
+Content Generation Owns AI Writing — No Separate Writing Engine
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-24
+
+### Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+Sprint 20 planning initially proposed a new `@forge/ai-writing-engine` package. However, reviewing the architecture revealed that `@forge/content-generation` already owns content generation. Creating a new package would split ownership of the same responsibility across two packages, duplicating infrastructure, providers, and validation logic.
+
+The original Sprint 17 scope included: section generators, prompt builder, context aggregation, AI provider abstraction. These are exactly the primitives needed for production-grade AI writing. No new package is needed.
+
+### Decision
+
+All AI writing capabilities will be implemented inside `@forge/content-generation`, not in a new package. New modules are added as subdirectories: `brief/`, `brand/`, `prompts/`, `writers/`, `validator/`, `scoring/`.
+
+### Alternatives Considered
+
+Creating `@forge/ai-writing-engine`. Rejected because it duplicates ownership of content generation responsibilities, breaks the single-responsibility package rule, and would require cross-package orchestration that already exists naturally inside a single package.
+
+### Consequences
+
+Positive:
+- Single owner for all content generation (brand, writing, validation, scoring)
+- No infrastructure duplication (providers, prompts, context)
+- Clean knowledge boundaries
+- Easier testing and debugging
+
+Negative:
+- Larger package with more internal modules
+- Requires clear internal module boundaries to prevent coupling
+
+### Future Review
+
+Revisit if the package grows beyond 10k lines of source code, at which point extracting `validator/` into a separate validator package may be warranted.
+
+---
+
+## ADR-0027
+
+### Title
+
+BrandProfile Lives in @forge/core
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-24
+
+### Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+Brand identity data is consumed by multiple packages: content-generation (for writing), context-builder (for AI prompts), homepage-engine (for optimization), and CLI (for display). Placing it inside `@forge/content-generation` would force downstream consumers to depend on a generation package they don't need.
+
+### Decision
+
+`BrandProfile` is defined as an interface in `@forge/core`. It is constructed deterministically by content-generation's brand module, consumed by context-builder for AI prompt enrichment, and used in homepage optimization.
+
+### Alternatives Considered
+
+Placing `BrandProfile` in `@forge/content-generation`. Rejected because it creates unnecessary dependencies for packages that only consume the profile type.
+
+Placing `BrandProfile` in `@forge/content-intelligence`. Rejected because content-intelligence must never know about brand identity (it analyzes content, not brands).
+
+### Consequences
+
+Positive:
+- Single source of truth for brand identity type
+- No circular dependencies
+- All consumers import from core
+
+Negative:
+- None significant
+
+### Future Review
+
+No review needed unless the brand model grows into a standalone domain package.
+
+---
+
+## ADR-0028
+
+### Title
+
+Content Validation Is Deterministic — No LLM Validation
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-24
+
+### Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+After AI generates content, it must be validated for quality, brand compliance, EEAT signals, readability, and SEO. Using an LLM for validation would be expensive, slow, non-deterministic, and introduce model-specific biases.
+
+### Decision
+
+All content validation is deterministic (no LLM calls). The validator module in content-generation uses:
+- Keyword coverage analysis (string matching)
+- Heading quality checks (regex, hierarchy rules)
+- Duplicate phrase detection (n-gram comparison)
+- Placeholder detection (regex)
+- Brand terminology checks (string inclusion)
+- Prohibited word checks (string exclusion)
+- Flesch-Kincaid readability (formula)
+- EEAT signal detection (pattern matching)
+- CTA presence checks (string matching)
+- Internal link suggestion (rule-based)
+
+### Alternatives Considered
+
+LLM-based validation. Rejected due to cost, latency, non-determinism, and the inability to enforce brand rules consistently.
+
+### Consequences
+
+Positive:
+- Deterministic, testable, predictable
+- Zero cost per validation
+- Always consistent
+- Can be run in CI/CD
+
+Negative:
+- Cannot detect nuanced semantic issues that an LLM might catch
+- May produce false positives/negatives for complex quality evaluations
+
+### Future Review
+
+Revisit if deterministic validation proves insufficient for quality assurance. A hybrid approach (deterministic pre-check + optional LLM review) could be considered.
+
+---
+
+## ADR-0029
+
+### Title
+
+Capabilities vs Skills — Formal Boundary Documented
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-24
+
+### Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+The codebase has both `@forge/capabilities` (analysis rules and engine) and `@forge/skills` (AI-powered tasks). The boundary between them was not clearly defined, creating confusion about where new functionality belongs.
+
+### Decision
+
+Formal boundary:
+- **Capabilities** = deterministic business logic. Zero AI. Examples: analysis rules, recommendation generators, content intelligence.
+- **Skills** = AI-powered tasks. Require an AI provider. Examples: meta description generation, section writing, entity analysis.
+
+Capabilities may be consumed by Skills, but Skills must never be consumed by Capabilities.
+
+### Consequences
+
+Positive:
+- Clear decision framework for new features
+- Prevents accidental AI dependency in deterministic paths
+- Easier testing (capabilities are pure logic)
+
+Negative:
+- Requires awareness of the boundary during implementation
+
+### Future Review
+
+Revisit if the boundary proves too restrictive or if hybrid capability-skill modules emerge.
+
+---
+
+## ADR-0030
+
+### Title
+
+Ownership Declarations Required for Every Package
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-24
+
+### Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+The Sprint 20 retrospective identified that duplicate package ownership (proposed `ai-writing-engine` alongside existing `content-generation`) was the root cause of architectural drift. To prevent this in future sprints, every package should explicitly declare what it owns and does not own.
+
+### Decision
+
+Every package in the monorepo must include, either in its README or in a comment in its `package.json`, a declaration of:
+- **Owns**: The responsibilities this package owns exclusively
+- **Does NOT own**: Responsibilities that belong to other packages
+
+Before adding a feature in a future sprint, the first question must be: "Which package already owns this responsibility?" If the answer is "this package," extend it. If "none," create a new package.
+
+### Alternatives Considered
+
+Informal knowledge sharing. Rejected because it relies on memory and breaks as the team grows.
+
+Centralized ownership registry. Rejected as over-engineering for a single-developer project.
+
+### Consequences
+
+Positive:
+- Prevents package sprawl
+- Keeps architecture coherent over time
+- Self-documenting package boundaries
+
+Negative:
+- Requires maintenance when responsibilities change
+
+### Future Review
+
+Revisit when the first ownership conflict occurs (two packages claiming the same responsibility).
+
+---
+
 # Final Principle
 
 Architectural consistency is more valuable than short-term convenience.

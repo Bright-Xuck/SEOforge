@@ -910,13 +910,39 @@ export interface BrandConstraint {
 /**
  * A complete brand profile contract consumed by content generation.
  * Storage lives in the Knowledge layer (projects/<project>/knowledge/brand.json).
+ * Expanded in Sprint 20 with deterministic fields derived from Knowledge Engine,
+ * Content Intelligence, Project Memory, WordPress metadata, and Mission history.
  */
 export interface BrandProfile {
-  readonly brand: string;
-  readonly voice: BrandVoice;
-  readonly tone: BrandTone;
-  readonly guidelines: BrandGuidelines;
-  readonly audiences: BrandAudience[];
-  readonly values: BrandValue[];
-  readonly constraints: BrandConstraint[];
+  readonly id: string;
+  readonly projectId: string;
+  readonly companyName: string;
+  readonly industry: string;
+  readonly subIndustry?: string;
+  readonly companyType: string;
+  readonly products: string[];
+  readonly services: string[];
+  readonly categories: string[];
+  readonly primaryTopics: string[];
+  readonly secondaryTopics: string[];
+  readonly entities: string[];
+  readonly competitors: string[];
+  readonly locations: string[];
+  readonly targetCountries: string[];
+  readonly languages: string[];
+  readonly audiences: string[];
+  readonly buyerPersonas: string[];
+  readonly customerJourney: string[];
+  readonly goals: string[];
+  readonly conversionGoals: string[];
+  readonly uniqueSellingPoints: string[];
+  readonly trustSignals: string[];
+  readonly writingStyle: string;
+  readonly tone: string;
+  readonly readingLevel: string;
+  readonly forbiddenWords: string[];
+  readonly preferredVocabulary: string[];
+  readonly ctaStyle: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
 }

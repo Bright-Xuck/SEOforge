@@ -470,6 +470,73 @@ Cost Tracker
 
 Scheduling, dashboard, analytics, cloud sync, database, background workers, publishing, automatic execution.
 
+---
+
+## Sprint 20 Update: AI Content Generation Engine
+
+Sprint 20 transforms `@forge/content-generation` from a basic section generator into a production-grade AI writing system with brand awareness, deterministic validation, and quality scoring.
+
+**Architectural correction:** No `ai-writing-engine` package was created. All AI writing capabilities belong inside `@forge/content-generation`, which already owns content generation.
+
+### New Types in `@forge/core`
+
+- `BrandProfile` — deterministic brand identity model (no AI). Contains: id, projectId, companyName, industry, subIndustry, companyType, products, services, categories, primaryTopics, secondaryTopics, entities, competitors, locations, targetCountries, languages, audiences, buyerPersonas, customerJourney, goals, conversionGoals, uniqueSellingPoints, trustSignals, writingStyle, tone, readingLevel, forbiddenWords, preferredVocabulary, ctaStyle.
+
+### Content Generation Expansion
+
+New modules inside `packages/content-generation/src/`:
+
+- **`brief/`** — `ContentBriefBuilder`: deterministic brief construction from PageDNA + BrandProfile + KnowledgeGraph + MemoryStore. Produces `ContentBrief` (primaryKeyword, secondaryKeywords, searchIntent, audience, tone, readingLevel, wordCountTarget, competitors, pageGoal, userQuestions, requiredEntities, internalLinks, ctaGoal).
+- **`brand/`** — `VoiceProfile` detector: deterministic voice classification (Professional, Friendly, Luxury, Technical, Medical, Legal, Playful, Corporate, Educational, Conversational, Minimalist, Authoritative). Tracks sentence length, paragraph length, passive voice %, reading grade, CTA frequency, question frequency, heading style, pronoun usage, formatting habits.
+- **`prompts/`** — `PromptComposer`: registry-backed prompt composition. Integrates with `@forge/prompt-registry`. No hardcoded prompts. Resolves variables from BrandProfile, ContentBrief, PageDNA, project context.
+- **`writers/`** — 15 specialized section writers (hero, benefits, features, services, products, about, FAQ, buying guide, comparison, testimonials, CTA, contact, introduction, conclusion, blog) plus `BaseSectionWriter` base class. Each writer: prepares section-specific ContentBrief → composes prompt → calls AI Engine → validates → scores → creates ContentPatch.
+- **`validator/`** — Deterministic validators (no LLM calls). SEO validator (keyword coverage, heading quality), quality validator (duplicates, placeholders), EEAT validator (author signals, trust signals), readability validator (Flesch-Kincaid, sentence/paragraph length), compliance validator (brand tone match, prohibited words).
+- **`scoring/`** — Quality scorer producing: seoScore, eeatScore, readabilityScore, naturalnessScore, brandVoiceScore, overallScore. All derived from validation, not AI.
+
+### Corrected Architecture Flow
+
+```text
+Mission
+  ↓
+Agent
+  ↓
+Strategy
+  ↓
+Pipeline
+  ↓
+Content Intelligence (PageDNA, ContentGraph)
+  ↓
+Content Generation (ContentBrief → BrandProfile → Voice → Writer → Validate → Score)
+  ↓
+ContentPatch
+  ↓
+Review
+  ↓
+Optimization Composer
+  ↓
+Execution
+```
+
+### Pipeline Steps
+
+Eight new steps registered: content-brief, brand-profile, voice-profile, writer-select, prompt-compose, ai-write, content-validate, content-score.
+
+### Homepage Engine
+
+Homepage optimization now flows: PageDNA → BrandProfile → ContentBrief → Writer → Validation → Scoring → ContentPatch → Review.
+
+### CLI
+
+`forge write {hero,faq,blog,section,preview,validate,score}` with `--project`, `--provider`, `--model`, `--json`, `--preview`, `--dry-run`.
+
+### Constraints
+
+- ❌ No automatic publishing, WordPress execution, scheduling, background jobs, dashboards, analytics, cloud sync, database, autonomous execution
+- ✅ All content becomes ContentPatch → Review → Compose → Execute
+- ✅ Provider-agnostic through `@forge/ai-engine`
+- ✅ BrandProfile in `@forge/core` (reused across packages)
+- ✅ Content Generation owns AI writing (no duplicate package)
+
 ### Production AI Providers
 
 - Five production providers implemented: OpenAI, Anthropic, Google Gemini, OpenRouter, Ollama.
