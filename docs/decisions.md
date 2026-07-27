@@ -2210,6 +2210,92 @@ Revisit when the first ownership conflict occurs (two packages claiming the same
 
 ---
 
+## ADR-0041
+
+### Title
+
+DOM Engine Package for Deterministic DOM Mapping and Smart Patching
+
+### Status
+
+Accepted
+
+### Date
+
+2026-07-27
+
+### Owner
+
+Bright Ndode
+
+---
+
+### Context
+
+Sprint 20 built a production-grade AI content generation system that produces `ContentPatch` objects. However, patches were applied to raw HTML using simple string replacement, which is imprecise and fragile — a CSS class change could break selector targeting, and layout changes would invalidate patches. Forge needed a deterministic DOM mapping layer that could:
+
+1. Locate every section and block inside Elementor, Gutenberg, or generic HTML pages
+2. Attach stable selectors that survive layout changes
+3. Accept `ContentPatch` objects and replace only targeted content with surgical precision
+4. Generate preview HTML without touching WordPress
+
+### Decision
+
+Create `@forge/dom-engine` (`packages/dom-engine/`) as a new package with the following architecture:
+
+**Format Detection Layer:** `detectFormat()` detects Elementor (via `_elementor_data` meta + edit mode), Gutenberg (via block comment delimiters), or generic HTML (fallback). Returns `FormatDetectionResult` with confidence.
+
+**DOM Mapping Layer:** `mapHtmlToDom()` builds a `DOMMap` from raw HTML containing sections (`DOMSection`), blocks (`DOMBlock`), anchors (`DOMAnchor`), and selectors (`DOMSelector`). Every detected PageDNA section maps deterministically to a `DOMSection` with id, kind, selector, xpath, CSS selector, element path, parent, and children.
+
+**Stable Anchor System:** Deterministic anchors that never rely only on CSS classes. Supports text anchors, DOM position, sibling anchors, parent anchors, and heading anchors. These allow Forge to relocate sections after layout changes.
+
+**Selector Resolution:** `resolveSelector()` uses a priority chain (CSS selector → XPath → Stable Anchor → Heading Anchor → Text Match → Structural Match) and returns a `ResolvedSelector` with confidence.
+
+**Builder Support:** Three builder modules:
+- Elementor: identifies containers, sections, columns, widgets (heading, text editor, button, image, icon list, accordion, tabs, testimonials, loop grid, forms). Extracts widget IDs, settings, and structure. No editing.
+- Gutenberg: supports paragraph, heading, columns, image, gallery, buttons, cover, quote, list, table, embed.
+- Generic HTML: fallback when neither Elementor nor Gutenberg is detected.
+
+**Smart Patch Engine:** `applyPatch()` accepts a `DOMMap` and `ContentPatch`, returns a `PatchPreview`. Patch operations: replace text, insert, append, prepend, delete, replace HTML, replace attribute, replace image alt, replace heading, replace button text, replace FAQ answer. Patch validation checks selector exists, anchor valid, block exists, safe operation, correct type.
+
+**Patch Merge:** `mergePatches()` handles duplicate edits, overlapping edits, conflicts, and ordering.
+
+**Preview Engine:** Generates before.html, after.html, and diff.html without touching WordPress.
+
+**CLI:** `forge dom map`, `forge dom preview`, `forge dom patch`, `forge dom validate`, `forge dom inspect`.
+
+**Pipeline Integration:** Five new steps: dom-map, selector-resolve, patch-validate, patch-merge, patch-preview.
+
+### Alternatives Considered
+
+**Extending `content-intelligence` with DOM mapping.** Rejected because content-intelligence is a pure understanding layer (no modification, no patching). DOM mapping and patching are operationally distinct from understanding.
+
+**Extending `content-generation` with DOM mapping.** Rejected because content-generation owns AI writing and prompt composition. Adding DOM tree operations would violate single responsibility and make the package harder to test.
+
+**Using a third-party DOM diffing library (e.g., `jsdiff`, `diff-match-patch`).** Rejected at the core diffing primitive level (dom-engine uses its own tree-based diff for structural understanding), but generic string diffing may be used in the preview layer for text-level diffs.
+
+**Relying solely on CSS selectors for targeting.** Rejected because CSS classes change frequently (especially in page builders). The multi-strategy selector resolution is required for stability.
+
+### Consequences
+
+Positive:
+- Surgical patch precision at the section/block level, not whole-page replacement
+- Stable targeting survives layout and class changes
+- Elementor, Gutenberg, and generic HTML all supported from day one
+- Preview-first (no WordPress writes)
+- Pipeline integration means all existing flows can use DOM-aware patching
+
+Negative:
+- Additional package to maintain (~30 source files)
+- DOM parsing adds a processing step between generation and review
+- Generic HTML mapping is heuristic and may miss edge cases
+
+### Future Review
+
+Revisit when adding support for additional page builders (Beaver Builder, Bricks, Divi, WPBakery) — each will require a new builder module but the core mapping and patching layers should remain unchanged.
+
+---
+
 # Final Principle
 
 Architectural consistency is more valuable than short-term convenience.

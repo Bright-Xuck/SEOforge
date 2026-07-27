@@ -14,6 +14,8 @@ import type { ValidationReport } from "@forge/preflight-validator";
 export interface ExecutionEngineOptions {
   dryRun: boolean;
   stopOnBlocked: boolean;
+  domEngine?: { resolve: (rawContent: string, patch: unknown) => Promise<string> };
+  fetchResource?: (resourceType: string, resourceId: string | number) => Promise<string>;
 }
 
 /**
@@ -92,7 +94,14 @@ export async function execute(
         continue;
       }
 
-      const operation = createWriteOperation(action);
+      let operation = createWriteOperation(action);
+      if (opts.domEngine && action.payload.patch) {
+        const rawContent = await opts.fetchResource?.(operation.resourceType, operation.resourceId);
+        if (rawContent) {
+          const patched = await opts.domEngine.resolve(rawContent, action.payload.patch);
+          operation = { ...operation, newValue: { ...operation.newValue, content: patched } };
+        }
+      }
       const result = await provider.applyWrite(operation);
       completedActions.push(action.id);
       rollbackStore.capture(action, result.oldValue);

@@ -472,6 +472,119 @@ Scheduling, dashboard, analytics, cloud sync, database, background workers, publ
 
 ---
 
+## Sprint 21 Update: DOM Mapping & Smart Patch Engine
+
+Sprint 21 builds the engine that maps Content Intelligence output to the actual HTML/WordPress/Elementor DOM so AI patches can be applied precisely instead of replacing large chunks of content.
+
+### New Package: `@forge/dom-engine`
+
+New package at `packages/dom-engine/` (`@forge/dom-engine`, v0.21.0).
+
+**Core responsibilities:**
+
+1. Read HTML → Locate every section → Locate every block → Attach stable selectors → Attach DOM anchors → Accept ContentPatch → Replace only targeted content → Generate Preview HTML
+2. No provider writes. No visual builder. No browser automation. No publishing. No dashboards.
+
+### DOM Mapping Layer
+
+The DOM Mapper (`buildDOMMap(html)`) produces a `DOMMap` containing sections, blocks, anchors, selectors, and hierarchy.
+
+**Section Mapping:** Every detected PageDNA section maps to a `DOMSection` including id, kind, selector, xpath, CSS selector, element path, parent, and children.
+
+**Block Mapping:** Every heading, paragraph, list, button, image, FAQ item, testimonial, and card becomes a `DOMBlock` with stable IDs.
+
+**Stable Anchors:** Deterministic anchors that never rely only on CSS classes. Supports text anchors, DOM position, sibling anchors, parent anchors, and heading anchors. These allow Forge to relocate sections after layout changes.
+
+### Selector Resolution
+
+`resolveSelector()` uses a priority chain:
+1. CSS selector
+2. XPath
+3. Stable Anchor
+4. Heading Anchor
+5. Text Match
+6. Structural Match
+
+Returns a `ResolvedSelector` with confidence.
+
+### Builder Support
+
+**ElementorBuilder** identifies: containers, sections, columns, widgets (heading, text editor, button, image, icon list, accordion, tabs, testimonials, loop grid, forms). Extracts widget IDs, settings, and structure. No editing — only mapping.
+
+**GutenbergBuilder** supports: paragraph, heading, columns, image, gallery, buttons, cover, quote, list, table, embed.
+
+**Generic HTML Builder** is the fallback when neither Elementor nor Gutenberg is detected.
+
+### Smart Patch Engine
+
+`applyPatch()` accepts a `DOMMap` and `ContentPatch`, returns a `PatchPreview`.
+
+**Patch Operations:** replace text, insert, append, prepend, delete, replace HTML, replace attribute, replace image alt, replace heading, replace button text, replace FAQ answer.
+
+**Patch Validation:** Every patch validates: selector exists, anchor valid, block exists, safe operation, correct type. No invalid DOM.
+
+**Patch Merge:** `mergePatches()` handles duplicate edits, overlapping edits, conflicts, and ordering.
+
+### Preview Engine
+
+Generates preview HTML without touching WordPress. CLI outputs `before.html`, `after.html`, `diff.html`.
+
+### Corrected Architecture Flow
+
+```text
+Mission
+  ↓
+Agent
+  ↓
+Strategy
+  ↓
+Pipeline
+  ↓
+Content Intelligence (PageDNA, ContentGraph)
+  ↓
+Content Generation (ContentBrief → BrandProfile → Voice → Writer → Validate → Score)
+  ↓
+ContentPatch
+  ↓
+DOM Engine (DOMMap → Selector Resolution → Patch Application → Preview)
+  ↓
+Review
+  ↓
+Optimization Composer
+  ↓
+Execution
+```
+
+### Pipeline Steps
+
+Five new steps registered: dom-map, selector-resolve, patch-validate, patch-merge, patch-preview.
+
+### Homepage Integration
+
+Homepage optimization now uses `DOMMap` instead of raw HTML.
+
+### AI Integration
+
+Content Generation now outputs `ContentPatch` → DOM Engine → Preview → Review Engine. No direct HTML rewriting.
+
+### Review Integration
+
+Review Engine displays: Original → Modified → HTML Diff → Selector → Confidence.
+
+### CLI
+
+`forge dom map`, `forge dom preview`, `forge dom patch`, `forge dom validate`, `forge dom inspect`.
+
+### Constraints
+
+- ❌ No visual builder, browser automation, publishing, dashboards
+- ✅ Intelligent DOM mapping and precise patch application
+- ✅ Elementor, Gutenberg, and generic HTML compatibility
+- ✅ Future builder compatibility through format detection
+- ✅ All patches applied to preview HTML only (no WordPress writes)
+
+---
+
 ## Sprint 20 Update: AI Content Generation Engine
 
 Sprint 20 transforms `@forge/content-generation` from a basic section generator into a production-grade AI writing system with brand awareness, deterministic validation, and quality scoring.

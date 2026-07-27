@@ -106,6 +106,7 @@ Sprint 17 adds `packages/content-generation` for section-scoped AI content gener
 Sprint 18 adds `packages/review-engine` for the deterministic review/approval layer between Content Generation and Execution. It consumes `ContentPatch` artifacts, runs a pure deterministic `compareContent()` comparison, applies approval policies (Strict | Balanced | Automatic | Enterprise), tracks reviewer decisions, computes metrics, and exports Markdown/JSON/HTML reports. It depends on `core`, `action-engine`, `homepage-engine`, `preflight-validator`, `memory-engine`, `knowledge-engine`, and `content-generation` (types only). It must NOT import `ai-engine`, `skills`, or `prompt-registry` (provider-independent, no LLM). No execution or publishing occurs in Sprint 18.
 Sprint 19 replaces all mock AI providers with production-ready implementations (OpenAI, Anthropic, Google Gemini, OpenRouter, Ollama) and introduces the Optimization Composer layer between Review and Execution. It adds retry engine, rate limiting, cost tracking, provider logging, prompt history, fallback logic, expanded prompt registry, upgraded prompt rendering, expanded context builder, and the Optimization Composer (PatchGraph, conflict detection, patch bundles, optimization goals, rollback groups, optimization preview, batch validation, patch priorities). New files in `packages/ai-engine/src/`: `config.ts`, `retry.ts`, `rate-limiter.ts`, `logger.ts`, `history.ts`, `cost-tracker.ts`, `fallback.ts`, `providers/base.ts`, `providers/openai.ts`, `providers/anthropic.ts`, `providers/gemini.ts`, `providers/openrouter.ts`, `providers/ollama.ts`. New package: `packages/optimization-composer` (`@forge/optimization-composer`) with `types.ts`, `graph.ts`, `conflict.ts`, `bundler.ts`, `goals.ts`, `preview.ts`, `priorities.ts`, `composer.ts`. New file: `packages/prompt-registry/src/renderer.ts`. Pipeline Engine gains AI steps (ai-request, ai-response, prompt-render, provider-select, provider-fallback, cost-record, history-record) and Composer steps (compose, batch-validation, execute-composed). CLI gains `forge ai` and `forge compose` command groups. Execution Engine gains rollback group support. Preflight Validator gains batch validation.
 Sprint 20 expands `@forge/content-generation` with a production-grade AI writing system. No new package was created — all AI writing capabilities belong inside `@forge/content-generation` (architectural correction). New modules: `brief/` (ContentBriefBuilder), `brand/` (VoiceProfile detector), `prompts/` (PromptComposer), `writers/` (15 specialized section writers + BaseSectionWriter), `validator/` (SEO, quality, EEAT, readability, compliance), `scoring/` (quality scorer). `BrandProfile` interface added to `@forge/core`. Pipeline Engine gains 8 new steps: content-brief, brand-profile, voice-profile, writer-select, prompt-compose, ai-write, content-validate, content-score. CLI gains `forge write` command group. Homepage Engine updated to use the new writing pipeline.
+Sprint 21 adds `packages/dom-engine` for DOM mapping, selector resolution, smart patching, and builder support (Elementor, Gutenberg, generic HTML). It consumes raw HTML and produces a `DOMMap` with sections, blocks, anchors, and selectors. The Smart Patch Engine applies `ContentPatch` objects to preview HTML only. Pipeline Engine gains 5 new steps: dom-map, selector-resolve, patch-validate, patch-merge, patch-preview. CLI gains `forge dom` command group. Homepage Engine updated to use `DOMMap` instead of raw HTML. Content Generation outputs `ContentPatch` → DOM Engine → Preview → Review Engine (no direct HTML rewriting).
 
 ---
 
@@ -261,6 +262,44 @@ Dependency direction (enforced):
 - MUST NOT be imported by `content-generation` (one-way dependency).
 
 This package reviews candidate section improvements only. It never generates content, never bypasses Content Intelligence, and never executes or publishes. Every output becomes an approved `ExecutionPlan` for the Execution Engine in Sprint 18.
+
+---
+
+# packages/dom-engine
+
+Purpose:
+
+DOM mapping and smart patch engine for precise content targeting.
+
+Responsibilities:
+
+- Format detection (Elementor, Gutenberg, generic HTML)
+- DOM mapping (sections, blocks, anchors, selectors, hierarchy)
+- Section mapping (every detected PageDNA section maps to a DOMSection)
+- Block mapping (headings, paragraphs, lists, buttons, images, FAQ items, testimonials, cards)
+- Stable anchor system (text anchors, DOM position, sibling anchors, parent anchors, heading anchors)
+- Selector resolution with multiple fallback strategies (CSS → XPath → Stable Anchor → Heading Anchor → Text Match → Structural Match)
+- Elementor builder support (containers, sections, columns, widgets: heading, text editor, button, image, icon list, accordion, tabs, testimonials, loop grid, forms)
+- Gutenberg builder support (paragraph, heading, columns, image, gallery, buttons, cover, quote, list, table, embed)
+- Generic HTML builder fallback
+- Smart patch engine (apply, validate, merge patches)
+- Preview HTML generation (before.html, after.html, diff.html)
+- CLI commands: `forge dom map`, `forge dom preview`, `forge dom patch`, `forge dom validate`, `forge dom inspect`
+- Pipeline steps: dom-map, selector-resolve, patch-validate, patch-merge, patch-preview
+
+Rules:
+
+- No visual builder, browser automation, publishing, dashboards
+- All patches applied to preview HTML only (no WordPress writes)
+- Must never import WordPress providers or execution engine
+- Must never call AI providers or LLM SDKs
+
+Dependency direction (enforced):
+
+- MAY import `core`, `content-intelligence` (types only), `content-generation` (types only).
+- MUST NOT be imported by `content-intelligence` (one-way dependency).
+
+This package maps content to the DOM and applies precise patches. It never generates content, never bypasses Content Intelligence, and never executes or publishes. Every output becomes a `PatchPreview` for the Review Engine.
 
 ---
 

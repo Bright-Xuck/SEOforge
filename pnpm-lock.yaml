@@ -233,6 +233,43 @@ importers:
 
   packages/core: {}
 
+  packages/dom-engine:
+    dependencies:
+      '@forge/ai-engine':
+        specifier: workspace:*
+        version: link:../ai-engine
+      '@forge/content-generation':
+        specifier: workspace:*
+        version: link:../content-generation
+      '@forge/content-intelligence':
+        specifier: workspace:*
+        version: link:../content-intelligence
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@forge/execution-engine':
+        specifier: workspace:*
+        version: link:../execution-engine
+      '@forge/knowledge-engine':
+        specifier: workspace:*
+        version: link:../knowledge-engine
+      '@forge/prompt-registry':
+        specifier: workspace:*
+        version: link:../prompt-registry
+      '@forge/review-engine':
+        specifier: workspace:*
+        version: link:../review-engine
+      cheerio:
+        specifier: ^1.2.0
+        version: 1.2.0
+    devDependencies:
+      '@types/cheerio':
+        specifier: ^1.0.0
+        version: 1.0.0
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/node@26.1.1)
+
   packages/execution-engine:
     dependencies:
       '@forge/action-engine':
@@ -962,6 +999,10 @@ packages:
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
+
+  '@types/cheerio@1.0.0':
+    resolution: {integrity: sha512-zAaImHWoh5RY2CLgU2mvg3bl2k3F65B0N5yphuII3ythFLPmJhL7sj1RDu6gSxcgqHlETbr/lhA2OBY+WF1fXQ==}
+    deprecated: This is a stub types definition. cheerio provides its own type definitions, so you do not need this installed.
 
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
@@ -2200,6 +2241,10 @@ snapshots:
     dependencies:
       '@types/deep-eql': 4.0.2
       assertion-error: 2.0.1
+
+  '@types/cheerio@1.0.0':
+    dependencies:
+      cheerio: 1.2.0
 
   '@types/deep-eql@4.0.2': {}
 

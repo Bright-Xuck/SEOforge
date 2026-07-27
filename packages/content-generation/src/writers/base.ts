@@ -97,6 +97,7 @@ export class BaseSectionWriter {
         model: response.model,
         promptVersion: definition.versions?.[0]?.version ?? "1.0.0",
         generatedBy: "content-generation",
+        semanticIntent: { kind: input.sectionType, value: generated.markdown, sectionKind: input.sectionType },
       },
     );
 

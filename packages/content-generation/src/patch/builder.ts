@@ -2,7 +2,7 @@
 // Builds self-contained ContentPatch objects from generated sections.
 
 import type { GeneratedSection, ValidationReport } from "../types.js";
-import type { ContentPatch, PatchOperation, PatchSummary, SectionPatch } from "./types.js";
+import type { ContentPatch, PatchOperation, PatchSummary, SectionPatch, PatchTarget, SemanticIntent } from "./types.js";
 import { buildSectionDiff } from "../diff/builder.js";
 
 let patchCounter = 0;
@@ -25,6 +25,8 @@ export function buildPatch(
     readonly model?: string;
     readonly promptVersion: string;
     readonly generatedBy: string;
+    readonly target?: PatchTarget;
+    readonly semanticIntent?: SemanticIntent;
   },
 ): ContentPatch {
   const diff = buildSectionDiff(generated.sectionId, generated.currentSection, generated.generatedSection);
@@ -45,6 +47,8 @@ export function buildPatch(
     model: options.model,
     promptVersion: options.promptVersion,
     createdAt: new Date().toISOString(),
+    target: options.target,
+    semanticIntent: options.semanticIntent,
   };
 }
 
@@ -61,6 +65,8 @@ export function buildSectionPatch(
     readonly model?: string;
     readonly promptVersion: string;
     readonly generatedBy: string;
+    readonly target?: PatchTarget;
+    readonly semanticIntent?: SemanticIntent;
   },
 ): SectionPatch {
   const patch = buildPatch(generated, operation, selector, validation, options);

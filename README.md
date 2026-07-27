@@ -30,6 +30,8 @@ Sprint 19 adds Production AI Providers and the Optimization Composer:
 `forge ai providers`, `forge ai models`, `forge ai test`, `forge ai benchmark`, `forge ai cost`, `forge ai prompt`, `forge ai logs`, `forge ai history`, `forge compose`, `forge compose graph`, `forge compose bundles`, `forge compose conflicts`, `forge compose preview`, `forge compose validate`, and `forge compose execute`.
 Sprint 20 adds the AI Content Generation Engine to `@forge/content-generation`:
 `forge write hero`, `forge write faq`, `forge write blog`, `forge write section`, `forge write preview`, `forge write validate`, `forge write score`, alongside brand-aware writing, deterministic validation, quality scoring, and expanded pipeline integration.
+Sprint 21 adds the DOM Mapping & Smart Patch Engine:
+`forge dom map`, `forge dom preview`, `forge dom patch`, `forge dom validate`, `forge dom inspect`, alongside deterministic DOM mapping with stable anchors, Elementor/Gutenberg/generic-HTML builder support, and a Smart Patch Engine that applies ContentPatch objects to preview HTML only.
 
 ---
 
@@ -105,6 +107,7 @@ forge/
 │   ├── content-intelligence/  # Deterministic content understanding (Page DNA, Content Graph)
 │   ├── ai-engine/        # AI provider abstraction, retry engine, rate limiting, cost tracking
 │   ├── optimization-composer/  # PatchGraph, conflict detection, bundles, goals, priorities, preview
+│   ├── dom-engine/       # DOM mapping, selector resolution, smart patching, builder support
 │   └── execution-engine/ # Execution with rollback groups
 ├── docs/                 # Architecture and design documentation
 └── tests/                # Repository-level tests
@@ -310,6 +313,26 @@ Run batch validation on composed bundles.
 
 Execute composed patches in priority order (critical → high → medium → low).
 
+### `forge dom map`
+
+Build a DOM map from HTML, detecting sections, blocks, anchors, and selectors. Supports `--json` and `--project`.
+
+### `forge dom preview`
+
+Generate preview HTML (before.html, after.html, diff.html) from a DOM map and ContentPatch. Supports `--json` and `--project`.
+
+### `forge dom patch`
+
+Apply a ContentPatch to a DOM map and produce a PatchPreview. Supports `--json` and `--project`.
+
+### `forge dom validate`
+
+Validate a ContentPatch against a DOM map (selector exists, anchor valid, block exists, safe operation, correct type). Supports `--json` and `--project`.
+
+### `forge dom inspect`
+
+Inspect a DOM map showing sections, blocks, anchors, and selectors with confidence levels. Supports `--json` and `--project`.
+
 ---
 
 ## Packages
@@ -407,6 +430,26 @@ Transforms reviewed patches into structured, dependency-aware, prioritized bundl
 - `PriorityAssigner` — assigns critical/high/medium/low priorities
 - `PreviewGenerator` — deterministic optimization preview
 - `PatchBundle`, `PatchConflict`, `OptimizationGoal`, `OptimizationPreview` types
+
+### `@forge/dom-engine`
+
+DOM mapping and smart patch engine for precise content targeting.
+
+**Exports:**
+
+- `detectFormat()` — Detect Elementor, Gutenberg, or generic HTML format
+- `mapHtmlToDom()` — Build a DOM map from raw HTML (sections, blocks, anchors, selectors)
+- `resolveSelector()` — Resolve a selector using multiple fallback strategies (CSS, XPath, text anchor, heading anchor, structural)
+- `buildTextAnchor()`, `buildSiblingAnchor()`, `buildHeadingAnchor()`, `buildStructuralPath()` — Stable anchor builders
+- `applyContentPatch()` — Apply a ContentPatch to a DOM map and produce a PatchPreview
+- `validatePatchAgainstTree()` — Validate a patch against the DOM tree
+- `mergePatches()` — Merge multiple patches with conflict detection
+- `applyPatches()` — Apply a sequence of patches in order
+- `parseElementorData()` — Parse Elementor JSON into a content node tree
+- `parseGutenbergBlocks()` — Parse Gutenberg block grammar into content nodes
+- `renderHtmlPreview()` — Generate before/after/diff HTML preview
+- `renderStructuredPreview()` — Generate structured patch preview
+- CLI functions: `mapPage()`, `previewPatches()`, `patchContent()`, `validatePatches()`, `inspectPage()`
 
 ---
 
@@ -702,6 +745,91 @@ Optimization Composer
   ↓
 Execution
 ```
+
+---
+
+## Sprint 21 — DOM Mapping & Smart Patch Engine (v0.21.0)
+
+Sprint 21 builds the engine that maps Content Intelligence output to the actual HTML/WordPress/Elementor DOM so AI patches can be applied precisely instead of replacing large chunks of content. Forge can now locate the exact Hero, CTA, FAQ, Feature List, etc. inside an Elementor page.
+
+### DOM Engine Package
+
+- ✅ `@forge/dom-engine` package created (`packages/dom-engine/`)
+- ✅ Deterministic DOM mapping with stable anchors
+- ✅ Section mapping (every detected PageDNA section maps to a DOMSection)
+- ✅ Block mapping (headings, paragraphs, lists, buttons, images, FAQ items, testimonials, cards)
+- ✅ Stable anchor system (text anchors, DOM position, sibling anchors, parent anchors, heading anchors)
+- ✅ Selector resolution with multiple fallback strategies (CSS → XPath → Stable Anchor → Heading Anchor → Text Match → Structural Match)
+- ✅ Elementor builder support (containers, sections, columns, widgets: heading, text editor, button, image, icon list, accordion, tabs, testimonials, loop grid, forms)
+- ✅ Gutenberg builder support (paragraph, heading, columns, image, gallery, buttons, cover, quote, list, table, embed)
+- ✅ Generic HTML builder fallback
+
+### Smart Patch Engine
+
+- ✅ `applyPatch()` accepts DOMMap + ContentPatch → PatchPreview
+- ✅ Patch operations: replace text, insert, append, prepend, delete, replace HTML, replace attribute, replace image alt, replace heading, replace button text, replace FAQ answer
+- ✅ Patch validation (selector exists, anchor valid, block exists, safe operation, correct type)
+- ✅ Patch merging (duplicate edits, overlapping edits, conflicts, ordering)
+- ✅ Preview HTML generation (before.html, after.html, diff.html) without touching WordPress
+
+### CLI
+
+- ✅ `forge dom map` — Build a DOM map from HTML
+- ✅ `forge dom preview` — Generate preview HTML
+- ✅ `forge dom patch` — Apply a ContentPatch
+- ✅ `forge dom validate` — Validate a ContentPatch
+- ✅ `forge dom inspect` — Inspect a DOM map
+
+### Pipeline Integration
+
+- ✅ New pipeline steps: dom-map, selector-resolve, patch-validate, patch-merge, patch-preview
+
+### Homepage Integration
+
+- ✅ Homepage optimization now uses DOMMap instead of raw HTML
+
+### AI Integration
+
+- ✅ Content Generation now outputs ContentPatch → DOM Engine → Preview → Review Engine
+- ✅ No direct HTML rewriting
+
+### Review Integration
+
+- ✅ Review Engine displays: Original → Modified → HTML Diff → Selector → Confidence
+
+### Architecture Flow After Sprint 21
+
+```text
+Mission
+  ↓
+Agent
+  ↓
+Strategy
+  ↓
+Pipeline
+  ↓
+Content Intelligence (PageDNA, ContentGraph)
+  ↓
+Content Generation (ContentBrief → BrandProfile → Voice → Writer → Validate → Score)
+  ↓
+ContentPatch
+  ↓
+DOM Engine (DOMMap → Selector Resolution → Patch Application → Preview)
+  ↓
+Review
+  ↓
+Optimization Composer
+  ↓
+Execution
+```
+
+### Constraints
+
+- ❌ No visual builder, browser automation, publishing, dashboards
+- ✅ Intelligent DOM mapping and precise patch application
+- ✅ Elementor, Gutenberg, and generic HTML compatibility
+- ✅ Future builder compatibility through format detection
+- ✅ All patches applied to preview HTML only (no WordPress writes)
 
 ---
 
