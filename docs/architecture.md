@@ -1,1174 +1,416 @@
-# Forge — Revised Architecture (v1.1)
+# Forge Architecture
 
-### From "SEOForge, an SEO tool" → "Forge, a Website Intelligence system"
+**Version:** v0.22.0 (Sprint 22A — Architecture Consolidation)
 
-This document supersedes the SEO-specific framing of the previous architecture. Section 0 is my honest take on each of your 12 points — agree, agree-with-modification, or disagree — because a few of these have real costs you should walk in with eyes open. Everything after that is the revised design.
-
----
-
-## 0. My Assessment of Each Point
-
-| #   | Your idea                                               | My call                                                 | Why                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| --- | ------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Website Intelligence, SEO = one skill                   | **Agree, adopt fully**                                  | This was already latent in the layered design (analyzers/agents were mostly domain-agnostic). The rename forces the right generalization now instead of a painful retrofit later.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| 2   | Skills, not Agents (Cursor model)                       | **Agree, with a clarification**                         | Renaming is right. But something still has to plan, hold multi-step context, and decide which Skills to invoke in what order — that's not gone, it's just not 13 named personas anymore. I'm calling that single thing the **Orchestrator Core**, and Skills are the stateless(ish) capability units it invokes. This is architecturally simpler than 13 agents, and it's what you actually described in point 12.                                                                                                                                                                                                                                                                                                        |
-| 3   | Plan→Research→Think→Execute→Verify→Reflect→Memory loop  | **Agree, this is the right call**                       | Self-verification before showing the user is a genuine quality improvement, not just complexity for its own sake. Built into the Skill execution contract below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 4   | Deep memory hierarchy                                   | **Agree, extend existing design**                       | The episodic/semantic split I had still holds; it just needed more scopes. Not a rearchitecture.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| 5   | Don't build reports first                               | **Already the plan, reinforced**                        | My v1 roadmap already put reporting near the end. Confirmed, and I've pushed it later still.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| 6   | Browser Vision instead of HTML-only                     | **Agree in principle, disagree on timing**              | Vision analysis (layout, whitespace, CTA position, trust signals) is genuinely something HTML can't give you. But: local vision models (llava, qwen2-vl via Ollama) are meaningfully weaker than GPT-4V/Claude vision, and screenshot+vision inference is slow and resource-heavy on top of an already resource-constrained local setup. **I'm making Vision a first-class, pluggable Skill capability with the seam built in v1, but not the default pipeline for every Skill run in v1.** Turning it on for a specific mission ("make the homepage convert better") is exactly where it earns its cost. Running vision analysis on every one of 200 crawled pages by default would make local-only Forge unusably slow. |
-| 7   | Prompt Registry (versioned, tested, like code)          | **Agree, cheap and valuable, do it now**                | Formalizing what would've been ad-hoc prompt strings into first-class versioned artifacts costs little and pays off immediately once you have 10+ Skills.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| 8   | Everything is a plugin (wordpress/, rankmath/, ga4/...) | **Agree, restructure folders now**                      | Previously I sequenced full plugin _loading_ as v2 but plugin-_shaped organization_ costs nothing to do from day one. Doing it now.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| 9   | Universal Website Model                                 | **Strongly agree — this is the best idea in your list** | This is the actual architectural key that makes "Website Intelligence OS" coherent instead of a rebrand. Elevated to a first-class domain concept, detailed in §3.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| 10  | Explainability on every recommendation                  | **Agree, formalize as a required schema**               | Cheap, high-trust-value, done in §6.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 11  | Desktop-only v1, skip responsive                        | **Agree**                                               | You're the only user. Ship faster.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| 12  | Mission-driven, not agent-picking                       | **Agree — and this is the same idea as #2, done right** | "Improve buycleancart.com" → AI decides the plan → invokes Skills as needed. This _is_ the Orchestrator Core + Planner from the previous doc, just correctly framed as the primary interaction model instead of a power-user shortcut.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-
-## Sprint 8 Update: Pipeline Architecture
-
-Forge workflows are now expressed as pipelines composed of reusable pipeline steps. The Pipeline Engine only orchestrates ordered execution, dependency resolution, shared context, timing, and failure handling. Business logic stays inside existing packages and is wrapped by step adapters.
-
-## Sprint 9 Update: Knowledge and Memory
-
-Forge now separates slow-changing knowledge from event history.
-
-- Knowledge Graph stores project facts, structure, and persistent site knowledge.
-- Memory Engine stores historical events and timeline entries.
-- Project Profile combines both for downstream consumers.
-- Change Detection compares snapshots to surface deltas between runs.
-
-## Sprint 10 Update: AI Skills Platform
-
-Forge now treats AI as a reusable skills layer, not a monolithic integration.
-
-- AI providers are interchangeable adapters behind a generic provider interface.
-- Skills consume structured context, not raw HTML.
-- Skills validate their own outputs before returning them.
-- The pipeline layer registers skills as executable steps.
-
-## Sprint 10 Hardening Update
-
-The hardening pass removes implementation shortcuts before the platform grows further:
-
-- Project resolution is explicit and ordered instead of silently falling back to `default-project`.
-- Prompt definitions are first-class, versioned, and registry-backed.
-- Skill execution consumes structured AI context rather than raw internal objects.
-- Providers advertise capabilities before skill execution begins.
-- AI-specific error types isolate provider, prompt, context, and validation failures.
-
-## Sprint 11 Update: Agent Framework
-
-Forge now adds an Agent layer above pipelines and skills.
-
-- Agents make deterministic decisions from project context, findings, and memory.
-- Agents orchestrate pipelines; they do not call providers or execute skills directly.
-- Agent metadata and capabilities are explicit and registry-backed.
-- Agent context includes project profile, knowledge, memory, registries, and execution history.
-
-## Sprint 12 Update: Strategy Engine
-
-Forge now inserts a Strategy layer between agents and pipelines.
-
-- Agents generate strategies instead of selecting pipelines directly.
-- Strategies capture objectives, selected pipelines, selected skills, risk, estimates, and approval requirements.
-- Pipelines execute strategies by resolving each strategy step into one or more pipeline executions.
-- Strategy validation and serialization are first-class concerns.
-
-## Sprint 13 Update: Mission Engine
-
-Forge now inserts a Mission layer above agents and below workspace/project context.
-
-- Missions coordinate multiple agents and strategies for a single user goal.
-- Mission planning selects agents, builds execution order, resolves dependencies, and estimates time, tokens, and risk.
-- Built-in mission templates cover weekly optimization, homepage optimization, content optimization, metadata optimization, accessibility audits, technical audits, pre-launch audits, and store optimization.
-- Mission lifecycle events are recorded in memory for later inspection and reuse.
-- The orchestration chain is now Mission -> Agent -> Strategy -> Pipeline -> Skill -> Provider.
-
-## Sprint 14 Update: WordPress Write Provider
-
-Forge now supports safe WordPress write operations through the provider layer.
-
-- Write flows remain gated by missions, agents, strategies, pipelines, and action approval.
-- Preview and dry-run modes never mutate WordPress.
-- Write results capture old value, new value, timestamp, resource ID, and revision ID where available.
-- Rollback uses stored revision data or the provider's native revision support when possible.
-- Content APIs should anticipate section-level editing in future content intelligence work.
-
-## Sprint 15 Update: Homepage Optimization Vertical Slice
-
-Forge now has its first production-ready vertical slice for homepage optimization.
-
-- Homepage detection supports front page, static homepage, blog homepage, store homepage, and WordPress front-page settings.
-- Homepage analysis is deterministic and rule-based only.
-- Homepage optimization plans include preview objects before approval and execution.
-- The workflow remains provider-independent and reuses the existing mission, strategy, pipeline, and execution layers.
-- This sprint intentionally avoids AI generation and prepares structured content sections for future content intelligence.
-
-Built-in pipelines currently include:
-
-- Website Audit
-- Weekly Optimization
-- Validation Only
-
-The CLI now routes legacy commands through pipeline execution and exposes a `forge pipeline` command group for listing, inspecting, and running pipelines.
-
-## Sprint 16 Update: Content Intelligence Engine
-
-Forge must understand website content before AI is allowed to modify it. Sprint 16 introduces a deterministic content-understanding layer that all future AI generation depends on. The output is structured intelligence, not rewritten text.
-
-- Content Intelligence is a reusable understanding layer that sits **below** skills and providers. It consumes a `WebsiteSnapshot` (and re-parses `rawHtml` deterministically) and produces structured intelligence.
-- It must **never** generate content, call an LLM, use the Prompt Registry, or use AI providers. Everything is deterministic and offline.
-- The new understanding flow:
-
-```text
-Website
-
-↓
-
-DOM
-
-↓
-
-Content Intelligence
-
-↓
-
-Page DNA
-
-↓
-
-Content Graph
-
-↓
-
-Optimization Plan
-
-↓
-
-Content Generation (future)
-```
-
-- New package: `packages/content-intelligence` (`@forge/content-intelligence`, v0.16.0).
-- Produces: `PageDNA` (page type, search intent, audience, heading distribution, reading level, section inventory, entities, topics, link/media/trust/schema/metadata summaries), a `ContentGraph` (Page → Section → Block → Paragraph → Sentence), deterministic quality scores, and content-gap detection.
-- CLI gains a `forge content` command group: `analyze`, `graph`, `dna`, `sections`, `entities` (with `--json` and `--project`).
-- Pipeline Engine gains five reusable steps — Content Analysis, Content Graph, Page DNA, Gap Detection, Entity Extraction — composed into a `content-intelligence` pipeline.
-- Homepage Engine now **additively** consumes Content Intelligence outputs (section detection + Page DNA) to enrich its deterministic analysis without changing existing output shapes.
-
-The orchestration chain remains Mission → Agent → Strategy → Pipeline → Skill → Provider. Content Intelligence is a building block that future Missions, Agents, Strategies, and Skills consume.
-
-## Sprint 17 Update: Section Content Generation Engine
-
-Forge's first AI-powered content generation layer — but scoped strictly to **sections**, never whole pages. AI produces only candidate improvements; Content Intelligence remains the source of truth.
-
-- New package: `packages/content-generation` (`@forge/content-generation`, v1.7.0-beta.1).
-- **One-way dependency:** `content-generation → content-intelligence`. Content Intelligence must never import AI, prompt-registry, or skills. Generation is additive and sits above understanding.
-- The generation workflow:
-
-```text
-Page
-  ↓
-Content Intelligence
-  ↓
-Page DNA
-  ↓
-Content Graph
-  ↓
-Section Selection
-  ↓
-Prompt Builder
-  ↓
-AI Provider (via AI Engine)
-  ↓
-Structured Output
-  ↓
-Validation (content safety)
-  ↓
-ContentPatch + SectionDiff
-  ↓
-Preview
-  ↓
-Approval (Sprint 18)
-  ↓
-Execution (Sprint 18)
-```
-
-- A dedicated `PromptBuilder` composes registry-backed `PromptDefinition`s from Page DNA + Knowledge + Memory + Audience + Intent + Tone + Brand + existing section + target keywords + missing topics. Prompts are **never** built by manual string concatenation.
-- AI providers are integrated through the existing AI Engine. Sprint 17 keeps all providers **mocked** but adds `AIProviderConfig` + `ProviderFactory` scaffolding so real providers swap in later without changing callers.
-- Every AI output becomes a self-contained `ContentPatch` (id, sectionId, operation, selector, currentContent, proposedContent, diff, validation, confidence, estimatedImpact, warnings, generatedBy, provider, model, promptVersion, createdAt) plus a `SectionDiff` for review.
-- A `validator` enforces content safety (length bounds, heading count, keyword stuffing, repeated phrases, malformed markdown/HTML, broken links, empty output, unsafe placeholders) before any patch is emitted.
-- CLI gains a `forge generate` command group: `hero|faq|cta|section|page --preview` with `--provider --model --project --dry-run --json`.
-- Pipeline Engine gains five reusable steps — Section Generation, Patch Creation, Output Validation, Diff Generation, Patch Packaging.
-- Skills are rewired to call the Prompt Builder instead of embedding prompts; the Homepage Optimization Mission can detect a weak Hero and generate a section-level replacement (preview only).
-- **Out of scope (Sprint 18):** visual review, scheduling, execution/WordPress writes, real provider API keys, publishing.
-
-**Where I disagree, specifically:**
-
-- **Electron.** I'd push back on this one directly (see §11). I don't think you want Electron yet, for reasons below — I think you want a plain local web app, and Electron is a v3/v4 decision, not a v1 one.
-- **Dropping Next.js entirely, immediately.** I agree with _not defaulting to Next.js reflexively_, and I agree the reasoning ("everyone uses it because it's familiar") is a bad reason to pick a framework. But I'd land somewhere more specific than "Electron or Express+React" — see §11 for the actual recommendation and why.
-- **Making Vision the default lens (implicitly suggested by "not HTML, Vision")** — I'd keep HTML/DOM analysis as the fast, cheap, always-on default, and Vision as an escalation the Orchestrator invokes when a mission is visual in nature (homepage conversion, UX, trust signals) or when HTML analysis alone can't explain something (e.g., DOM says heading hierarchy is fine, but is it _visually_ clear which is the primary CTA?).
-
-Everything below reflects the agreed changes.
+Forge is a layered, deterministic-first platform for autonomous website optimization. Every layer has a single responsibility and enforced boundaries.
 
 ---
 
-## Sprint 18 Update: Review Engine
+## 1. Architecture Stack
 
-Forge's review/approval layer — the gate between Content Generation and Execution. Nothing reaches WordPress until it has passed through Review.
-
-- New package: `packages/review-engine` (`@forge/review-engine`, v0.18.0).
-- **Deterministic and provider-independent.** The Review Engine contains **no LLM calls** and **must never import** `ai-engine`, `skills`, or `prompt-registry`. AI never makes approval decisions and never overrides the reviewer.
-- **One-way dependency:** `review-engine → content-generation` (types only), `action-engine`, `homepage-engine`, `preflight-validator`, `memory-engine`, `knowledge-engine`, `core`. Generation/understanding remain the source of truth; Review sits above them and never feeds back into them.
-- The review workflow:
-
-```text
-ContentPatch (from Content Generation)
-  ↓
-ReviewSession (one item per patch)
-  ↓
-compareContent() — pure deterministic diff (word/sentence/entity/keyword/heading deltas, readability + SEO delta)
-  ↓
-Approval Policies (Strict | Balanced | Automatic | Enterprise)
-  ↓
-Reviewer Decision (approve | reject | edit | comment)
-  ↓
-Metrics + Report (Markdown | JSON | HTML)
-  ↓
-Execution Plan (built from approved patches)
-  ↓
-Execution Engine (dry-run OR real — provider decides)
-  ↓
-Provider (WordPress write)
 ```
-
-- A `ReviewSession` aggregates `ReviewItem`s (one per `ContentPatch`), each carrying the deterministic comparison, policy evaluation, and reviewer state.
-- `compareContent()` is a pure function — no network, no randomness, no AI. It produces structured deltas used by both the UI/report and the metrics layer.
-- Approval policies are deterministic rule sets (confidence thresholds, severity gates, keyword-stuffing guards, high-risk change detection). The Automatic policy auto-approves only low-risk, high-confidence, policy-passing patches; everything else requires a human reviewer.
-- Memory events (`review-created`, `review-approved`, `review-rejected`, `review-commented`, `review-completed`) are recorded per session. Per-project knowledge tracks average approval rate, preferred review style, common rejected patterns, and frequently edited sections.
-- Sessions persist under `projects/<project>/reviews/{active,completed}/<sessionId>.json` with a lightweight `index.json` for fast listing.
-- Pipeline Engine gains seven reusable steps — review-create, review-filter, review-sort, review-approve, review-export, review-summary, review-metrics.
-- Homepage Optimization (`forge homepage optimize`) now stops at a Review Session: Analyze → Generate patches → Create Review Session → Stop. Execution begins only after the reviewer applies the session.
-- **Out of scope (Sprint 19+):** visual review UI, scheduling, background workers, publishing, WordPress writes, real AI approval.
+┌────────────────────────────────────────────────────────────┐
+│                       MISSION                              │
+│  Goal definition, step sequencing, artifact tracking       │
+├────────────────────────────────────────────────────────────┤
+│                        AGENT                               │
+│  Domain-specific decision-making (SEO, Content,            │
+│  ClickHouse, Schema, Accessibility, Performance, Learning)│
+├────────────────────────────────────────────────────────────┤
+│                      STRATEGY                              │
+│  Pipeline selection, risk assessment, rollback plan        │
+├────────────────────────────────────────────────────────────┤
+│                      PIPELINE                              │
+│  Step sequencing, dependency resolution, execution order   │
+├────────────────────┬───────────────────────────────────────┤
+│ CONTENT INTELLIGENCE│     CONTENT GENERATION / AI ENGINE    │
+│ (deterministic,     │     (section-patch only, AI)         │
+│  no AI)             │                                       │
+├────────────────────┴───────────────────────────────────────┤
+│                      DOM ENGINE                            │
+│  HTML mapping, selector anchors, patch preview             │
+├────────────────────────────────────────────────────────────┤
+│                       REVIEW                               │
+│  Deterministic approval policies, metrics, diffs           │
+├────────────────────────────────────────────────────────────┤
+│                  OPTIMIZATION COMPOSER                      │
+│  Deduplication, bundle creation, conflict detection        │
+│  Priority ordering, rollback groups                        │
+├────────────────────────────────────────────────────────────┤
+│                  PREFLIGHT VALIDATION                       │
+│  Plan safety checks before execution                       │
+├────────────────────────────────────────────────────────────┤
+│                  EXECUTION ENGINE                           │
+│  Apply-approved actions only. Never generates content.     │
+├────────────────────────────────────────────────────────────┤
+│                    PROVIDER                                 │
+│  WordPress REST API (read/write/rollback/preview)          │
+└────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Sprint 19 Update: Production AI Providers + Optimization Composer
+## 2. Layer Responsibilities
 
-Forge now replaces all mock AI providers with production-ready implementations and introduces the Optimization Composer layer between Review and Execution.
+### 2.1 Mission
 
-## Sprint 19.5 Update: AI Reliability Hardening
+| Aspect | Detail |
+|---|---|
+| **Purpose** | Define high-level goals and decompose them into steps |
+| **Inputs** | Project context, available agents, skills, pipelines |
+| **Outputs** | MissionPlan with sequenced steps (agent → strategy → pipelines) |
+| **Determines** | What needs to happen and in what order |
+| **Never generates** | Content, strategies, or execution plans |
+| **Ownership** | `@forge/mission-engine` |
 
-Sprint 19.5 adds no new user-facing features. It strengthens the AI infrastructure before Sprint 20 begins.
+**Built-in missions:**
 
-### Corrected Architecture Flow
+1. **Website Audit** — SEO audit of entire site.
+2. **Weekly Optimization** — Content intelligence → agent review → generation → review → compose → execute.
+3. **Homepage Optimization** — Detect → Intelligence → Generate → DOM → Review → Compose → Provide → Execute.
 
-The full orchestration chain after Sprint 19.5 is:
+### 2.2 Agent
 
-```text
-Mission
-  ↓
-Agent
-  ↓
-Strategy
-  ↓
-Pipeline
-  ↓
-Skill
-  ↓
-Content Generation
-  ↓
-Review
-  ↓
-Optimization Composer
-  ↓
-Action Engine
-  ↓
-Preflight Validator
-  ↓
-Execution Engine
-  ↓
-Provider (WordPress, etc.)
-```
+| Aspect | Detail |
+|---|---|
+| **Purpose** | Role-specific decision-making and context assembly |
+| **Inputs** | AgentContext (project profile, knowledge, memory, findings, pipeline) |
+| **Outputs** | AgentExecutionResult (strategy, decisions, metadata) |
+| **May not** | Execute pipelines directly, write to WordPress, approve changes |
+| **Ownership** | `@forge/agent-engine` |
 
-### Composer Responsibilities (Clarified Boundary)
+**Registered agents:**
 
-The Optimization Composer owns:
+| Agent | Purpose | Supported Pipelines | Supported Skills |
+|---|---|---|---|
+| SEOAgent | SEO optimizations | analyze, recommend | generateSeoTitle, generateMetaDescription, generateAltText, generateOpenGraph, generateTwitterCard |
+| ContentAgent | Content strategy & generation | read, recommend | expandThinContent, rewriteHeading, generateSection, generateHero, generateFaq, generateBlog |
+| LinkingAgent | Internal linking strategy | read | generateInternalLinks |
+| SchemaAgent | Rich schema management | read | generateFaqSchema |
+| AccessibilityAgent | A11y improvements | analyze | — |
+| PerformanceAgent | Performance monitoring | analyze | — |
+| LearningAgent | Self-improvement, pattern mining | — | — |
 
-- Deduplicate patches
-- Merge compatible patches
-- Detect conflicts (same-section/same-selector)
-- Create dependency graph (explicit first, inference second)
-- Create optimization bundles
-- Prioritize execution (critical → high → medium → low)
-- Estimate SEO/UX/content quality impact
-- Estimate risk
-- Estimate rollback complexity
-- Determine execution order (topological sort + priority)
-- Produce rollback group references (not the implementation)
-- Generate execution-ready plans
+### 2.3 Strategy
 
-### Execution Responsibilities (Clarified Boundary)
+| Aspect | Detail |
+|---|---|
+| **Purpose** | Translate goals into prioritized pipeline selections |
+| **Inputs** | StrategyContext (project, agents, pipelines, skills, providers) |
+| **Outputs** | Strategy (goals, priorities, pipeline selections, risk level) |
+| **Determines** | Execution ordering, approval integration, pipeline mapping, rollback planning |
+| **Ownership** | `@forge/strategy-engine` |
 
-The Execution Engine owns:
+### 2.4 Pipeline
 
-- Execute approved actions
-- Rollback (owns RollbackGroup, RollbackOperation, RollbackResult)
-- Execution history
-- Provider calls (WordPress write, etc.)
+| Aspect | Detail |
+|---|---|
+| **Purpose** | Execute steps in dependency-ordered sequence |
+| **Inputs** | Pipeline definition + runtime context |
+| **Outputs** | PipelineResult (status, duration, step outputs) |
+| **Determines** | Step ordering, retry, skip logic |
+| **Ownership** | `@forge/pipeline-engine` |
 
-### Dependency Graph: Explicit First, Inference Second
+**Built-in pipelines:**
 
-- Generators declare explicit dependencies: `dependsOn: ["hero"]`
-- Composer can optionally infer additional relationships from section structure
-- Rule: explicit is source of truth. Never infer if explicit already exists.
-- Rule: never create circular dependencies.
-- Example: if FAQ changes, explicit `faq-schema → faq`. If Hero changes, inferred `cta → hero` (no override needed).
+| Pipeline ID | Name | Step Sequence |
+|---|---|---|
+| `read` | Website Read | website-reader |
+| `analyze` | Website Analyze | website-reader → website-reader → homepage-analysis |
+| `recommend` | Recommend | website-reader → homepage-analysis → recommendation-engine |
+| `plan` | Plan | website-reader → homepage-analysis → recommendation-engine → action-engine |
+| `validate` | Validate | (analysis → action-engine) → preflight-validator |
+| `execute` | Execute | (analysis → action-engine) → execute |
 
-### Bundle Naming
+### 2.5 Content Intelligence
 
-- Auto-generated names: "Weekly Homepage Optimization", "FAQ Expansion Bundle"
-- Human-readable names supported: `forge optimize bundle create --name "Black Friday Homepage Update"`
-- Internal ID format: `optimization_2026_07_23_001`
-- Bundle metadata: `id`, `name`, `goalId`, `patches`, `createdAt`
+| Aspect | Detail |
+|---|---|
+| **Purpose** | Analyze and classify content 100% deterministically |
+| **Inputs** | `WebsiteSnapshot` (re-parsed HTML) |
+| **Outputs** | PageDNA, ContentGraph, Sections, Entities, Topics, QualityScores, ContentGaps |
+| **Deterministic** | Yes — no AI, no network calls, no prompt registry |
+| **May import** | `core`, `shared`, `tools`, `logger` |
+| **Must never import** | `ai-engine`, `prompt-registry`, `skills`, `providers-wordpress`, `must-execute`, `content-generation` |
+| **Ownership** | `content-intelligence` |
 
-### Provider Capability Matrix
+**API surface:**
 
-Expanded from simple boolean flags to a complete matrix per provider:
+- `buildPageDNA(snapshot, $)` → PageDNA (pageType, intent, audience, entities, topics)
+- `buildContentGraph(snapshot, $)` → ContentGraph (nodes by type)
+- `detectSections(snapshot, $)` → Sections (present / missing)
+- `extractEntities(snapshot, $)` → Entity[]
+- `extractTopics(snapshot)` → Topic[]
+- `detectGaps(snapshot, $)` → ContentGap[]
+- `scoreQuality(snapshot, $)` → QualityScore (overall, readability, depth, freshness, entity density)
 
-```ts
-interface ProviderCapabilityMatrix {
-  chat: boolean;
-  json: boolean;
-  streaming: boolean;
-  vision: boolean;
-  functionCalling: boolean;
-  maxContext: number;
-  supportsTemperature: boolean;
-  supportsTopP: boolean;
-  supportsReasoning: boolean;
-  supportsImageInput: boolean;
-  supportsImageOutput: boolean;
-  supportsToolCalling: boolean;
-}
-```
+### 2.6 Content Generation
 
-A `CapabilityValidator` rejects AI requests before they reach a provider if the provider doesn't support the required capability.
+| Aspect | Detail |
+|---|---|
+| **Purpose** | Generate section-patch improvements using AI |
+| **Inputs** | PageDNA, sections, project context, brand profile, AI engine |
+| **Outputs** | ContentPatch[] with validation |
+| **Must only generate** | Section patches (individual content blocks) |
+| **Never publishes** | ✅ |
+| **Never knows WordPress** | ✅ |
+| **Never modifies HTML directly** | ✅ |
+| **Never writes whole pages** | ✅ |
+| **May import** | `core`, `shared`, `ai-engine`, `prompt-registry`, `tools`, `logger` |
+| **Must never import** | `providers-wordpress`, `execution-engine`, `homepage-engine` |
+| **Ownership** | `@forge/content-generation` |
 
-### Token Budget Manager (New Package: `@forge/token-manager`)
+**Section writers available (Sprint 20):**
 
-Every AI request goes through TokenManager:
+| Writer | Section |
+|---|---|
+| `writeHero` | Hero (headline, subheadline, 2 CTAs) |
+| `writeBenefits` | Benefits (3-5 benefit Cards) |
+| `writeFeatures` | Features (3-6 feature Cards) |
+| `writeServices` | Services (3-4 service descriptions) |
+| `writeProducts` | Products (3-4 product Cards) |
+| `writeAbout` | About (company narrative) |
+| `writeFaq` | FAQ (5-8 Q&A pairs) |
+| `writeTestimonials` | Testimonials (3-4 quotes) |
+| `writeCta` | CTA (1-3 calls to action) |
+| `writeBuyingGuide` | Buying guide (step-by-step) |
+| `writeComparison` | Comparison (2--tier feature matrix) |
+| `writeProduct` | Product (single product detail) |
+| `writeIntroduction` | Introduction (page open) |
+| `writeConclusion` | Conclusion (page close) |
+| `writeContact` | Contact (form + info) |
+| `writeBlog` | Blog (complete post) |
 
-- Estimate prompt tokens
-- Estimate completion tokens
-- Prevent context overflow
-- Automatically trim history
-- Reserve response tokens
+### 2.7 DOM Engine
 
-No provider calculates token budgets itself.
+| Aspect | Detail |
+|---|---|
+| **Purpose** | Map HTML to structured DOM with stable selectors; validate patches |
+| **Inputs** | HTML, ContentPatch |
+| **Outputs** | DomMap, PatchValidation, PatchPreview |
+| **Ownership** | `@forge/dom-engine` |
+| **CLI commands** | `forge dom map`, `forge dom preview`, `forge dom patch`, `forge dom validate`, `forge dom inspect` |
 
-### Prompt Cache
+### 2.8 Review
 
-In-memory LRU cache:
+| Aspect | Detail |
+|---|---|
+| **Purpose** | Deterministic review and approval of generated patches |
+| **Inputs** | ContentPatch[], ReviewPolicy |
+| **Outputs** | ReviewSession, decisions, metrics, reports |
+| **Deterministic** | ✅ — no AI in review; AI never approves |
+| **Ownership** | `@forge/review-engine` |
 
-- Key: `SHA256(promptVersion + provider + model + sortedVariables + knowledgeVersion + memoryVersion)`
-- Value: Cached AIResponse (with `cached: true` flag)
-- Configurable TTL
-- Skip for streaming requests
-- Cleared when prompt definitions change
+**Review policies:**
+- `strict` — all changes require explicit approval
+- `balanced` — safe changes auto-approve, medium/high require human
+- `automatic` — safe + medium auto-approve
+- `enterprise` — multi-step permission with security checks
 
-### Better Prompt Rendering
+**Review session methods:**
+- `createReviewSession` — initialize session
+- `decideItem` — APPROVE / REJECT / EDIT
+- `generateReport` — md / json / html export
+- `computeMetrics` — approval rate, rejection rate, avg confidence, high-risk change count
+- `saveReviewSession` / `loadReviewSession` — persistence
 
-Renderer upgraded from `{{variable}}` to:
+### 2.9 Optimization Composer
 
-- Loops: `{{#sections}}{{title}}{{/sections}}`
-- Conditionals: `{{#hasTable}}...{{/hasTable}}`
-- Partials: `{{>partialName}}`
-- Nested objects: `{{section.heading.level}}`
-- Lists: `{{#each items}}{{.}}{{/each}}`
-- Strict validation: error on missing variables, unknown helpers
+| Aspect | Detail |
+|---|---|
+| **Purpose** | Transform reviewed patches into optimized, dependency-aware, prioritized bundles |
+| **Inputs** | ReviewSession, ContentPatch[] |
+| **Outputs** | PatchBundle[], DependencyGraph, ConflictReport, PrePatch |
+| **Never generates content** | ✅ |
+| **Never knows providers** | ✅ |
+| **Must never import** | `content-generation`, `providers-wordpress` |
+| **Ownership** | `@forge/optimization-composer` |
 
-Still deterministic. No template language.
+**Composer steps:**
+1. **Deduplication** — eliminate duplicate patches
+2. **Dependency graph** — build DAG (patch A must run before patch B)
+3. **Conflict detection** — flag patches targeting same selector
+4. **Priority ordering** — critical → high → medium → low
+5. **Rollback groups** — group patches by atomic undo
+6. **Pre-package** — produce `forge compose preview` output
+7. **Batch validation** — validate all bundles (`forge compose validate`)
 
-### AI Request Fingerprints
+### 2.10 Execution Engine
 
-Every request gets `SHA256(promptVersion + provider + model + sortedVariables + knowledgeVersion + memoryVersion + projectVersion)`. Used for: caching, history, replay, regression testing.
+| Aspect | Detail |
+|---|---|
+| **Purpose** | Execute approved, validated actions against providers |
+| **Inputs** | ExecutionPlan, Provider |
+| **Outputs** | ExecutionResult (completedActions, failedActions, skippedActions, rollbackPlan) |
+| **Never generates content** | ✅ |
+| **Never plans** | ✅ |
+| **Never decides** | ✅ |
+| **Never reviews** | ✅ |
+| **Ownership** | `@forge/execution-engine` |
 
-### Structured Provider Errors
+### 2.11 Provider (WordPress)
 
-New error types:
-- `ContextOverflowError` — request exceeds context window
-- `SafetyError` — provider safety filter blocked response
-- `QuotaExceededError` — billing/payment
-- `UnavailableError` — provider temporarily down
-- `ModelNotFoundError` — model removed/renamed
+| Aspect | Detail |
+|---|---|
+| **Purpose** | Read/write/rollback/preview content on WordPress sites |
+| **Inputs** | Provider config + WriteOperation / ReadRequest |
+| **Outputs** | ProviderResult, SiteInfo, Capabilities |
+| **Ownership** | `@forge/providers-wordpress` |
 
-Existing errors: `AuthenticationError`, `RateLimitError`, `TimeoutError`, `RetryExhaustedError`.
+**Read capabilities:** posts, pages, pages, media, categories, tags, settings, siteInfo, capabilities
 
-### AI Session Object
+**Write capabilities:** update, create, preview, rollback
 
-```ts
-interface AISession {
-  sessionId: string;
-  project: string;
-  mission: string;
-  provider: string;
-  model: string;
-  cost: number;
-  requests: AIRequest[];
-  responses: AIResponse[];
-  duration: number;
-  tokenTotals: { prompt: number; completion: number; total: number };
-  status: "active" | "closed";
-}
-```
-
-Every Mission will eventually own one.
-
-### Provider Health Tracking
-
-Per-provider rolling metrics: latency (average), success rate, 429 frequency, timeout count. `ProviderFactory.selectHealthiestProvider()` prefers healthy providers. Health feeds into fallback logic.
-
-### Better Cost Tracking
-
-Granularity: per-provider, per-model, per-mission, per-project, per-day, per-month, per-year, per-section (hero, faq, etc.), per-category (prompt, generation, review, execution).
-
-CLI: `forge ai cost --by day|month|year|section|category`.
-
-### Full AI Flow (Post-Sprint 19.5)
-
-```text
-Mission
-  ↓
-Strategy
-  ↓
-Pipeline
-  ↓
-Skill
-  ↓
-Prompt Registry
-  ↓
-Context Builder
-  ↓
-Token Manager
-  ↓
-Prompt Renderer
-  ↓
-Provider Factory (select by capability + health)
-  ↓
-Capability Validator
-  ↓
-Retry Engine
-  ↓
-Provider
-  ↓
-Prompt Cache
-  ↓
-History
-  ↓
-Cost Tracker
-```
-
-### Out of Scope (Sprint 20+)
-
-Scheduling, dashboard, analytics, cloud sync, database, background workers, publishing, automatic execution.
+**Limitations:** No browser automation, no visual builder integration, no elementor of any visual builder support
 
 ---
 
-## Sprint 21 Update: DOM Mapping & Smart Patch Engine
+## 3. Dependency Graph
 
-Sprint 21 builds the engine that maps Content Intelligence output to the actual HTML/WordPress/Elementor DOM so AI patches can be applied precisely instead of replacing large chunks of content.
-
-### New Package: `@forge/dom-engine`
-
-New package at `packages/dom-engine/` (`@forge/dom-engine`, v0.21.0).
-
-**Core responsibilities:**
-
-1. Read HTML → Locate every section → Locate every block → Attach stable selectors → Attach DOM anchors → Accept ContentPatch → Replace only targeted content → Generate Preview HTML
-2. No provider writes. No visual builder. No browser automation. No publishing. No dashboards.
-
-### DOM Mapping Layer
-
-The DOM Mapper (`buildDOMMap(html)`) produces a `DOMMap` containing sections, blocks, anchors, selectors, and hierarchy.
-
-**Section Mapping:** Every detected PageDNA section maps to a `DOMSection` including id, kind, selector, xpath, CSS selector, element path, parent, and children.
-
-**Block Mapping:** Every heading, paragraph, list, button, image, FAQ item, testimonial, and card becomes a `DOMBlock` with stable IDs.
-
-**Stable Anchors:** Deterministic anchors that never rely only on CSS classes. Supports text anchors, DOM position, sibling anchors, parent anchors, and heading anchors. These allow Forge to relocate sections after layout changes.
-
-### Selector Resolution
-
-`resolveSelector()` uses a priority chain:
-1. CSS selector
-2. XPath
-3. Stable Anchor
-4. Heading Anchor
-5. Text Match
-6. Structural Match
-
-Returns a `ResolvedSelector` with confidence.
-
-### Builder Support
-
-**ElementorBuilder** identifies: containers, sections, columns, widgets (heading, text editor, button, image, icon list, accordion, tabs, testimonials, loop grid, forms). Extracts widget IDs, settings, and structure. No editing — only mapping.
-
-**GutenbergBuilder** supports: paragraph, heading, columns, image, gallery, buttons, cover, quote, list, table, embed.
-
-**Generic HTML Builder** is the fallback when neither Elementor nor Gutenberg is detected.
-
-### Smart Patch Engine
-
-`applyPatch()` accepts a `DOMMap` and `ContentPatch`, returns a `PatchPreview`.
-
-**Patch Operations:** replace text, insert, append, prepend, delete, replace HTML, replace attribute, replace image alt, replace heading, replace button text, replace FAQ answer.
-
-**Patch Validation:** Every patch validates: selector exists, anchor valid, block exists, safe operation, correct type. No invalid DOM.
-
-**Patch Merge:** `mergePatches()` handles duplicate edits, overlapping edits, conflicts, and ordering.
-
-### Preview Engine
-
-Generates preview HTML without touching WordPress. CLI outputs `before.html`, `after.html`, `diff.html`.
-
-### Corrected Architecture Flow
-
-```text
-Mission
-  ↓
-Agent
-  ↓
-Strategy
-  ↓
-Pipeline
-  ↓
-Content Intelligence (PageDNA, ContentGraph)
-  ↓
-Content Generation (ContentBrief → BrandProfile → Voice → Writer → Validate → Score)
-  ↓
-ContentPatch
-  ↓
-DOM Engine (DOMMap → Selector Resolution → Patch Application → Preview)
-  ↓
-Review
-  ↓
-Optimization Composer
-  ↓
-Execution
+```
+core ← shared < shared
+                     ↓
+    tools ← capabilities ← recommendation-engine ← action-engine
+      ↓                        ↓                        ↓
+    config ← plugin-registry ← preflight-validator ← execution-engine
+      ↓                                                         ↓
+    pipeline-engine ← agent-engine ← strategy-engine ← mission-engine
+      ↓                          ↓              ↓
+    homepage-engine          skills ← prompt-registry
+      ↓                          ↓              ↓
+   content-intelligence  content-generation provider-wordpress
+      ↓                          ↓              ↓
+    dom-engine              review-engine  optimization-composer
+      │                          ↓              │
+      └──────────────────────────┴──────────────┘
 ```
 
-### Pipeline Steps
+### Import Rules by Package
 
-Five new steps registered: dom-map, selector-resolve, patch-validate, patch-merge, patch-preview.
-
-### Homepage Integration
-
-Homepage optimization now uses `DOMMap` instead of raw HTML.
-
-### AI Integration
-
-Content Generation now outputs `ContentPatch` → DOM Engine → Preview → Review Engine. No direct HTML rewriting.
-
-### Review Integration
-
-Review Engine displays: Original → Modified → HTML Diff → Selector → Confidence.
-
-### CLI
-
-`forge dom map`, `forge dom preview`, `forge dom patch`, `forge dom validate`, `forge dom inspect`.
-
-### Constraints
-
-- ❌ No visual builder, browser automation, publishing, dashboards
-- ✅ Intelligent DOM mapping and precise patch application
-- ✅ Elementor, Gutenberg, and generic HTML compatibility
-- ✅ Future builder compatibility through format detection
-- ✅ All patches applied to preview HTML only (no WordPress writes)
+| Package | May Import | Must Never Import |
+|---|---|---|
+| `core` | (no Forge packages) | all other packages |
+| `shared` | core | — |
+| `logger` | core | — |
+| `config` | core | — |
+| `tools` | core, shared, logger | — |
+| `capabilities` | core, shared, tools | ai-engine, skills, providers, execution |
+| `plugin-registry` | core, shared | — |
+| `recommendation-engine` | core, shared, tools | ai-engine, execution |
+| `action-engine` | core, shared, recommendation-engine | ai-engine, providers |
+| `pipeline-engine` | core, shared | — |
+| `preflight-validator` | core, shared, action-engine | providers |
+| `execution-engine` | core, shared, action-engine, preflight-validator, providers | content-generation, skills, prompt-registry |
+| `providers-wordpress` | core, shared, config, logger | ai-engine, content-generation, skilled |
+| `project-resolver` | core, shared | — |
+| `knowledge-engine` | core, shared | — |
+| `memory-engine` | core, shared, knowledge-engine | — |
+| `context-builder` | core, shared | — |
+| `content-intelligence` | core, shared, tools, logger | ai-engine, prompt-registry, skills, providers, execution-engine, content-generation |
+| `content-generation` | core, shared, ai-engine, prompt-registry, skills | providers-wordpress, execution-engine, homepage-engine, optimization-composer |
+| `dom-engine` | core, shared, tools, content-intelligence | providers, execution, content-generation |
+| `ai-engine` | core, shared, config,memory, prompt-registry | providers-wordpress, content-intelligence, execution |
+| `skills` | core, shared, ai-engine, prompt-registry | providers-wordpress, execution |
+| `prompt-registry` | core, shared | — |
+| `agent-engine` | core, shared, skills, pipeline-engine, strategy-engine, mission-engine | content-intelligence, content-generation, advanced, execution |
+| `strategy-engine` | core, shared, pipeline-engine | — |
+| `mission-engine` | core, shared, pipeline-engine, agent-engine, strategy-engine | content-generation, providers |
+| `review-engine` | core, shared, action-engine | ai-engine, content-generation, skills |
+| `optimization-composer` | core, shared, content-human intelligence, review-engine | content-generation, providers, execution-engine |
+| `homepage-engine` | core, shared, tools, content-intelligence, content-generation, review-engine, execution-engine | providers (directly; uses via exec) |
 
 ---
 
-## Sprint 20 Update: AI Content Generation Engine
+## 4. Execution Chains
 
-Sprint 20 transforms `@forge/content-generation` from a basic section generator into a production-grade AI writing system with brand awareness, deterministic validation, and quality scoring.
+### 4.1 Mission → Execute
 
-**Architectural correction:** No `ai-writing-engine` package was created. All AI writing capabilities belong inside `@forge/content-generation`, which already owns content generation.
+```mermaid
+sequenceDiagram
+    participant User
+    participant Mission
+    participant Agent
+    participant Strategy
+    participant Pipeline
+    participant CI as Content Intelligence
+    participant CG as Content Generation
+    participant Review
+    participant OC as Optimization Composer
+    participant Preflight
+    participant Exec as Execution Engine
+    participant WP as WordPress Provider
 
-### New Types in `@forge/core`
-
-- `BrandProfile` — deterministic brand identity model (no AI). Contains: id, projectId, companyName, industry, subIndustry, companyType, products, services, categories, primaryTopics, secondaryTopics, entities, competitors, locations, targetCountries, languages, audiences, buyerPersonas, customerJourney, goals, conversionGoals, uniqueSellingPoints, trustSignals, writingStyle, tone, readingLevel, forbiddenWords, preferredVocabulary, ctaStyle.
-
-### Content Generation Expansion
-
-New modules inside `packages/content-generation/src/`:
-
-- **`brief/`** — `ContentBriefBuilder`: deterministic brief construction from PageDNA + BrandProfile + KnowledgeGraph + MemoryStore. Produces `ContentBrief` (primaryKeyword, secondaryKeywords, searchIntent, audience, tone, readingLevel, wordCountTarget, competitors, pageGoal, userQuestions, requiredEntities, internalLinks, ctaGoal).
-- **`brand/`** — `VoiceProfile` detector: deterministic voice classification (Professional, Friendly, Luxury, Technical, Medical, Legal, Playful, Corporate, Educational, Conversational, Minimalist, Authoritative). Tracks sentence length, paragraph length, passive voice %, reading grade, CTA frequency, question frequency, heading style, pronoun usage, formatting habits.
-- **`prompts/`** — `PromptComposer`: registry-backed prompt composition. Integrates with `@forge/prompt-registry`. No hardcoded prompts. Resolves variables from BrandProfile, ContentBrief, PageDNA, project context.
-- **`writers/`** — 15 specialized section writers (hero, benefits, features, services, products, about, FAQ, buying guide, comparison, testimonials, CTA, contact, introduction, conclusion, blog) plus `BaseSectionWriter` base class. Each writer: prepares section-specific ContentBrief → composes prompt → calls AI Engine → validates → scores → creates ContentPatch.
-- **`validator/`** — Deterministic validators (no LLM calls). SEO validator (keyword coverage, heading quality), quality validator (duplicates, placeholders), EEAT validator (author signals, trust signals), readability validator (Flesch-Kincaid, sentence/paragraph length), compliance validator (brand tone match, prohibited words).
-- **`scoring/`** — Quality scorer producing: seoScore, eeatScore, readabilityScore, naturalnessScore, brandVoiceScore, overallScore. All derived from validation, not AI.
-
-### Corrected Architecture Flow
-
-```text
-Mission
-  ↓
-Agent
-  ↓
-Strategy
-  ↓
-Pipeline
-  ↓
-Content Intelligence (PageDNA, ContentGraph)
-  ↓
-Content Generation (ContentBrief → BrandProfile → Voice → Writer → Validate → Score)
-  ↓
-ContentPatch
-  ↓
-Review
-  ↓
-Optimization Composer
-  ↓
-Execution
+    User->>Mission: forge mission run <id> <project>
+    Mission->>Agent: select & initialize
+    Agent->>Strategy: build context → generate
+    Strategy->>Pipeline: selected pipeline list
+    Pipeline->>CI: analyze (deterministic)
+    CI->>CG: provide PageDNA + sections
+    CG->>Review: review patches
+    Review->>OC: approved patches → bundles
+    OC->>Preflight: bundle validation
+    Preflight->>Exec: validated bundles
+    Exec->>WP: apply to every item
 ```
 
-### Pipeline Steps
+### 4.2 Review Flow
 
-Eight new steps registered: content-brief, brand-profile, voice-profile, writer-select, prompt-compose, ai-write, content-validate, content-score.
+```mermaid
+sequenceDiagram
+    participant CG as Content Gen
+    participant Review
+    participant Policy
+    participant Exporter
+    participant Exec
 
-### Homepage Engine
-
-Homepage optimization now flows: PageDNA → BrandProfile → ContentBrief → Writer → Validation → Scoring → ContentPatch → Review.
-
-### CLI
-
-`forge write {hero,faq,blog,section,preview,validate,score}` with `--project`, `--provider`, `--model`, `--json`, `--preview`, `--dry-run`.
-
-### Constraints
-
-- ❌ No automatic publishing, WordPress execution, scheduling, background jobs, dashboards, analytics, cloud sync, database, autonomous execution
-- ✅ All content becomes ContentPatch → Review → Compose → Execute
-- ✅ Provider-agnostic through `@forge/ai-engine`
-- ✅ BrandProfile in `@forge/core` (reused across packages)
-- ✅ Content Generation owns AI writing (no duplicate package)
-
-### Production AI Providers
-
-- Five production providers implemented: OpenAI, Anthropic, Google Gemini, OpenRouter, Ollama.
-- Each provider implements the common `AIProvider` interface with `generate()`, `stream()`, and `health()` methods.
-- Provider configuration loads through `@forge/config` via environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `DEFAULT_PROVIDER`, `DEFAULT_MODEL`, `TEMPERATURE`, `MAX_TOKENS`, `TIMEOUT`, `MAX_RETRIES`, `RETRY_DELAY`). No hardcoded values.
-- `ProviderFactory` creates providers from configuration. No package instantiates providers directly.
-- Each provider declares capabilities: `supportsStreaming`, `supportsSystemPrompts`, `supportsJSON`, `supportsVision`, `supportsReasoning`, `supportsFunctionCalling`, `supportsLargeContext`, `maxContextTokens`, `maxOutputTokens`, `costTier`, `speedTier`.
-- `AIRequest` model: `prompt`, `systemPrompt`, `context`, `temperature`, `maxTokens`, `expectedFormat`, `metadata`, `projectId`, `sessionId`, `traceId`.
-- `AIResponse` model: `content`, `provider`, `model`, `usage`, `finishReason`, `latency`, `costEstimate`, `warnings`, `rawResponseMetadata`.
-
-### Retry Engine
-
-- Deterministic retry logic with exponential backoff.
-- Retry only for: 429 (Rate Limit), 503 (Service Unavailable), timeouts, connection failures.
-- Never retry validation failures (400, 401, 403, 404, 422).
-- Configurable: `maxRetries` (default 3), `baseDelay` (default 1000ms), `maxDelay` (default 30000ms).
-- Deterministic jitter using seeded random.
-
-### Rate Limiting
-
-- In-memory token bucket algorithm per provider.
-- Tracks: requests/minute, tokens/minute, concurrent requests.
-- Sliding window for rate calculation.
-- No external Redis — in-memory only.
-
-### Provider Logging
-
-- Every AI request is logged with: provider, model, tokens, latency, cost estimate, errors, retry count, timestamp.
-- Never stores API keys, raw prompts, or raw responses.
-- Output: structured JSON lines to `logs/ai-requests.log`.
-
-### Prompt History
-
-- Prompt executions persisted under `projects/<project>/prompts/`.
-- Each execution stores: prompt version, provider, model, rendered variables, token usage, latency, result checksum (SHA-256).
-
-### Cost Tracking
-
-- Estimated costs tracked per: provider, project, mission, month.
-- Per-provider pricing table (input/output tokens per 1K).
-- Stored locally in `projects/<project>/costs/`.
-
-### Prompt Registry Expansion
-
-- Each prompt supports: versions, provider overrides, variables, schema validation, compatibility, required capabilities, recommended models.
-- New methods: `validateVariables()`, `getCompatibleProviders()`, `getRecommendedModel()`, `checkCompatibility()`.
-
-### Prompt Rendering Upgrade
-
-- New `PromptRenderer` supports: conditionals (`{{#if}}`), loops (`{{#each}}`), partials (`{{>}}`), escaping (`{{escape}}`), strict validation, missing variable detection.
-
-### Context Builder Expansion
-
-- Expanded `AIContext` includes: Project Profile, Knowledge Graph, Memory Timeline, Mission, Strategy, Page DNA, Section, Brand Profile, Competitor Snapshot, Review Summary, Previous approved patches.
-
-### Fallback Logic
-
-- Provider fallback chain: OpenAI → Anthropic → Gemini → OpenRouter → Ollama.
-- Fallback only when compatible (capability check).
-- `ProviderFallbackError` when all providers fail.
-
-### CLI Commands
-
-- `forge ai providers` — List configured providers with capabilities.
-- `forge ai models` — List available models for a provider.
-- `forge ai test` — Test a provider connection.
-- `forge ai benchmark` — Benchmark provider performance.
-- `forge ai cost` — Show cost tracking report.
-- `forge ai prompt` — Prompt registry management.
-- `forge ai logs` — View AI request logs.
-- `forge ai history` — View prompt execution history.
-
-### Pipeline Integration
-
-- New pipeline steps: ai-request, ai-response, prompt-render, provider-select, provider-fallback, cost-record, history-record.
-
-### Homepage and Content Generation
-
-- Homepage generation now uses real providers through `ProviderFactory`.
-- Section generators use production providers.
-- No interface changes — consumers remain unchanged.
-- Still produces `ContentPatch` → `Review` flow. Never publishes automatically.
-
-### Optimization Composer
-
-The Composer sits between Review and Execution, transforming flat patch lists into structured, dependency-aware, prioritized bundles.
-
-- **PatchGraph** — DAG of patch dependencies (e.g., Hero → CTA → FAQ → Schema). Execution Engine executes the graph, never random patches.
-- **Conflict Detection** — detects when multiple patches touch the same selector. Forge immediately reports: "Conflict detected. Section: Hero. Patches: Patch 21, Patch 43. Resolution required."
-- **Patch Bundles** — groups patches into logical bundles (Homepage Optimization, Blog Improvements, etc.) instead of showing 37 individual patches.
-- **Optimization Goals** — every bundle knows WHY it exists (Increase conversions, Improve Local SEO, Improve topical authority). Every patch belongs to a goal.
-- **Rollback Groups** — rollback entire bundles as one transaction, not individual patches.
-- **Optimization Preview** — deterministic preview with estimated SEO impact, UX impact, content quality, affected sections, expected ranking improvement. No AI needed.
-- **Batch Validation** — validates patches together (title + canonical + schema), not separately.
-- **Patch Priorities** — every patch gets Critical, High, Medium, or Low. Composer executes Critical → High → Medium → Low.
-
-The new flow is:
-
-```text
-Generate
-  ↓
-Review
-  ↓
-Compose (PatchGraph → Conflict Detection → Bundles → Goals → Priorities → Preview)
-  ↓
-Validate (Batch Validation)
-  ↓
-Execute (Priority order, Rollback Groups)
+    CG->>Review: patches
+    Review->>Policy: evaluate
+    Policy->>Review: decision (APPROVE/REJECT/EDIT)
+    Review->>Exporter: generate report (md/json/html)
+    Review->>Review: compute metrics (approval rate, confidence)
+    Review->>Exec: on detection pass, hand to Execution Engine
 ```
 
-Review never leads to immediate execution. The flow always goes through Compose → Validate → Execute.
+### 4.3 Provider Flow
 
-### New Package: `@forge/optimization-composer`
+```mermaid
+sequenceDiagram
+    participant CLI
+    participant Exec as Execution Engine
+    participant WP as WordPress Provider
+    participant API as WP REST API
 
-- `types.ts` — Core types: `PatchPriority`, `OptimizationGoal`, `PatchBundle`, `PatchGraphNode`, `PatchGraph`, `PatchConflict`, `OptimizationPreview`, `BundlePreview`.
-- `graph.ts` — PatchGraph builder: DAG construction, cycle detection, topological sort.
-- `conflict.ts` — Conflict detection: selector-level grouping, resolution strategies.
-- `bundler.ts` — Patch bundler: groups patches into logical bundles.
-- `goals.ts` — Optimization goals: assignment, matching criteria.
-- `preview.ts` — Optimization preview: deterministic impact estimation.
-- `priorities.ts` — Priority assignment: critical/high/medium/low based on patch type and section.
-- `composer.ts` — Main orchestrator: detectConflicts → createBundles → assignGoals → buildGraph → assignPriorities → generatePreview.
-
-### Out of Scope (Sprint 20+)
-
-Scheduling, dashboard, analytics, cloud sync, database, background workers, publishing, automatic execution.
+    CLI->>Exec: forge execution apply (approved plan)
+    Exec->>WP: applyWrite(write operation)
+    WP->>API: REST request (POST/PUT)
+    API->>WP: response
+    WP->>Exec: WriteResult
+    Exec->>CLI: ExecutionResult
+```
 
 ---
 
-## 1. Product Framing
+## 5. Sprint History
 
-**Product name:** Forge
-**v1 edition scope:** Forge for WordPress (the engine is general-purpose from day one; v1's _installed capabilities_ are WordPress + SEO + accessibility + basic UX, not the whole vision — same discipline as before, just renamed)
-
-**Core interaction model:**
-
-```
-User: "Improve buycleancart.com"
-
-Forge does NOT ask "SEO or accessibility or performance?"
-
-Forge:
-  1. Loads Universal Website Model + full memory hierarchy for the site
-  2. Orchestrator Core reasons about what's actually wrong/opportunity-rich
-  3. Builds a Mission Plan (which Skills, in what order, why)
-  4. Executes Skills through the verification loop
-  5. Presents a prioritized, explained, evidence-backed set of proposed changes
-  6. User approves selectively
-  7. Forge applies only approved changes
-```
-
-SEO becomes one entry in a Skill registry, not the organizing principle of the whole system.
+| Sprint | Summary |
+|---|---|
+| 1 | Project scaffold, logging, baseline standards |
+| 7 | Preflight validation, execute (dry-run) |
+| 8 | Homepage engine, analysis → plan pipeline |
+| 9 | Plugin system, playwright, knowledge, connection |
+| 10 | Installation, play provisioning |
+| 11 | CLI developer tools, test, benchmark |
+| 12 | QA round, generator, test consolidation |
+| 13 | Vision v0.6, dimension expansion |
+| 14–15 | Agent Framework, Golden acquisition |
+| 16 | Content Intelligence (deterministic core) |
+| 17 | Content Generation (section-patch only) |
+| 18 | Review Engine (deterministic, AI-never-accepts) |
+| 19 | AI Engine (provider factory, rate limiter, retry, cost tracker) |
+| 20 | Writers (22 section writers, brand profile, voice detection) |
+| 21 | Mission Engine, Strategy Engine, Optimization Composer |
+| 22A | Architecture consolidation — documentation sync |
 
 ---
 
-## 2. Core Conceptual Shift: Orchestrator + Skills (not Agents)
-
-Replacing 13 named Agents with:
-
-- **One Orchestrator Core** — plans missions, sequences Skills, owns the verification loop, owns memory read/write coordination. This is application-layer, not a "personality."
-- **A Skill Registry** — many small, composable, mostly-stateless capability units. A Skill is closer to a well-defined function-with-a-brain than an autonomous character.
-
-```ts
-interface Skill<TInput, TOutput> {
-  readonly id: string; // "seo.metadata", "a11y.contrast", "ux.cta-clarity"
-  readonly category: SkillCategory; // seo | accessibility | performance | ux | content | technical | vision
-  readonly requires: SkillRequirement[]; // e.g. ["dom", "vision"?, "wordpress.read"]
-  readonly version: string;
-  run(input: TInput, ctx: SkillContext): Promise<SkillResult<TOutput>>;
-}
-```
-
-This is almost entirely a rename + slight interface simplification from the previous `IAgent` — **the orchestration mechanics (job queue, event bus, DAG execution) are unchanged**, which is exactly why this pivot is cheap to make now and would have been expensive to make after building out 13 agent packages.
-
-Naming migration from the old design:
-`Homepage Agent → homepage.audit skill (composed of several smaller skills)`, `Technical SEO Agent → seo.technical.* skills`, `Accessibility Agent → a11y.* skills`, `WordPress Agent → becomes the wordpress plugin's capability surface, not a "skill" per se — it's how skills reach the CMS`.
-
----
-
-## 3. Universal Website Model (UWM) — the architectural core
-
-This is the idea that actually makes "Website Intelligence OS" real instead of marketing. Every CMS adapter's job is to produce this one canonical structure; every Skill's job is to consume it. No Skill should ever contain WordPress-specific or Shopify-specific logic — that logic lives entirely in the adapter that builds the UWM.
-
-```ts
-interface WebsiteModel {
-  siteId: string;
-  pages: PageModel[];
-  globalNav: NavModel;
-  sitemap: SitemapModel;
-  robots: RobotsModel;
-}
-
-interface PageModel {
-  url: string;
-  cmsRef: { type: "wordpress" | "shopify" | "webflow" | "html" | "ghost" | "drupal"; id: string };
-  sections: SectionModel[]; // hero, content-block, product-grid, footer, ...
-  headings: HeadingModel[];
-  media: MediaModel[];
-  links: LinkModel[]; // internal/external, anchor text, position
-  forms: FormModel[];
-  scripts: ScriptRef[];
-  metadata: MetadataModel; // title, description, canonical, robots meta
-  schema: SchemaOrgBlock[];
-  screenshot?: ScreenshotRef; // populated only when a Vision-capable skill requests it
-  raw: { html: string; renderedDom?: string }; // renderedDom via Playwright when JS-heavy
-}
-
-interface SectionModel {
-  type:
-    | "hero"
-    | "cta"
-    | "content"
-    | "product-grid"
-    | "testimonial"
-    | "form"
-    | "footer"
-    | "nav"
-    | "unknown";
-  boundingBox?: BoundingBox; // present when vision analysis has run
-  components: ComponentModel[];
-}
-```
-
-- **CMS adapters** (`plugins/wordpress`, `plugins/shopify`, etc.) are the _only_ place that knows CMS-specific APIs/data shapes. Their entire job: read from the CMS → produce a `WebsiteModel`/`PageModel`; and the reverse — take a proposed `PageModel` diff → translate into a CMS-specific draft update.
-- **Every Skill operates purely against `WebsiteModel`/`PageModel`.** This is what lets a Skill written once ("weak-cta-visibility") work identically on a WordPress site and a Shopify site — it was the whole point of your idea, and it's now enforced structurally, not just aspirationally: Skills literally cannot import a CMS client, only the domain model.
-- **Section classification** (hero/cta/product-grid/etc.) is itself a Skill (`structure.section-classifier`) that runs early in most missions and populates `sections` — other Skills depend on its output rather than re-parsing raw HTML each time. This becomes a genuinely reusable, cacheable intermediate layer.
-
----
-
-## 4. Skill Execution Loop
-
-Every Skill run goes through this pipeline (not every phase is heavy for every Skill — a simple deterministic check like "canonical tag present?" skips straight to Execution/Verification with no real "Thinking" phase; the pipeline shape is uniform, the depth per phase is Skill-dependent):
-
-```
-Plan        — Orchestrator decides this Skill is needed, with what scope/params
-Research    — Skill pulls what it needs: UWM data, memory (episodic + semantic),
-              competitor data if relevant, external tool calls (Lighthouse, GSC...)
-Thinking    — LLM reasoning step (only for judgment-based skills): draft findings/
-              recommendations, using AI provider
-Execution   — Produce concrete output: a Finding, a Draft change, a Score
-Verification— Re-read own output against the source. For content-generating skills:
-              re-run a critique pass ("does this draft actually satisfy the goal,
-              is it accurate, does it introduce new issues?")
-Reflection  — Compare against confidence threshold; low confidence → flag for
-              extra human review rather than presenting as a firm recommendation
-Memory      — Write outcome to the memory hierarchy (episodic always; semantic
-              embedding for anything likely to be recalled by similarity later)
-```
-
-```ts
-interface SkillResult<T> {
-  findings: Finding[];
-  output: T;
-  confidence: number; // 0–1, drives Reflection phase
-  verificationNotes?: string; // what the self-check looked at and concluded
-  status: "success" | "needs-review" | "failed";
-  durationMs: number;
-  tokensUsed?: number;
-}
-```
-
-The **Verification phase is where local-model weakness gets partially compensated** — a second, cheaper LLM call whose only job is "does this claim/draft hold up against the evidence?" catches a meaningful fraction of hallucinated or unsupported findings before they ever reach the user, regardless of provider quality.
-
----
-
-## 5. Memory Hierarchy
-
-Extends the previous episodic/semantic split into explicit scopes, all still backed by the same two physical stores (SQLite for exact records, LanceDB for embeddings) — this is a taxonomy change, not a new subsystem:
-
-```
-Website Memory     — top-level facts about the site (industry, brand tone, goals)
-  └─ Page Memory    — per-page history: edits, scores over time, notes
-Brand Memory       — voice, tone, terminology preferences, things to never say
-Project Memory     — the current Mission's working context (multi-step state)
-Conversation Memory— this chat session's context (short-lived, not persisted long-term)
-Learning Memory     — what recommendations were accepted/rejected, and *why* if the
-                       user gave a reason — this is the highest-value memory type
-Execution Memory    — exact record of what changes were actually applied, when,
-                       by what Mission, so future Missions know "already done"
-```
-
-```ts
-interface MemoryService {
-  recordEpisode(scope: MemoryScope, entry: MemoryEpisode): Promise<void>;
-  recall(scope: MemoryScope, filter: EpisodeFilter): Promise<MemoryEpisode[]>;
-  recallSimilar(scope: MemoryScope, query: string, k: number): Promise<MemoryEpisode[]>;
-}
-
-type MemoryScope =
-  | { level: "website"; websiteId: string }
-  | { level: "page"; websiteId: string; pageUrl: string }
-  | { level: "brand"; websiteId: string }
-  | { level: "project"; missionId: string }
-  | { level: "learning"; websiteId: string }
-  | { level: "execution"; websiteId: string };
-```
-
-Practical example matching yours directly: before Forge proposes a homepage headline change, it can `recall({level:"page", pageUrl}, {type:"edit-history"})` for the last N edits and their outcome data (CTR/bounce if GA4 is connected) — turning "AI knows all of it" from a slogan into an actual query against real stored data.
-
----
-
-## 6. Explainability Contract
-
-Every `Recommendation` — regardless of which Skill produced it — must populate this shape before it can be shown to the user. Enforced at the domain layer (a `Recommendation` cannot be constructed without these fields), not left to Skill authors' discipline:
-
-```ts
-interface Recommendation {
-  id: string;
-  title: string;
-  evidence: Evidence[]; // what was observed, with source (UWM path, screenshot ref, tool output)
-  reasoning: string; // plain-language "why this matters"
-  confidence: number; // from the Skill's Reflection phase
-  expectedGain: {
-    metric: string; // "organic traffic", "conversion rate", "a11y score"
-    magnitude: "low" | "medium" | "high";
-    rationale: string;
-  };
-  risk: {
-    level: "low" | "medium" | "high";
-    description: string;
-  };
-  rollback: {
-    possible: boolean;
-    method: string; // "revert draft", "restore previous meta", ...
-  };
-  diff?: ProposedDiff;
-}
-```
-
-No black box, exactly as you specified — and this also directly strengthens the "no auto-publish" security posture from the original doc, since a human reviewing a change now sees risk/rollback/confidence right next to the diff, not just the diff.
-
----
-
-## 7. Mission-Driven Planning (replaces fixed audit workflows)
-
-```ts
-interface Mission {
-  id: string;
-  websiteId: string;
-  goal: string; // "Increase organic traffic 30%" or "Improve buycleancart.com"
-  status: "planning" | "running" | "awaiting-approval" | "completed";
-  plan: MissionStep[]; // produced by Orchestrator, not hardcoded
-}
-
-interface MissionStep {
-  skillId: string;
-  reason: string; // why the Orchestrator chose this skill for this goal
-  dependsOn: string[]; // other step ids
-}
-```
-
-The Orchestrator's planning prompt takes: the stated goal, the Universal Website Model summary, relevant memory (especially Learning Memory — don't re-plan things already rejected), and the full Skill Registry with each Skill's declared `category`/`description`/`requires` — and produces a `MissionStep[]` plan, which is itself shown to the user as a preview _before_ execution starts (cheap trust-building step: "here's what I'm about to do and why," not just "here's what I found" after the fact).
-
-This directly replaces the old "type a command → fixed agent list runs" flow with what you described: the AI decides the problem, not a hardcoded mapping.
-
----
-
-## 8. Browser Vision — designed in, gated by default
-
-```ts
-interface IVisionProvider {
-  readonly name: string; // "ollama-llava" | "claude-vision" | "gpt4v"
-  analyzeScreenshot(req: VisionRequest): Promise<VisionAnalysis>;
-}
-
-interface VisionAnalysis {
-  layoutSummary: string;
-  ctaPosition?: BoundingBox;
-  visualHierarchyIssues: string[];
-  contrastIssues: ContrastFinding[];
-  whitespaceAssessment: string;
-  trustSignalsDetected: string[];
-}
-```
-
-- Same provider-abstraction pattern as `ILlmProvider` — Ollama vision model by default, swappable to a cloud vision model per-site/per-mission via config.
-- A dedicated `vision.layout-audit` Skill wraps: Playwright screenshot → `IVisionProvider.analyzeScreenshot()` → Findings, in the same Skill contract as everything else — it's not a separate subsystem, just a Skill with a heavier `requires: ["screenshot", "vision-provider"]`.
-- **Gating rule**: the Orchestrator only invokes vision Skills when (a) the Mission goal is visually-relevant (conversion, UX, trust, layout, accessibility-contrast), or (b) a cheaper HTML-based Skill flags something ambiguous that vision could resolve. Full-site vision sweeps are opt-in, not default, given local compute cost — this is the one place I'm asking you to accept a v1 constraint in exchange for not making local-only Forge painfully slow.
-
----
-
-## 9. Prompt Registry
-
-```
-packages/prompts/
-├── registry.ts                 # PromptRegistry: get(id, version?)
-├── seo/
-│   ├── metadata-analysis.prompt.ts     # { id, version, template, variables, tests }
-│   └── metadata-analysis.test.ts
-├── ux/
-│   └── cta-clarity.prompt.ts
-└── ...
-```
-
-```ts
-interface PromptDefinition {
-  id: string;
-  version: string;
-  owner?: string; // useful once this is a team, not just you
-  template: string; // with {{variable}} interpolation
-  variables: string[];
-  metrics?: { avgConfidence?: number; acceptRate?: number }; // populated over time from Recommendation outcomes
-  changelog: { version: string; date: string; note: string }[];
-}
-```
-
-Prompts are versioned artifacts with their own tests (given fixture input, does the prompt + a mock/real model produce output matching the expected schema and rough content?) exactly like code — cheap to build now, and it gives you the `acceptRate` metric per prompt version for free later (join `Recommendation.status` back to the prompt version that generated it), which is genuinely useful product data once you have real usage.
-
----
-
-## 10. Plugin-First Folder Structure
-
-> **Note:** This section shows a strategic sketch of the eventual folder structure. For the authoritative build-time package layout, see `project-structure.md`. The mapping from conceptual names here to actual packages is documented in ADR-0017.
-
-```
-forge/
-├── apps/
-│   ├── web/                      # frontend — see §11 for stack decision
-│   └── worker/
-│
-├── packages/
-│   ├── domain/                   # WebsiteModel, PageModel, Mission, Recommendation,
-│   │                              # Skill contract, MemoryScope — CMS/AI agnostic
-│   ├── application/               # Orchestrator Core, Mission Planner, Verification loop
-│   ├── skills/                    # capability units, organized by category not by "agent"
-│   │   ├── seo/
-│   │   ├── accessibility/
-│   │   ├── performance/
-│   │   ├── ux/
-│   │   ├── content/
-│   │   ├── technical/
-│   │   ├── vision/
-│   │   └── structure/             # section-classifier and other shared foundation skills
-│   ├── ai-providers/               # unchanged from v1 doc: ollama/lmstudio/openrouter/gemini/claude/openai
-│   ├── vision-providers/           # new: ollama-vision/claude-vision/gpt4v
-│   ├── prompts/                    # Prompt Registry
-│   ├── memory/                     # extended scopes, same physical stores
-│   ├── crawler/                    # produces raw HTML/DOM; feeds into UWM builders
-│   ├── uwm/                        # Universal Website Model types + builders + validators
-│   ├── database/ · queue/ · tools/ · reporting/ · auth/ · config/ · shared/   # unchanged
-│
-├── plugins/                        # THE reorganized part — one folder per integration
-│   ├── wordpress/                  # UWM adapter (read+draft) + credential handling
-│   ├── woocommerce/
-│   ├── rankmath/                   # reads/reconciles with existing RankMath schema data
-│   ├── yoast/
-│   ├── shopify/                    # v3, stubbed
-│   ├── webflow/                    # v3, stubbed
-│   ├── cloudflare/                 # v2+, optional
-│   ├── github/                     # v2+, optional
-│   ├── search-console/             # optional, off by default
-│   ├── ga4/                        # optional, off by default
-│   └── semrush-import/             # CSV-based, no API key needed
-│
-├── docs/
-└── docker-compose.yml
-```
-
-Each `plugins/*` folder is self-contained: manifest, UWM adapter (if it's a CMS) or Skill/tool provider (if it's a data source), own tests, own docs page. This is the real version of "install/remove/done" — even though v1 doesn't have hot-loading yet (that's still v2, per the original risk callout about sandboxing arbitrary code), the _codebase_ is already organized as if plugins were independently removable, which is most of the value and all of the discipline.
-
----
-
-## 11. Frontend/Backend Stack — the actual decision
-
-You're right to question Next.js-by-default. Here's where I actually land, and it's not quite either of your two suggestions:
-
-**Recommendation: React + Vite (SPA) + Fastify backend. Not Electron, not Next.js, for v1.**
-
-Why not Electron, specifically:
-
-- Electron's value is _distributing a native-feeling app to other people's machines_ — auto-updates, code signing, OS integration, offline installers. You are the only user, running this on your own dev machine. You get zero benefit from that packaging machinery right now.
-- Electron adds real, ongoing complexity: main/renderer process separation, IPC boundaries, native module rebuilding (which matters here since you're integrating Playwright and possibly native SQLite bindings), and a slower iteration loop than a browser tab with hot reload.
-- Everything you actually want from your reasoning (fast startup, local file access, easy Ollama/Playwright integration) is achieved by **running a local Node backend and opening it in a normal browser tab** — you get local file access and process control from the Node backend, not from Electron specifically. Electron only matters when you need to _not_ use a browser at all (offline installer, systray app, etc.) — not a v1 concern.
-
-Why not Next.js, specifically:
-
-- You're right that SSR, the App Router's server/client component split, and Next's deployment assumptions are solving problems you don't have yet (no public-facing pages, no SEO-for-Forge-itself, single operator). That complexity is real overhead for zero benefit at this stage.
-
-Why not "just Express + React" without more structure:
-
-- Fastify over Express: faster, better TypeScript support out of the box, first-class schema validation (pairs well with zod) — strictly better for a new TS project, same mental model as Express so no real learning cost.
-- Vite over CRA/plain bundler: this part of your suggestion is simply correct, no notes.
-
-**What you actually get with this stack:**
-
-- `apps/web`: Vite + React SPA, client-side routing (React Router), talks to the backend via the same tRPC-style typed API (tRPC works fine over Fastify, not just Next API routes) — so you keep end-to-end type safety.
-- `apps/worker`: unchanged from before, standalone Node process for Skill execution.
-- **Migration paths stay open and cheap**, because the boundary discipline from the original doc still holds: domain/application/skills packages have zero knowledge of Vite, Fastify, tRPC, or React. If v3/v4 genuinely needs a public SaaS marketing site or SSR for some reason, that's a _new_ `apps/marketing` (Next.js) sitting alongside `apps/web`, not a rewrite of it. If v4 wants a distributable desktop app for other agencies, Electron becomes a thin wrapper around the same `apps/web` build — again additive, not a rewrite, because Electron would just be loading the same Vite-built SPA against a bundled local backend.
-
-This is the version of your suggestion I'd actually ship: you get the simplicity you're after immediately, without pre-paying for Electron's packaging complexity before you have a second user who needs it.
-
----
-
-## 12. Reports — confirmed deprioritized
-
-No change in position, just reinforced: Markdown export (cheapest, given structured `Recommendation`/`Evidence` data already exists) is the only report format that ships anywhere near v1, and only after the "propose → approve → apply" loop is solid. PDF/HTML/CSV exporters move even later than they were before. Automation (the loop actually doing useful work) is the v1 measure of success, not reporting polish.
-
----
-
-## 13. Revised Version Roadmap
-
-- **v1 — Forge for WordPress (Website Assistant)**: Universal Website Model + WordPress adapter only; Orchestrator Core + Mission planning; Skills: SEO (technical + metadata), Accessibility (structural, non-vision), basic UX/structure skills, Content drafting; full verification loop; memory hierarchy (episodic first; semantic once the loop is proven); explainability contract; desktop-only local web app (Vite+Fastify); Prompt Registry from day one; Vision Skill seam present but off by default; draft+approve WordPress workflow; Markdown export only.
-- **v2 — Forge Operator**: Vision Skills turned on for relevant missions; RankMath/Yoast reconciliation plugins; semantic memory fully wired; Prompt Registry metrics feeding back into Mission planning quality; PDF/HTML/CSV export; GSC/GA4 plugins; real plugin hot-loading with sandboxing (still the highest-risk item, unchanged caution from the original doc).
-- **v3 — Forge Agency Platform**: Shopify/Webflow/Ghost/Drupal UWM adapters; multi-site portfolio views; RBAC for agency staff; client-facing report/approval portal; possibly the point where Electron or a hosted SaaS deployment becomes worth its cost, decided based on actual usage pattern at that point rather than guessed now.
-- **v4 — Forge (general AI Operations Platform)**: The UWM generalizes to "Universal Domain Models" for other target types (APIs, docs, codebases) if you actually pursue that — genuinely out of scope to design now, but nothing above blocks it, since the Orchestrator/Skill/Memory/Explainability layers were never SEO-specific or even website-specific in their contracts.
-
-### Sprint 16 — Content Intelligence Engine (v0.16.0)
-
-Forge now understands website content deterministically before any AI is allowed to modify it.
-
-- New package `@forge/content-intelligence` produces structured understanding (Page DNA, Content Graph, quality scores, content gaps) from a `WebsiteSnapshot`.
-- No LLM, no Prompt Registry, no AI providers, no text generation, no content rewriting — everything is deterministic and offline.
-- New flow: `Website → DOM → Content Intelligence → Page DNA → Content Graph → Optimization Plan → Content Generation (future)`.
-- CLI gains `forge content {analyze,graph,dna,sections,entities}` with `--json` and `--project`.
-- Pipeline Engine gains five reusable steps (Content Analysis, Content Graph, Page DNA, Gap Detection, Entity Extraction) composed into a `content-intelligence` pipeline.
-- Homepage Engine additively consumes Content Intelligence outputs to enrich its deterministic analysis while preserving backwards compatibility.
-
----
-
-## 14. What Stayed the Same
-
-For completeness, everything from the original architecture document that this revision does **not** change: Clean Architecture layering and lint-enforced boundaries, SQLite+Drizzle+LanceDB as the default zero-cost data layer, the AI provider abstraction (`ILlmProvider`), the job queue design (SQLite v1 → BullMQ v2), the security architecture (encrypted credentials, publish-gateway isolation, no-auto-publish enforcement), error handling and logging strategy, and the testing strategy. The pivot is real but it's a pivot in _framing, naming, and a few new subsystems_ (UWM, Vision, Prompt Registry, expanded memory) — not a rewrite of the infrastructure decisions that were already sound.
+*This document supersedes all previous architecture.md versions. Previous "Sprint N Update" interleaving has been replaced by the unified architecture above.*

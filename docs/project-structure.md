@@ -1,945 +1,151 @@
 # Forge Project Structure
 
-**Version:** 1.0.0  
-**Status:** Active  
-**Owner:** Bright Ndode
+**Version:** v0.22.0 (Sprint 22A)
 
----
+## Directory Layout
 
-# Purpose
-
-This document defines the official repository structure of Forge.
-
-Every folder exists for a specific reason.
-
-New folders should not be created unless they solve a genuine architectural problem.
-
-This document serves as the single source of truth for package organization and dependency boundaries.
-
----
-
-# Repository Overview
-
-```text
-forge/
-
-├── apps/
-├── packages/
-│   ├── pipeline-engine/
-├── plugins/
-├── prompts/
-├── reports/
-├── examples/
-├── scripts/
-├── tests/
-├── docs/
-├── .github/
-├── package.json
-├── pnpm-workspace.yaml
-├── turbo.json
-└── tsconfig.base.json
 ```
-
----
-
-# Directory Responsibilities
-
-## apps/
-
-Applications that users interact with.
-
-Apps combine packages.
-
-Apps should contain minimal business logic.
-
-Business logic belongs inside packages.
-
-Current applications:
-
-```text
 apps/
+  cli/                              # @forge/cli — Commander CLI
+    src/
+      index.ts                      # All CLI command definitions
 
-cli/
-
-dashboard/
-
-desktop/
+packages/
+  core/                             # @forge/core
+  shared/                           # @forge/shared
+  config/                           # @forge/config
+  logger/                           # @forge/logger
+  tools/                            # @forge/tools (html-parser, website-reader)
+  capabilities/                     # @forge/capabilities
+  plugin-registry/                  # @forge/plugin-registry
+  recommendation-engine/            # @forge/recommendation-engine
+  action-engine/                    # @forge/action-engine
+  pipeline-engine/                  # @forge/pipeline-engine
+  preflight-validator/              # @forge/preflight-validator
+  execution-engine/                 # @forge/execution-engine
+  providers-wordpress/              # @forge/providers-wordpress
+  project-resolver/                 # @forge/project-resolver
+  knowledge-engine/                 # @forge/knowledge-engine
+  memory-engine/                    # @forge/memory-engine
+  context-builder/                  # @forge/context-builder
+  content-intelligence/             # @forge/content-intelligence
+  content-generation/               # @forge/content-generation
+  dom-engine/                       # @forge/dom-engine
+  ai-engine/                        # @forge/ai-engine
+  skills/                           # @forge/skills
+  prompt-registry/                  # @forge/prompt-registry
+  agent-engine/                     # @forge/agent-engine
+  strategy-engine/                  # @forge/strategy-engine
+  mission-engine/                   # @forge/mission-engine
+  review-engine/                    # @forge/review-engine
+  optimization-composer/            # @forge/optimization-composer
+  homepage-engine/                  # @forge/homepage-engine
 ```
 
-Future:
+## Layer Ownership
 
-```text
-vscode-extension/
+| Package               | Layer                      | Domain                   |
+|-----------------------|-----------------------------|--------------------------|
+| `core`                | Domain models               | Platform-independent     |
+| `shared`              | Utilities                   | Cross-cut                |
+| `config`              | Configuration               | Environment              |
+| `logger`              | Logging                     | Cross-cut                |
+| `tools`               | External capabilities       | HTML parsing, reading    |
+| `capabilities`        | Analysis                   | Deterministic SEO        |
+| `plugin-registry`     | Extensions                 | Cross-cut                |
+| `recommendation-engine` | Finding → recommendation | Core logic               |
+| `action-engine`       | Execution planning          | Core logic               |
+| `pipeline-engine`     | Pipeline orchestration      | Core logic               |
+| `preflight-validator` | Pre-execution checks       | Core logic               |
+| `execution-engine`    | Execution                  | Provider integration     |
+| `providers-wordpress` | WordPress API              | Provider                 |
+| `project-resolver`    | Project resolution         | Project management       |
+| `knowledge-engine`    | Project knowledge store    | Project management       |
+| `memory-engine`       | Event-sourced memory       | Project management       |
+| `context-builder`     | AI context assembly        | Project management       |
+| `content-intelligence` | Content understanding     | Intelligence (deterministic) |
+| `content-generation`  | Section patch generation   | AI Generation            |
+| `dom-engine`          | DOM mapping & preview      | DOM                      |
+| `ai-engine`           | Provider abstraction       | AI                       |
+| `skills`              | Skill registry             | AI                       |
+| `prompt-registry`     | Prompt templates           | AI                       |
+| `agent-engine`        | Agent framework            | Orchestration            |
+| `strategy-engine`     | Strategy engine            | Orchestration            |
+| `mission-engine`      | Mission templates          | Orchestration            |
+| `review-engine`       | Review & approval          | Quality                  |
+| `optimization-composer` | Bundle composer          | Optimization             |
+| `homepage-engine`     | Homepage optimization      | Domain-specific          |
 
-api/
+## Dependency Rules
 
-web/
-```
+Actual imports must follow these rules. Violations break architecture.
 
-Apps are consumers.
+| Package | May Import | Must Never Import |
+|---|---|---|
+| `core` | (no Forge packages — pure domain) | All other packages |
+| `shared` | core | Any layer package |
+| `logger` | core | Any other packages |
+| `config` | core | Any other packages |
+| `tools` | core, shared, logger | Any other packages |
+| `capabilities` | core, shared, tools | ai-engine, skills, providers, execution, content-generation |
+| `plugin-registry` | core, shared | Any other packages |
+| `recommendation-engine` | core, shared, tools | ai-engine, execution, providers |
+| `action-engine` | core, shared, recommendation-engine | ai-engine, providers |
+| `pipeline-engine` | core, shared | ai-engine, providers, content-generation |
+| `preflight-validator` | core, shared, action-engine | providers, content-generation |
+| `execution-engine` | core, shared, action-engine, preflight-validator, providers-wordpress | content-generation, skills, ai-engine |
+| `providers-wordpress` | core, shared, config, logger | ai-engine, content-generation, skills |
+| `project-resolver` | core, shared | Any other packages |
+| `knowledge-engine` | core, shared | Any other packages |
+| `memory-engine` | core, shared, knowledge-engine | skills, ai-engine, content-generation |
+| `context-builder` | core, project-resolver, knowledge-engine, memory-engine | content-generation, providers |
+| `content-intelligence` | core, shared, tools, logger | ai-engine, prompt-registry, skills, providers, execution-engine, content-generation |
+| `content-generation` | core, shared, ai-engine, prompt-registry, skills, tools | providers-wordpress, execution-engine, homepage-engine, optimization-composer |
+| `dom-engine` | core, shared, tools, content-intelligence | providers, execution-engine, content-generation |
+| `ai-engine` | core, shared, config, logger | providers-wordpress, content-intelligence, execution-engine |
+| `skills` | core, shared, ai-engine, prompt-registry | providers-wordpress, execution-engine |
+| `prompt-registry` | core, shared | Any other packages |
+| `agent-engine` | core, shared, skills, pipeline-engine | content-intelligence, content-generation, providers, execution |
+| `strategy-engine` | core, shared, pipeline-engine | providers, content-generation |
+| `mission-engine` | core, shared, pipeline-engine, agent-engine, strategy-engine | content-generation, providers |
+| `review-engine` | core, shared, action-engine | ai-engine, content-generation, skills |
+| `optimization-composer` | core, shared, content-intelligence, review-engine | content-generation, providers, execution-engine |
+| `homepage-engine` | core, shared, tools, content-intelligence, content-generation, review-engine, execution-engine | providers (directly; uses via exec) |
 
-They are not libraries.
+## Ownership Matrix
 
----
-
-## packages/
-
-Contains all reusable business logic.
-
-Every package must have one clearly defined responsibility.
-
-Packages should be reusable across multiple applications.
-
-No package should depend on an application.
-
-Sprint 8 adds `packages/pipeline-engine` for pipeline orchestration and extends `packages/plugin-registry` with pipeline registration and validation APIs.
-Sprint 9 adds `packages/knowledge-engine` and `packages/memory-engine` for project knowledge, timelines, and change detection.
-Sprint 10 adds `packages/ai-engine`, `packages/skills`, and `packages/prompt-registry` for AI orchestration, skill execution, and prompt management.
-Sprint 10 hardening adds `packages/project-resolver` for explicit project resolution and `packages/context-builder` for structured AI context.
-Sprint 11 adds `packages/agent-engine` for deterministic agent orchestration and registry-backed agent metadata.
-Sprint 12 adds `packages/strategy-engine` for strategy generation, validation, serialization, and pipeline resolution.
-Sprint 13 adds `packages/mission-engine` for mission templates, planning, execution orchestration, serialization, and mission lifecycle memory events.
-Sprint 14 extends `packages/providers-wordpress` with write operations, `packages/execution-engine` with approval-gated real execution, and `packages/core` with write result models and provider interfaces.
-Sprint 15 adds `packages/homepage-engine` for homepage detection, deterministic homepage analysis, optimization planning, preview generation, and mission integration.
-Sprint 16 adds `packages/content-intelligence` for deterministic content understanding: page type detection, search intent classification, section detection, entity extraction, topic extraction, content graph construction, Page DNA assembly, quality scoring, and content-gap detection. It produces structured intelligence only — no LLM, no text generation, no content rewriting.
-Sprint 17 adds `packages/content-generation` for section-scoped AI content generation. It consumes Content Intelligence (Page DNA + Content Graph) as the source of truth, builds prompts via a dedicated Prompt Builder, calls AI providers through the AI Engine, validates output for content safety, and emits self-contained `ContentPatch` + `SectionDiff` + `Preview` artifacts. It depends on `content-intelligence`, `prompt-registry`, `ai-engine`, `skills`, `core`, `knowledge-engine`, `memory-engine`, and `context-builder`. It must NOT be imported by `content-intelligence` (one-way dependency). No execution or publishing occurs in Sprint 17.
-Sprint 18 adds `packages/review-engine` for the deterministic review/approval layer between Content Generation and Execution. It consumes `ContentPatch` artifacts, runs a pure deterministic `compareContent()` comparison, applies approval policies (Strict | Balanced | Automatic | Enterprise), tracks reviewer decisions, computes metrics, and exports Markdown/JSON/HTML reports. It depends on `core`, `action-engine`, `homepage-engine`, `preflight-validator`, `memory-engine`, `knowledge-engine`, and `content-generation` (types only). It must NOT import `ai-engine`, `skills`, or `prompt-registry` (provider-independent, no LLM). No execution or publishing occurs in Sprint 18.
-Sprint 19 replaces all mock AI providers with production-ready implementations (OpenAI, Anthropic, Google Gemini, OpenRouter, Ollama) and introduces the Optimization Composer layer between Review and Execution. It adds retry engine, rate limiting, cost tracking, provider logging, prompt history, fallback logic, expanded prompt registry, upgraded prompt rendering, expanded context builder, and the Optimization Composer (PatchGraph, conflict detection, patch bundles, optimization goals, rollback groups, optimization preview, batch validation, patch priorities). New files in `packages/ai-engine/src/`: `config.ts`, `retry.ts`, `rate-limiter.ts`, `logger.ts`, `history.ts`, `cost-tracker.ts`, `fallback.ts`, `providers/base.ts`, `providers/openai.ts`, `providers/anthropic.ts`, `providers/gemini.ts`, `providers/openrouter.ts`, `providers/ollama.ts`. New package: `packages/optimization-composer` (`@forge/optimization-composer`) with `types.ts`, `graph.ts`, `conflict.ts`, `bundler.ts`, `goals.ts`, `preview.ts`, `priorities.ts`, `composer.ts`. New file: `packages/prompt-registry/src/renderer.ts`. Pipeline Engine gains AI steps (ai-request, ai-response, prompt-render, provider-select, provider-fallback, cost-record, history-record) and Composer steps (compose, batch-validation, execute-composed). CLI gains `forge ai` and `forge compose` command groups. Execution Engine gains rollback group support. Preflight Validator gains batch validation.
-Sprint 20 expands `@forge/content-generation` with a production-grade AI writing system. No new package was created — all AI writing capabilities belong inside `@forge/content-generation` (architectural correction). New modules: `brief/` (ContentBriefBuilder), `brand/` (VoiceProfile detector), `prompts/` (PromptComposer), `writers/` (15 specialized section writers + BaseSectionWriter), `validator/` (SEO, quality, EEAT, readability, compliance), `scoring/` (quality scorer). `BrandProfile` interface added to `@forge/core`. Pipeline Engine gains 8 new steps: content-brief, brand-profile, voice-profile, writer-select, prompt-compose, ai-write, content-validate, content-score. CLI gains `forge write` command group. Homepage Engine updated to use the new writing pipeline.
-Sprint 21 adds `packages/dom-engine` for DOM mapping, selector resolution, smart patching, and builder support (Elementor, Gutenberg, generic HTML). It consumes raw HTML and produces a `DOMMap` with sections, blocks, anchors, and selectors. The Smart Patch Engine applies `ContentPatch` objects to preview HTML only. Pipeline Engine gains 5 new steps: dom-map, selector-resolve, patch-validate, patch-merge, patch-preview. CLI gains `forge dom` command group. Homepage Engine updated to use `DOMMap` instead of raw HTML. Content Generation outputs `ContentPatch` → DOM Engine → Preview → Review Engine (no direct HTML rewriting).
-
----
-
-# packages/core
-
-Purpose:
-
-Core domain models.
-
-Contains:
-
-- Types
-- Interfaces
-- Value Objects
-- Domain Events
-- Base Contracts
-- Shared Models
-
-Examples:
-
-```text
-Task
-
-Mission
-
-WebsiteSnapshot
-
-AuditResult
-
-Recommendation
-
-Issue
-
-Plugin
-
-Provider
-
-Skill
-```
-
-Rules:
-
-Must never import:
-
-- React
-- Playwright
-- WordPress
-- Node APIs
-- HTTP libraries
-
-This package represents the language of Forge.
-
----
-
-# packages/content-intelligence
-
-Purpose:
-
-Deterministic content understanding.
-
-Responsibilities:
-
-- Page type detection
-- Search intent classification
-- Audience profiling
-- Section detection
-- Entity extraction
-- Topic extraction
-- Content graph construction
-- Page DNA assembly
-- Content quality scoring
-- Content gap detection
-
-Rules:
-
-Must never import:
-
-- AI providers
-- Prompt Registry
-- Skill packages
-- LLM SDKs
-
-This package understands content. It does NOT generate content. It produces structured intelligence (Page DNA, Content Graph, scores, gaps) that future AI generation depends on. Everything is deterministic and offline.
+| Package | Owned By | Status |
+|---|---|---|
+| `core` | Platform team | Stable |
+| `shared` | Platform team | Stable |
+| `logger` | Platform team | Stable |
+| `config` | Platform team | Stable |
+| `tools` | Platform team | Stable |
+| `capabilities` | Platform team | Stable |
+| `plugin-registry` | Platform team | Stable |
+| `recommendation-engine` | Intelligence team | Stable |
+| `action-engine` | Intelligence team | Stable |
+| `pipeline-engine` | Intelligence team | Stable |
+| `preflight-validator` | Intelligence team | Stable |
+| `execution-engine` | Intelligence team | Stable |
+| `providers-wordpress` | Provider team | Stable |
+| `project-resolver` | Intelligence team | Stable |
+| `knowledge-engine` | Intelligence team | Stable |
+| `memory-engine` | Intelligence team | Stable |
+| `context-builder` | Intelligence team | Stable |
+| `content-intelligence` | Intelligence team | Stable |
+| `content-generation` | AI team | Stable |
+| `dom-engine` | AI team | Stable |
+| `ai-engine` | AI team | Stable |
+| `prompt-registry` | AI team | Stable |
+| `skills` | AI team | Stable |
+| `agent-engine` | Intelligence team | Stable |
+| `strategy-engine` | Intelligence team | Stable |
+| `mission-engine` | Intelligence team | Stable |
+| `review-engine` | Intelligence team | Stable |
+| `optimization-composer` | Intelligence team | Future refinement |
+| `homepage-engine` | AI team | Stable |
 
 ---
 
-# packages/content-generation
-
-Purpose:
-
-Section-scoped AI content generation.
-
-Responsibilities:
-
-- Section generators (15 types: hero, benefits, features, services, products, testimonials, faq, comparison, buying-guide, pricing, cta, introduction, conclusion, about, contact)
-- Prompt Builder (composes registry-backed prompts from Page DNA + Knowledge + Memory + Audience + Intent + Tone + Brand + existing section + target keywords + missing topics)
-- Content request/result types
-- Content patches (self-contained `ContentPatch` + `SectionPatch`)
-- Content safety validation
-- Section diffs
-- Project context aggregation
-- AI provider abstraction (via AI Engine + `ProviderFactory`)
-
-Rules:
-
-Must never import:
-
-- WordPress providers
-- Execution engine (no writes in Sprint 17)
-- Publishing/scheduling libraries
-
-Dependency direction (enforced):
-
-- MAY import `content-intelligence`, `prompt-registry`, `ai-engine`, `skills`, `core`, `knowledge-engine`, `memory-engine`, `context-builder`.
-- MUST NOT be imported by `content-intelligence` (one-way dependency).
-
-This package generates candidate section improvements only. It never rewrites an entire page, never bypasses Content Intelligence, and never executes or publishes. Every output becomes a `ContentPatch` for review in Sprint 18.
-
----
-
-# packages/review-engine
-
-Purpose:
-
-Deterministic review/approval layer between Content Generation and Execution.
-
-Responsibilities:
-
-- Review session model (`ReviewSession`, `ReviewItem`) — one item per `ContentPatch`
-- Pure deterministic comparison engine (`compareContent()`): word/sentence/entity/keyword/heading deltas, readability + SEO delta
-- Approval policies (Strict, Balanced, Automatic, Enterprise) — AI never approves
-- Filtering and sorting of review items
-- Review metrics (approval rate, rejection rate, average confidence/impact, warnings, high-risk changes, token estimate, execution time)
-- Markdown / JSON / HTML report exports
-- Memory event recording (review-created/approved/rejected/commented/completed)
-- Per-project knowledge tracking (average approval rate, preferred review style, common rejected patterns, frequently edited sections)
-- Pipeline step factories (review-create, review-filter, review-sort, review-approve, review-export, review-summary, review-metrics)
-- Homepage optimization integration (stops at a Review Session)
-
-Rules:
-
-Must never import:
-
-- `ai-engine` (no LLM, fully deterministic)
-- `skills`
-- `prompt-registry`
-- WordPress providers
-- Execution engine (no writes in Sprint 18)
-
-Dependency direction (enforced):
-
-- MAY import `core`, `action-engine`, `homepage-engine`, `preflight-validator`, `memory-engine`, `knowledge-engine`, `content-generation` (types only).
-- MUST NOT be imported by `content-generation` (one-way dependency).
-
-This package reviews candidate section improvements only. It never generates content, never bypasses Content Intelligence, and never executes or publishes. Every output becomes an approved `ExecutionPlan` for the Execution Engine in Sprint 18.
-
----
-
-# packages/dom-engine
-
-Purpose:
-
-DOM mapping and smart patch engine for precise content targeting.
-
-Responsibilities:
-
-- Format detection (Elementor, Gutenberg, generic HTML)
-- DOM mapping (sections, blocks, anchors, selectors, hierarchy)
-- Section mapping (every detected PageDNA section maps to a DOMSection)
-- Block mapping (headings, paragraphs, lists, buttons, images, FAQ items, testimonials, cards)
-- Stable anchor system (text anchors, DOM position, sibling anchors, parent anchors, heading anchors)
-- Selector resolution with multiple fallback strategies (CSS → XPath → Stable Anchor → Heading Anchor → Text Match → Structural Match)
-- Elementor builder support (containers, sections, columns, widgets: heading, text editor, button, image, icon list, accordion, tabs, testimonials, loop grid, forms)
-- Gutenberg builder support (paragraph, heading, columns, image, gallery, buttons, cover, quote, list, table, embed)
-- Generic HTML builder fallback
-- Smart patch engine (apply, validate, merge patches)
-- Preview HTML generation (before.html, after.html, diff.html)
-- CLI commands: `forge dom map`, `forge dom preview`, `forge dom patch`, `forge dom validate`, `forge dom inspect`
-- Pipeline steps: dom-map, selector-resolve, patch-validate, patch-merge, patch-preview
-
-Rules:
-
-- No visual builder, browser automation, publishing, dashboards
-- All patches applied to preview HTML only (no WordPress writes)
-- Must never import WordPress providers or execution engine
-- Must never call AI providers or LLM SDKs
-
-Dependency direction (enforced):
-
-- MAY import `core`, `content-intelligence` (types only), `content-generation` (types only).
-- MUST NOT be imported by `content-intelligence` (one-way dependency).
-
-This package maps content to the DOM and applies precise patches. It never generates content, never bypasses Content Intelligence, and never executes or publishes. Every output becomes a `PatchPreview` for the Review Engine.
-
----
-
-# packages/config
-
-Purpose:
-
-Configuration management.
-
-Responsibilities:
-
-- Environment validation
-- Configuration loading
-- Runtime settings
-- Feature flags
-
-No business logic.
-
----
-
-# packages/logger
-
-Purpose:
-
-Structured logging.
-
-Responsibilities:
-
-- Logger
-- Log formatting
-- Log levels
-- Log transports
-
-Every package uses this logger.
-
-Never use console.log.
-
----
-
-# packages/ai
-
-Purpose:
-
-AI abstraction layer.
-
-Contains:
-
-Provider interfaces.
-
-Model adapters.
-
-Prompt execution.
-
-Streaming.
-
-Embeddings.
-
-Vision.
-
-Reasoning.
-
-Supported providers:
-
-- Ollama
-- LM Studio
-- OpenRouter
-- OpenAI
-- Claude
-- Gemini
-
-Business logic must never directly use provider SDKs.
-
----
-
-# packages/tools
-
-Purpose:
-
-External capabilities.
-
-Examples:
-
-Website Reader
-
-HTML Parser
-
-Playwright
-
-Filesystem
-
-Markdown
-
-CSV
-
-JSON
-
-Lighthouse
-
-Image Analysis
-
-Robots Parser
-
-Sitemap Parser
-
-Tools perform work.
-
-They do not make decisions.
-
----
-
-# packages/skills
-
-Purpose:
-
-Business intelligence.
-
-Skills receive structured input.
-
-Skills return structured output.
-
-Examples:
-
-Homepage Analysis
-
-Technical SEO
-
-Accessibility
-
-Content Analysis
-
-Internal Linking
-
-Schema Validation
-
-Performance Review
-
-Competitor Analysis
-
-Skills orchestrate tools.
-
-Skills should not perform raw crawling.
-
----
-
-# packages/providers
-
-Purpose:
-
-Platform implementations.
-
-Examples:
-
-WordPress
-
-WooCommerce
-
-Shopify
-
-Webflow
-
-Ghost
-
-Cloudflare
-
-GitHub
-
-Google Search Console
-
-Providers expose platform functionality through interfaces.
-
----
-
-# packages/workflows
-
-Purpose:
-
-High-level orchestration.
-
-Workflows combine multiple skills.
-
-Example:
-
-Mission:
-
-Improve Homepage
-
-↓
-
-Website Reader
-
-↓
-
-Homepage Analysis
-
-↓
-
-Competitor Analysis
-
-↓
-
-AI Reasoning
-
-↓
-
-Recommendation Builder
-
-↓
-
-WordPress Draft
-
-↓
-
-Verification
-
----
-
-# packages/memory
-
-Purpose:
-
-Persistent learning.
-
-Stores:
-
-Website memory
-
-Project memory
-
-Brand memory
-
-Accepted recommendations
-
-Rejected recommendations
-
-Historical executions
-
-Prompt history
-
-Memory should improve future decisions.
-
----
-
-# packages/reports
-
-Purpose:
-
-Report generation.
-
-Supported outputs:
-
-Markdown
-
-HTML
-
-PDF
-
-JSON
-
-CSV
-
-Reports consume structured data.
-
-Reports never perform analysis.
-
----
-
-# packages/shared
-
-Purpose:
-
-Reusable utilities.
-
-Allowed:
-
-Constants
-
-Date utilities
-
-Formatting
-
-Small helper functions
-
-Forbidden:
-
-Business logic
-
-Platform logic
-
-AI logic
-
----
-
-# plugins/
-
-Platform integrations.
-
-Examples:
-
-wordpress/
-
-shopify/
-
-cloudflare/
-
-semrush/
-
-google-search-console/
-
-google-analytics/
-
-Each plugin should implement the contracts defined by packages/core.
-
-Removing a plugin must not affect the rest of the system.
-
----
-
-# prompts/
-
-Prompt registry.
-
-Contains:
-
-System prompts.
-
-Templates.
-
-Prompt variables.
-
-Version history.
-
-Prompt tests.
-
-Prompt metadata.
-
-Prompts should never be hardcoded inside implementation files.
-
----
-
-# reports/
-
-Generated output.
-
-Examples:
-
-Audit reports.
-
-Accessibility reports.
-
-SEO reports.
-
-Execution reports.
-
-These files are outputs.
-
-They are not source code.
-
----
-
-# examples/
-
-Example configurations.
-
-Example plugins.
-
-Example workflows.
-
-Example prompts.
-
-Used for documentation and testing.
-
----
-
-# scripts/
-
-Development utilities.
-
-Examples:
-
-Build scripts.
-
-Migration scripts.
-
-Release scripts.
-
-Maintenance scripts.
-
-Scripts should never contain production business logic.
-
----
-
-# tests/
-
-Repository-level tests.
-
-Contains:
-
-Integration tests.
-
-Fixtures.
-
-Mock websites.
-
-Mock providers.
-
-Shared testing utilities.
-
-Package-specific unit tests remain inside their own packages.
-
----
-
-# docs/
-
-Project documentation.
-
-Includes:
-
-Architecture
-
-Roadmaps
-
-Standards
-
-Vision
-
-Workflow
-
-Security
-
-Testing
-
-Decisions
-
-This folder is the knowledge base of Forge.
-
----
-
-# Dependency Rules
-
-Dependency direction must always flow inward.
-
-```text
-Apps
-
-↓
-
-Workflows
-
-↓
-
-Skills
-
-↓
-
-Tools
-
-↓
-
-Providers
-
-↓
-
-Core
-```
-
-Lower layers must never depend on higher layers.
-
----
-
-# Import Rules
-
-Allowed:
-
-```text
-Skill
-
-↓
-
-Tool
-```
-
-Forbidden:
-
-```text
-Tool
-
-↓
-
-Skill
-```
-
-Allowed:
-
-```text
-Provider
-
-↓
-
-Core
-```
-
-Forbidden:
-
-```text
-Core
-
-↓
-
-Provider
-```
-
-Allowed:
-
-```text
-Workflow
-
-↓
-
-Skills
-```
-
-Forbidden:
-
-```text
-Skills
-
-↓
-
-Workflow
-```
-
----
-
-# Public APIs
-
-Every package must expose a single public entry point.
-
-Example:
-
-```text
-packages/skills/src/index.ts
-
-packages/tools/src/index.ts
-
-packages/core/src/index.ts
-```
-
-Internal files should never be imported directly.
-
----
-
-# Package Independence
-
-Every package should:
-
-Compile independently.
-
-Test independently.
-
-Document independently.
-
-Version independently if necessary.
-
-Packages should communicate through exported interfaces.
-
----
-
-# Package Checklist
-
-Before creating a new package ask:
-
-Does this represent a distinct responsibility?
-
-Can existing packages solve this problem?
-
-Will multiple applications use it?
-
-Does it reduce coupling?
-
-If the answer is no, do not create a new package.
-
----
-
-# Folder Creation Policy
-
-New folders require justification.
-
-Creating folders "just in case" is prohibited.
-
-Unused structure increases maintenance cost.
-
----
-
-# Rule of Single Responsibility
-
-Every folder should answer one question.
-
-Examples:
-
-AI?
-
-Packages/ai
-
-Reports?
-
-Packages/reports
-
-Skills?
-
-Packages/skills
-
-Providers?
-
-Packages/providers
-
-If a folder answers multiple questions, responsibilities should be separated.
-
----
-
-# Long-Term Growth
-
-The repository structure should comfortably support:
-
-- Desktop Application
-- Web Dashboard
-- CLI
-- API Server
-- VS Code Extension
-- Plugin Marketplace
-- Community Plugins
-- Multiple AI Providers
-- Multiple Website Platforms
-
-without requiring structural reorganization.
-
----
-
-# Final Principle
-
-A clean repository structure is a competitive advantage.
-
-Developers should immediately understand where new code belongs.
-
-If there is uncertainty about where code should live, the architecture should be clarified before implementation begins.
+*Updated Sprint 22A. All 30 packages documented. Non-existent historical packages (packages/ai, packages/memory, packages/providers, packages/reports, packages/workflows) have been removed.*
