@@ -383,6 +383,46 @@ importers:
         specifier: ^5.5.0
         version: 5.9.3
 
+  packages/optimization-orchestrator:
+    dependencies:
+      '@forge/ai-engine':
+        specifier: workspace:*
+        version: link:../ai-engine
+      '@forge/content-generation':
+        specifier: workspace:*
+        version: link:../content-generation
+      '@forge/content-intelligence':
+        specifier: workspace:*
+        version: link:../content-intelligence
+      '@forge/core':
+        specifier: workspace:*
+        version: link:../core
+      '@forge/execution-engine':
+        specifier: workspace:*
+        version: link:../execution-engine
+      '@forge/knowledge-engine':
+        specifier: workspace:*
+        version: link:../knowledge-engine
+      '@forge/logger':
+        specifier: workspace:*
+        version: link:../logger
+      '@forge/memory-engine':
+        specifier: workspace:*
+        version: link:../memory-engine
+      '@forge/optimization-composer':
+        specifier: workspace:*
+        version: link:../optimization-composer
+      '@forge/review-engine':
+        specifier: workspace:*
+        version: link:../review-engine
+      '@forge/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      vitest:
+        specifier: ^3.2.7
+        version: 3.2.7(@types/node@26.1.1)
+
   packages/pipeline-engine:
     dependencies:
       '@forge/action-engine':

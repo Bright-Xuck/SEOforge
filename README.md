@@ -17,19 +17,18 @@ Strategy
   ↓
 Pipeline
   ↓
-Content Intelligence  (deterministic, no AI)
+Optimization Orchestrator
   ↓
-Content Generation   (AI, section-patches only)
-  ↓
-DOM Engine            (selector anchors, preview)
-  ↓
-Review               (deterministic, no AI approves)
-  ↓
-Optimization Composer (deduplication, bundles, priorities)
-  ↓
-Preflight Validation
-  ↓
-Execution Engine     (apply only, never generates)
+──────────────────────────────────────
+Content Intelligence  (deterministic)
+Content Generation   (section-patches)
+Knowledge Engine     (project knowledge)
+Memory Engine        (event-sourced memory)
+AI Engine            (provider abstraction)
+Review               (deterministic, no AI)
+Optimization Composer (bundles)
+Execution Engine     (apply only)
+──────────────────────────────────────
   ↓
 Provider             (WordPress REST API)
 ```
@@ -71,6 +70,7 @@ packages/
   memory-engine/               # @forge/memory-engine — event-sourced memory store
   mission-engine/              # @forge/mission-engine — mission templates & planner
   optimization-composer/      # @forge/optimization-composer — patch bundling, conflict detection, rollback groups
+  optimization-orchestrator/  # @forge/optimization-orchestrator — central orchestration layer
   pipeline-engine/             # @forge/pipeline-engine — pipeline orchestration
   plugin-registry/             # @forge/plugin-registry — extension registry
   preflight-validator/         # @forge/preflight-validator — pre-execution validation
@@ -235,6 +235,17 @@ docs/
 | `forge ai prompt [promptId]` | List/show prompts (`--json`) |
 | `forge ai logs` | Provider logs (`--provider`, `--limit`, `--json`) |
 | `forge ai history` | Prompt execution history (`--project`, `--limit`, `--json`) |
+
+### Optimization Orchestrator
+
+| Command | Description |
+|---|---|
+| `forge optimize` | Run default optimization workflow (`--project`, `--provider`, `--model`, `--preview`, `--review`, `--apply`, `--json`, `--dry-run`) |
+| `forge optimize homepage` | Homepage optimization workflow |
+| `forge optimize blog` | Blog optimization workflow |
+| `forge optimize category` | Category optimization workflow |
+| `forge optimize product` | Product page optimization workflow |
+| `forge optimize page` | Generic page optimization workflow |
 
 ### Homepage Optimization
 

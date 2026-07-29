@@ -1,0 +1,35 @@
+{
+  "name": "@forge/optimization-orchestrator",
+  "version": "0.22.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "node ../../node_modules/typescript/bin/tsc",
+    "dev": "node ../../node_modules/typescript/bin/tsc --watch",
+    "typecheck": "node ../../node_modules/typescript/bin/tsc --noEmit",
+    "clean": "del /q dist 2>nul || rmdir /s /q dist",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@forge/core": "workspace:*",
+    "@forge/shared": "workspace:*",
+    "@forge/logger": "workspace:*",
+    "@forge/content-intelligence": "workspace:*",
+    "@forge/content-generation": "workspace:*",
+    "@forge/review-engine": "workspace:*",
+    "@forge/optimization-composer": "workspace:*",
+    "@forge/execution-engine": "workspace:*",
+    "@forge/ai-engine": "workspace:*",
+    "@forge/knowledge-engine": "workspace:*",
+    "@forge/memory-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.7"
+  }
+}

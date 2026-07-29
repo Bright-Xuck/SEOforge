@@ -39,6 +39,7 @@ packages/
   mission-engine/                   # @forge/mission-engine
   review-engine/                    # @forge/review-engine
   optimization-composer/            # @forge/optimization-composer
+  optimization-orchestrator/        # @forge/optimization-orchestrator
   homepage-engine/                  # @forge/homepage-engine
 ```
 
@@ -144,6 +145,7 @@ Actual imports must follow these rules. Violations break architecture.
 | `mission-engine` | Intelligence team | Stable |
 | `review-engine` | Intelligence team | Stable |
 | `optimization-composer` | Intelligence team | Future refinement |
+| `optimization-orchestrator` | Intelligence team | New in Sprint 22B |
 | `homepage-engine` | AI team | Stable |
 
 ---

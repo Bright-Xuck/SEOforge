@@ -44,6 +44,14 @@ graph TD
     content-generation --> homepage-engine
     review-engine --> homepage-engine
     execution-engine --> homepage-engine
+    content-intelligence --> optimization-orchestrator
+    content-generation --> optimization-orchestrator
+    review-engine --> optimization-orchestrator
+    optimization-composer --> optimization-orchestrator
+    execution-engine --> optimization-orchestrator
+    ai-engine --> optimization-orchestrator
+    knowledge-engine --> optimization-orchestrator
+    memory-engine --> optimization-orchestrator
 ```
 
 ## Layer Stack
@@ -184,3 +192,5 @@ These import patterns would violate the architecture:
 | `optimization-composer` imports `content-generation` | Composer must never generate content. |
 | `dom-engine` imports `providers-wordpress` | DOM Engine must not know about providers. |
 | `agent-engine` imports `content-intelligence` | Agents orchestrate; they don't analyze content directly. |
+| `optimization-orchestrator` imports `providers-wordpress` | Orchestrator must be provider-independent. |
+| `optimization-orchestrator` imports `dom-engine` | Orchestrator coordinates engines, not DOM operations. |

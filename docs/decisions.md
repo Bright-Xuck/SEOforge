@@ -56,6 +56,7 @@
 | 048 | Section Detection — deterministic section classification | Current |
 | 049 | Page DNA — deterministic page type & intent classification | Current |
 | 050 | Snapshot — deterministic website snapshot model | Current |
+| 051 | Optimization Orchestrator — centralized orchestration layer | Current |
 
 ---
 
@@ -610,5 +611,30 @@
 **Rationale:** Consistent data structure for all analysis operations.
 
 ---
+
+## ADR-051: Optimization Orchestrator
+
+**Status:** Current  
+**Date:** Sprint 22B
+
+**Decision:** Create a single `@forge/optimization-orchestrator` package that coordinates all engines (Content Intelligence, Content Generation, Review, Optimization Composer, Execution, AI Engine, Knowledge, Memory) in one deterministic workflow.
+
+**Rationale:** Previously, engines were chained ad-hoc through pipelines, agents, or CLI scripts. This created scattered orchestration logic. Centralizing orchestration into one package provides:
+
+1. **Deterministic state machine** — all valid transitions are known and enforced
+2. **Shared context** — `OptimizationContext` carries all data produced by any engine; no engine rebuilds what another already produced
+3. **Declarative workflows** — workflow definitions are data, not code; new workflows don't require new engine code
+4. **Event system** — typed events consumable by Knowledge Engine, Memory Engine, future Dashboard/Scheduling without modifying orchestrator logic
+5. **Runtime metrics** — duration, step durations, tokens, cost, patches, approvals, rejections, rollback count
+6. **Engine registry** — engines registered by type; orchestrator resolves via registry instead of importing directly
+
+**Why not pipelines?** Pipelines are for data processing steps (read → analyze → recommend), not for coordinating multiple independent engines with a lifecycle state machine.
+
+**Why not agents?** Agents are decision-makers (SEOAgent, ContentAgent), not orchestrators. Agents produce strategy; orchestrators execute strategy.
+
+**Constraints:**
+- Provider-independent — never imports `providers-wordpress`
+- Never generates content — delegates to `content-generation`
+- Never knows WordPress, Elementor, or any CMS-specific concept
 
 *All ADRs audited and re-indexed Sprint 22A. Duplicate IDs resolved. "Future Decisions" entries that were already accepted have been promoted to Current status with their own ADR numbers.*

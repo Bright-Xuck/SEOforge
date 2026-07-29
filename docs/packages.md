@@ -338,6 +338,18 @@
 | **Must never import** | content-generation, providers, execution-engine |
 | **Owned by** | Intelligence team |
 
+## @forge/optimization-orchestrator
+
+| Field | Value |
+|---|---|
+| **Purpose** | Central orchestration layer coordinating all engines into one deterministic optimization workflow |
+| **Inputs** | WorkflowDefinition, OptimizationContext (project, mission, agent, strategy, pipeline) |
+| **Outputs** | OptimizationResult with execution results, metrics, events |
+| **Deterministic** | ✅ (state machine, context propagation, events, metrics) |
+| **May import** | core, shared, logger, content-intelligence, content-generation, review-engine, optimization-composer, execution-engine, ai-engine, knowledge-engine, memory-engine |
+| **Must never import** | providers-wordpress, dom-engine, homepage-engine, agent-engine, strategy-engine, mission-engine |
+| **Owned by** | Intelligence team |
+
 ## @forge/homepage-engine
 
 | Field | Value |

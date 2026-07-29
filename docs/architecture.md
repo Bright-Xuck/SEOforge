@@ -1,6 +1,6 @@
 # Forge Architecture
 
-**Version:** v0.22.0 (Sprint 22A — Architecture Consolidation)
+**Version:** v0.22.0 (Sprint 22B — Optimization Orchestrator)
 
 Forge is a layered, deterministic-first platform for autonomous website optimization. Every layer has a single responsibility and enforced boundaries.
 
@@ -11,38 +11,24 @@ Forge is a layered, deterministic-first platform for autonomous website optimiza
 ```
 ┌────────────────────────────────────────────────────────────┐
 │                       MISSION                              │
-│  Goal definition, step sequencing, artifact tracking       │
 ├────────────────────────────────────────────────────────────┤
 │                        AGENT                               │
-│  Domain-specific decision-making (SEO, Content,            │
-│  ClickHouse, Schema, Accessibility, Performance, Learning)│
 ├────────────────────────────────────────────────────────────┤
 │                      STRATEGY                              │
-│  Pipeline selection, risk assessment, rollback plan        │
 ├────────────────────────────────────────────────────────────┤
 │                      PIPELINE                              │
-│  Step sequencing, dependency resolution, execution order   │
+├────────────────────────────────────────────────────────────┤
+│                OPTIMIZATION ORCHESTRATOR                    │
+│  Central coordination — state machine, events, metrics     │
 ├────────────────────┬───────────────────────────────────────┤
 │ CONTENT INTELLIGENCE│     CONTENT GENERATION / AI ENGINE    │
 │ (deterministic,     │     (section-patch only, AI)         │
 │  no AI)             │                                       │
+│ KNOWLEDGE ENGINE    │     REVIEW ENGINE                     │
+│ MEMORY ENGINE       │     (deterministic, no AI approves)   │
+│                     │     OPTIMIZATION COMPOSER             │
+│                     │     EXECUTION ENGINE (apply only)     │
 ├────────────────────┴───────────────────────────────────────┤
-│                      DOM ENGINE                            │
-│  HTML mapping, selector anchors, patch preview             │
-├────────────────────────────────────────────────────────────┤
-│                       REVIEW                               │
-│  Deterministic approval policies, metrics, diffs           │
-├────────────────────────────────────────────────────────────┤
-│                  OPTIMIZATION COMPOSER                      │
-│  Deduplication, bundle creation, conflict detection        │
-│  Priority ordering, rollback groups                        │
-├────────────────────────────────────────────────────────────┤
-│                  PREFLIGHT VALIDATION                       │
-│  Plan safety checks before execution                       │
-├────────────────────────────────────────────────────────────┤
-│                  EXECUTION ENGINE                           │
-│  Apply-approved actions only. Never generates content.     │
-├────────────────────────────────────────────────────────────┤
 │                    PROVIDER                                 │
 │  WordPress REST API (read/write/rollback/preview)          │
 └────────────────────────────────────────────────────────────┘
@@ -248,7 +234,70 @@ Forge is a layered, deterministic-first platform for autonomous website optimiza
 | **Never reviews** | ✅ |
 | **Ownership** | `@forge/execution-engine` |
 
-### 2.11 Provider (WordPress)
+### 2.11 Optimization Orchestrator
+
+| Aspect | Detail |
+|---|---|
+| **Purpose** | Central orchestration that coordinates all engines into one deterministic workflow |
+| **Inputs** | WorkflowDefinition, OptimizationContext |
+| **Outputs** | OptimizationResult with execution results, metrics, events |
+| **State machine** | Deterministic — every transition validated |
+| **Engine registry** | Resolves content-intelligence, content-generation, review, composer, execution, knowledge, memory, AI engine |
+| **Event system** | Typed events consumable by Knowledge Engine, Memory Engine, future Dashboard |
+| **Never generates** | Content, plans, or strategies |
+| **Never knows** | WordPress, Elementor, or any specific provider |
+| **May import** | core, shared, logger, content-intelligence, content-generation, review-engine, optimization-composer, execution-engine, ai-engine, knowledge-engine, memory-engine |
+| **Must never import** | providers-wordpress, dom-engine, homepage-engine, agent-engine, strategy-engine, mission-engine |
+| **Ownership** | `@forge/optimization-orchestrator` |
+
+**Lifecycle states:**
+```
+Created → Prepared → Analysing → Generating → Reviewing → Composing → Validated → Ready → Executing → Completed
+                                                                                                     Cancelled
+                                                                                                     Failed
+                                                                                                     RolledBack
+```
+
+**Workflow definitions (declarative):**
+
+| Workflow | Steps |
+|---|---|
+| `homepage-optimization` | Analyse → Generate → Review → Compose → Validate → Execute |
+| `blog-optimization` | Analyse → Generate → Review → Compose → Validate → Execute |
+| `landing-page-optimization` | Analyse → Generate → Review → Compose → Validate → Execute |
+| `product-page-optimization` | Analyse → Generate → Review → Compose → Validate → Execute |
+| `category-optimization` | Analyse → Generate → Review → Compose → Validate → Execute |
+| `content-refresh` | Analyse → Review → Compose → Validate → Execute |
+
+**Orchestrator flow:**
+
+```mermaid
+sequenceDiagram
+    participant CLI
+    participant OO as Optimization Orchestrator
+    participant CI as Content Intelligence
+    participant CG as Content Generation
+    participant Review
+    participant OC as Optimization Composer
+    participant Exec as Execution Engine
+
+    CLI->>OO: forge optimize <workflow>
+    OO->>OO: create context, validate state
+    OO->>CI: analyse (deterministic)
+    OO->>OO: emit AnalysisCompleted
+    OO->>CG: generate patches
+    OO->>OO: emit GenerationCompleted
+    OO->>Review: review patches
+    OO->>OO: emit ReviewCompleted
+    OO->>OC: compose bundles
+    OO->>OO: emit CompositionCompleted
+    OO->>Exec: execute approved bundles
+    OO->>OO: emit ExecutionCompleted
+    OO->>OO: collect metrics
+    OO->>CLI: OptimizationResult
+```
+
+### 2.12 Provider (WordPress)
 
 | Aspect | Detail |
 |---|---|
@@ -283,6 +332,10 @@ core ← shared < shared
     dom-engine              review-engine  optimization-composer
       │                          ↓              │
       └──────────────────────────┴──────────────┘
+                                     ↓
+                           optimization-orchestrator
+                                     ↓
+                         (consumes all engines above)
 ```
 
 ### Import Rules by Package
@@ -309,15 +362,16 @@ core ← shared < shared
 | `content-intelligence` | core, shared, tools, logger | ai-engine, prompt-registry, skills, providers, execution-engine, content-generation |
 | `content-generation` | core, shared, ai-engine, prompt-registry, skills | providers-wordpress, execution-engine, homepage-engine, optimization-composer |
 | `dom-engine` | core, shared, tools, content-intelligence | providers, execution, content-generation |
-| `ai-engine` | core, shared, config,memory, prompt-registry | providers-wordpress, content-intelligence, execution |
+| `ai-engine` | core, shared, config, memory, prompt-registry | providers-wordpress, content-intelligence, execution |
 | `skills` | core, shared, ai-engine, prompt-registry | providers-wordpress, execution |
 | `prompt-registry` | core, shared | — |
-| `agent-engine` | core, shared, skills, pipeline-engine, strategy-engine, mission-engine | content-intelligence, content-generation, advanced, execution |
+| `agent-engine` | core, shared, skills, pipeline-engine, strategy-engine, mission-engine | content-intelligence, content-generation, execution |
 | `strategy-engine` | core, shared, pipeline-engine | — |
 | `mission-engine` | core, shared, pipeline-engine, agent-engine, strategy-engine | content-generation, providers |
 | `review-engine` | core, shared, action-engine | ai-engine, content-generation, skills |
-| `optimization-composer` | core, shared, content-human intelligence, review-engine | content-generation, providers, execution-engine |
+| `optimization-composer` | core, shared, content-intelligence, review-engine | content-generation, providers, execution-engine |
 | `homepage-engine` | core, shared, tools, content-intelligence, content-generation, review-engine, execution-engine | providers (directly; uses via exec) |
+| `optimization-orchestrator` | core, shared, logger, content-intelligence, content-generation, review-engine, optimization-composer, execution-engine, ai-engine, knowledge-engine, memory-engine | providers-wordpress, dom-engine, homepage-engine, agent-engine, strategy-engine, mission-engine |
 
 ---
 
@@ -332,6 +386,7 @@ sequenceDiagram
     participant Agent
     participant Strategy
     participant Pipeline
+    participant OO as Optimization Orchestrator
     participant CI as Content Intelligence
     participant CG as Content Generation
     participant Review
@@ -344,13 +399,20 @@ sequenceDiagram
     Mission->>Agent: select & initialize
     Agent->>Strategy: build context → generate
     Strategy->>Pipeline: selected pipeline list
-    Pipeline->>CI: analyze (deterministic)
-    CI->>CG: provide PageDNA + sections
-    CG->>Review: review patches
-    Review->>OC: approved patches → bundles
-    OC->>Preflight: bundle validation
-    Preflight->>Exec: validated bundles
-    Exec->>WP: apply to every item
+    Pipeline->>OO: orchestrate
+    OO->>CI: analyse (deterministic)
+    CI->>OO: PageDNA, sections, gaps
+    OO->>CG: generate patches
+    CG->>OO: ContentPatch[]
+    OO->>Review: review patches
+    Review->>OO: ReviewSession
+    OO->>OC: compose bundles
+    OC->>OO: PatchBundle[]
+    OO->>Exec: execute approved bundles
+    Exec->>WP: apply to WordPress
+    WP->>Exec: WriteResult
+    Exec->>OO: ExecutionResult
+    OO->>Pipeline: OptimizationResult
 ```
 
 ### 4.2 Review Flow
@@ -410,7 +472,8 @@ sequenceDiagram
 | 20 | Writers (22 section writers, brand profile, voice detection) |
 | 21 | Mission Engine, Strategy Engine, Optimization Composer |
 | 22A | Architecture consolidation — documentation sync |
+| 22B | Optimization Orchestrator — centralized orchestration layer |
 
 ---
 
-*This document supersedes all previous architecture.md versions. Previous "Sprint N Update" interleaving has been replaced by the unified architecture above.*
+*This document supersedes all previous architecture.md versions. Updated Sprint 22B with Optimization Orchestrator.*
