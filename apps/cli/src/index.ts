@@ -106,6 +106,15 @@ import {
   buildBrandProfile,
 } from "@forge/content-generation";
 import { PromptRegistry } from "@forge/prompt-registry";
+import {
+  OptimizationOrchestrator,
+  listWorkflows,
+  getWorkflow,
+  createContentIntelligenceEngine,
+  createReviewEngine,
+  createComposerEngine,
+  createExecutionEngine,
+} from "@forge/optimization-orchestrator";
 
 const program = new Command();
 const skillRegistry = new SkillRegistry();
@@ -2597,6 +2606,96 @@ aiCommand
     process.stdout.write(`Prompt history (${entries.length}):\n`);
     for (const entry of entries) {
       process.stdout.write(`  [${entry.timestamp}] ${entry.provider}/${entry.model} - ${entry.tokenUsage.total} tokens\n`);
+    }
+  });
+
+// Sprint 22B: Optimization Orchestrator commands
+const optimizeCommand = program.command("optimize").description("Run a full optimization workflow (Sprint 22B)");
+
+optimizeCommand
+  .argument("[project]", "Project ID", "default")
+  .option("--workflow <id>", "Workflow ID", "homepage-optimization")
+  .option("--dry-run", "Simulate without making changes", true)
+  .option("--provider <provider>", "AI provider")
+  .option("--model <model>", "Model name")
+  .option("--json", "Output result as JSON")
+  .action(async (project: string, options: { workflow?: string; dryRun?: boolean; provider?: string; model?: string; json?: boolean }) => {
+    try {
+      const orchestrator = new OptimizationOrchestrator({
+        workflowId: options.workflow ?? "homepage-optimization",
+        project: project ?? "default",
+        provider: options.provider,
+        model: options.model,
+        dryRun: options.dryRun ?? true,
+      });
+
+      orchestrator.registerEngine("content-intelligence", createContentIntelligenceEngine());
+      orchestrator.registerEngine("review", createReviewEngine());
+      orchestrator.registerEngine("composer", createComposerEngine());
+      orchestrator.registerEngine("execution", createExecutionEngine({ dryRun: options.dryRun ?? true }));
+
+      const result = await orchestrator.run();
+
+      if (options.json) {
+        process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+        return;
+      }
+
+      process.stdout.write(`Workflow: ${result.workflow}\n`);
+      process.stdout.write(`State: ${result.state}\n`);
+      process.stdout.write(`Duration: ${result.metrics.duration}ms\n`);
+      process.stdout.write(`Steps: ${Object.keys(result.metrics.stepDurations).length}\n`);
+      if (result.error) {
+        process.stdout.write(`Error: ${result.error.message}\n`);
+      }
+    } catch (error) {
+      process.stderr.write(`Error: ${error instanceof Error ? error.message : "Unknown error"}\n`);
+      process.exit(1);
+    }
+  });
+
+const workflowCommand = program.command("workflow").description("Workflow management commands (Sprint 22B)");
+
+workflowCommand
+  .command("list")
+  .option("--json", "Output workflows as JSON")
+  .action((options: { json?: boolean }) => {
+    const workflows = listWorkflows().map((id: string) => {
+      const wf = getWorkflow(id);
+      return { id: wf.id, name: wf.name, description: wf.description, steps: wf.steps.map((s: { id: string }) => s.id) };
+    });
+    if (options.json) {
+      process.stdout.write(JSON.stringify(workflows, null, 2) + "\n");
+      return;
+    }
+    for (const wf of workflows) {
+      process.stdout.write(`${wf.id} - ${wf.name}\n`);
+      process.stdout.write(`  ${wf.description}\n`);
+      process.stdout.write(`  Steps: ${wf.steps.join(" -> ")}\n`);
+    }
+  });
+
+workflowCommand
+  .command("show")
+  .argument("<id>", "Workflow ID")
+  .option("--json", "Output workflow as JSON")
+  .action((id: string, options: { json?: boolean }) => {
+    try {
+      const wf = getWorkflow(id);
+      if (options.json) {
+        process.stdout.write(JSON.stringify(wf, null, 2) + "\n");
+        return;
+      }
+      process.stdout.write(`Workflow: ${wf.name}\n`);
+      process.stdout.write(`ID: ${wf.id}\n`);
+      process.stdout.write(`Description: ${wf.description}\n`);
+      process.stdout.write("Steps:\n");
+      for (const step of wf.steps) {
+        process.stdout.write(`  ${step.id} -> engine: ${step.engine}, phase: ${step.phase}\n`);
+      }
+    } catch (error) {
+      process.stderr.write(`Error: ${error instanceof Error ? error.message : "Unknown error"}\n`);
+      process.exit(1);
     }
   });
 

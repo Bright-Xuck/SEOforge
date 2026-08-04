@@ -27,9 +27,12 @@
     "@forge/execution-engine": "workspace:*",
     "@forge/ai-engine": "workspace:*",
     "@forge/knowledge-engine": "workspace:*",
-    "@forge/memory-engine": "workspace:*"
+    "@forge/memory-engine": "workspace:*",
+    "@forge/prompt-registry": "workspace:*",
+    "@forge/action-engine": "workspace:*"
   },
   "devDependencies": {
+    "cheerio": "^1.0.0",
     "vitest": "^3.2.7"
   }
 }

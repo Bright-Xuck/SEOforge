@@ -46,3 +46,18 @@ export type {
   IEventBus,
   IMetricsCollector,
 } from "./types.js";
+
+// Engine Adapters
+export {
+  createContentIntelligenceEngine,
+  createContentGenerationEngine,
+  createReviewEngine,
+  createComposerEngine,
+  createExecutionEngine,
+  createDefaultEngines,
+} from "./adapters/index.js";
+export type {
+  ContentGenerationAdapterOptions,
+  ReviewAdapterOptions,
+  ExecutionAdapterOptions,
+} from "./adapters/index.js";

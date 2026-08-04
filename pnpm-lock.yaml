@@ -83,6 +83,9 @@ importers:
       '@forge/mission-engine':
         specifier: workspace:*
         version: link:../../packages/mission-engine
+      '@forge/optimization-orchestrator':
+        specifier: workspace:*
+        version: link:../../packages/optimization-orchestrator
       '@forge/pipeline-engine':
         specifier: workspace:*
         version: link:../../packages/pipeline-engine
@@ -385,6 +388,9 @@ importers:
 
   packages/optimization-orchestrator:
     dependencies:
+      '@forge/action-engine':
+        specifier: workspace:*
+        version: link:../action-engine
       '@forge/ai-engine':
         specifier: workspace:*
         version: link:../ai-engine
@@ -412,6 +418,9 @@ importers:
       '@forge/optimization-composer':
         specifier: workspace:*
         version: link:../optimization-composer
+      '@forge/prompt-registry':
+        specifier: workspace:*
+        version: link:../prompt-registry
       '@forge/review-engine':
         specifier: workspace:*
         version: link:../review-engine
@@ -419,6 +428,9 @@ importers:
         specifier: workspace:*
         version: link:../shared
     devDependencies:
+      cheerio:
+        specifier: ^1.0.0
+        version: 1.2.0
       vitest:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@26.1.1)
