@@ -47,3 +47,39 @@ export { applyPatches } from "./patch/patch-applier.js";
 export { renderStructuredPreview } from "./preview/structured-preview.js";
 export { renderHtmlPreview } from "./preview/html-preview.js";
 export { mapPage, previewPatches, patchContent, validatePatches, inspectPage } from "./cli/index.js";
+
+// ─── Sprint 23: Universal Page Model ───────────────────────
+
+export type {
+  BuilderType,
+  ElementorLayoutType,
+  BuilderDetectionResult,
+  SelectorSet,
+  DomAttribute,
+  TextNode,
+  ElementKind,
+  DomElement,
+  BlockKind,
+  DomBlock,
+  SectionKind,
+  DomSection,
+  RegionKind,
+  DomRegion,
+  UniversalPage,
+  DomDiffOperation,
+  DomDiffEntry,
+  DomDiffResult,
+  RichTextNodeKind,
+  RichTextNode,
+  RichTextPatchOperation,
+  RichTextPatch,
+  DomValidationSeverity,
+  DomValidationIssue,
+  DomValidationReport,
+} from "./universal/types.js";
+
+export { detectBuilder, detectBuilderType } from "./builder/detector.js";
+export { buildUniversalPage, parse } from "./page/builder.js";
+export { diffDom } from "./diff/diff-engine.js";
+export { normalizeRichText, createPatch } from "./richtext/model.js";
+export { validateDom } from "./validation/validator.js";

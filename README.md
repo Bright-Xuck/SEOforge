@@ -20,6 +20,7 @@ Pipeline
 Optimization Orchestrator
   ↓
 ──────────────────────────────────────
+DOM Engine            (Universal Page Model — canonical parser)
 Content Intelligence  (deterministic)
 Content Generation   (section-patches)
 Knowledge Engine     (project knowledge)
@@ -37,6 +38,7 @@ Provider             (WordPress REST API)
 
 | Layer | May NOT |
 |---|---|
+| DOM Engine | Never import AI, providers, execution, homepage-engine |
 | Content Intelligence | Never import AI, skills, providers, execution |
 | Content Generation | Never import WordPress, never publish, never execute |
 | Optimization Composer | Never generate content, never know providers |
@@ -62,7 +64,7 @@ packages/
   content-intelligence/        # @forge/content-intelligence — PageDNA, ContentGraph, sections, entities, gaps
   context-builder/             # @forge/context-builder — AI context assembly
   core/                        # @forge/core — domain models (no runtime deps)
-  dom-engine/                  # @forge/dom-engine — DOM mapping, patching, preview generation
+  dom-engine/                  # @forge/dom-engine — Universal Page Model, builder detection, DOM diff, rich text, validation
   execution-engine/            # @forge/execution-engine — apply approved actions to providers
   homepage-engine/             # @forge/homepage-engine — homepage detection,  Click optimization
   knowledge-engine/            # @forge/knowledge-engine — project knowledge store
@@ -236,6 +238,18 @@ docs/
 | `forge ai logs` | Provider logs (`--provider`, `--limit`, `--json`) |
 | `forge ai history` | Prompt execution history (`--project`, `--limit`, `--json`) |
 
+### DOM Engine (Sprint 23)
+
+| Command | Description |
+|---|---|
+| `forge dom analyze` | Parse HTML and show Universal Page Model summary (`--json`) |
+| `forge dom tree` | Show page tree (regions → sections → blocks) (`--json`) |
+| `forge dom diff` | Diff two HTML documents (`--json`) |
+| `forge dom validate` | Validate DOM structure (`--json`) |
+| `forge dom selectors` | Show selectors for all elements (`--json`) |
+| `forge dom builder` | Detect page builder (Elementor/Gutenberg/Classic/Bricks) (`--json`) |
+| `forge dom export` | Export Universal Page Model as JSON |
+
 ### Optimization Orchestrator
 
 | Command | Description |
@@ -361,7 +375,9 @@ Patch bundler, dependency graph, conflict detector, priority ordering, batch val
 **Section-patch only.** AI section writers (writeHero, writeFaq, writeCta, etc.). Never publishes, never knows WordPress, never writes whole pages.
 
 ### `@forge/dom-engine`
-DOM mapping, ContentPatch validation, patch preview generation.
+**Canonical website parser.** Transforms raw HTML into a Universal Page Model (Page → Regions → Sections → Blocks → Elements → Text Nodes → Attributes → Selectors). Detects builders (Elementor, Gutenberg, Classic, Bricks). Generates stable IDs and deterministic selectors. Provides DOM diff, rich text model, rich text patches, and DOM validation. Everything that reads or writes HTML must use it — no other package parses HTML directly.
+
+**Public APIs:** `parse()`, `buildUniversalPage()`, `detectBuilder()`, `buildSelectors()`, `buildStableIds()`, `diffDom()`, `normalizeRichText()`, `createPatch()`, `validateDom()`
 
 ### `@forge/homepage-engine`
 Homepage detection, analysis, planning, optimization with Swimlane.
@@ -376,19 +392,4 @@ Assemblies AI context from project knowledge & memory.
 
 ## Sprint History
 
-Sprint development records are maintained in `docs/sprint-*.md`. The full Sprint 8-history can be found there. This README reflects architecture as of Sprint 21.<environment_details>
-# Visual Studio Code Visible Files
-README.md
-
-# Visual Studio Code Open Tabs
-README.md
-
-# Current Time
-7/28/2026, 7:47:52 PM (Europe/London, UTC+1:00)
-
-# Context Window Usage
-36,737 / 128K tokens used (29%)
-
-# Current Mode
-ACT MODE
-</environment_details>
+Sprint development records are maintained in `docs/sprint-*.md`. The full Sprint history can be found there. This README reflects architecture as of Sprint 23.

@@ -1,6 +1,6 @@
 # Forge Project Structure
 
-**Version:** v0.22.0 (Sprint 22A)
+**Version:** v0.23.0 (Sprint 23 — DOM Engine & Universal Page Model)
 
 ## Directory Layout
 
@@ -30,7 +30,17 @@ packages/
   context-builder/                  # @forge/context-builder
   content-intelligence/             # @forge/content-intelligence
   content-generation/               # @forge/content-generation
-  dom-engine/                       # @forge/dom-engine
+  dom-engine/                       # @forge/dom-engine — Universal Page Model, builder detection, DOM diff, rich text, validation
+    src/
+      builder/                      # Builder detection (Elementor, Gutenberg, Classic, Bricks)
+      page/                         # Universal Page builder (Page → Regions → Sections → Blocks → Elements)
+      ids/                          # Stable ID generation
+      selectors/                    # CSS, XPath, DOM path, stable Forge selectors
+      regions/                      # Region detection (Header, Hero, Nav, Footer, etc.)
+      semantics/                    # Semantic section classification
+      diff/                         # DOM diff engine
+      richtext/                     # Rich text model & patches
+      validation/                   # DOM validation
   ai-engine/                        # @forge/ai-engine
   skills/                           # @forge/skills
   prompt-registry/                  # @forge/prompt-registry
@@ -66,7 +76,7 @@ packages/
 | `context-builder`     | AI context assembly        | Project management       |
 | `content-intelligence` | Content understanding     | Intelligence (deterministic) |
 | `content-generation`  | Section patch generation   | AI Generation            |
-| `dom-engine`          | DOM mapping & preview      | DOM                      |
+| `dom-engine`          | Universal Page Model       | DOM                      |
 | `ai-engine`           | Provider abstraction       | AI                       |
 | `skills`              | Skill registry             | AI                       |
 | `prompt-registry`     | Prompt templates           | AI                       |
@@ -136,7 +146,7 @@ Actual imports must follow these rules. Violations break architecture.
 | `context-builder` | Intelligence team | Stable |
 | `content-intelligence` | Intelligence team | Stable |
 | `content-generation` | AI team | Stable |
-| `dom-engine` | AI team | Stable |
+| `dom-engine` | DOM team | New in Sprint 23 |
 | `ai-engine` | AI team | Stable |
 | `prompt-registry` | AI team | Stable |
 | `skills` | AI team | Stable |
@@ -150,4 +160,4 @@ Actual imports must follow these rules. Violations break architecture.
 
 ---
 
-*Updated Sprint 22A. All 30 packages documented. Non-existent historical packages (packages/ai, packages/memory, packages/providers, packages/reports, packages/workflows) have been removed.*
+*Updated Sprint 23. All 30 packages documented. DOM Engine is the canonical website parser — everything that reads or writes HTML must use it.*

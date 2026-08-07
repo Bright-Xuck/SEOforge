@@ -1,4 +1,4 @@
-# Architecture Decision Records
+﻿# Architecture Decision Records
 
 **Version:** v0.22.0 (Sprint 22A)
 
@@ -12,7 +12,7 @@
 | 004 | ESLint + Prettier for code quality | Current |
 | 005 | Commander for CLI framework | Current |
 | 006 | Cheerio for HTML parsing | Current |
-| 007 | Layered architecture (analysis → recommendation → action → execution) | Current |
+| 007 | Layered architecture (analysis Ä‚Ë˜Ã¢Â€Â Ã¢Â€Â™ recommendation Ä‚Ë˜Ã¢Â€Â Ã¢Â€Â™ action Ä‚Ë˜Ã¢Â€Â Ã¢Â€Â™ execution) | Current |
 | 008 | Provider abstraction pattern | Current |
 | 009 | WordPress as initial provider | Current |
 | 010 | Dry-run by default | Current |
@@ -23,40 +23,40 @@
 | 015 | Prompt Registry as versioned template store | Current |
 | 016 | Content Intelligence is 100% deterministic (no AI) | Current |
 | 017 | Optimization Composer between Review and Execution | Current |
-| 018 | Action Engine — execution planning & approval queue | Current |
-| 019 | Automation Policy — configurable auto-approval rules | Current |
-| 020 | Approval Queue — multi-step approval workflow | Current |
-| 021 | Agent Framework — role-specific decision agents | Current |
-| 022 | Strategy Engine — goal-to-pipeline translation | Current |
-| 023 | Mission Engine — high-level goal decomposition | Current |
-| 024 | DOM Engine — selector-anchored patching | Current |
-| 025 | Homepage Engine — specialized homepage optimization | Current |
-| 026 | Content Generation — section-patch AI writers | Current |
-| 027 | Brand Profile — brand-aware content generation | Current |
-| 028 | Voice Detection — automatic brand voice analysis | Current |
-| 029 | Cost Tracker — per-provider cost tracking | Current |
-| 030 | Rate Limiter — provider rate limiting | Current |
-| 031 | Retry Engine — configurable retry with backoff | Current |
-| 032 | Provider Logger — structured provider call logging | Current |
-| 033 | Prompt History — execution history for prompts | Current |
-| 034 | Context Builder — AI context assembly from knowledge & memory | Current |
-| 035 | Project Resolver — multi-source project resolution | Current |
-| 036 | Knowledge Engine — project knowledge store | Current |
-| 037 | Memory Engine — event-sourced memory | Current |
-| 038 | Preflight Validator — pre-execution safety checks | Current |
-| 039 | Rollback Groups — atomic undo grouping | Current |
-| 040 | Pipeline Engine — dependency-ordered step execution | Current |
-| 041 | Skills Registry — AI skill definitions | Current |
-| 042 | Capability Detection — provider capability matrix | Current |
-| 043 | Fallback Logic — provider fallback on failure | Current |
-| 044 | Content Graph — deterministic content relationship mapping | Current |
-| 045 | Stable IDs — deterministic section identification | Current |
-| 046 | Gap Detection — deterministic content gap analysis | Current |
-| 047 | Quality Scores — deterministic content quality metrics | Current |
-| 048 | Section Detection — deterministic section classification | Current |
-| 049 | Page DNA — deterministic page type & intent classification | Current |
-| 050 | Snapshot — deterministic website snapshot model | Current |
-| 051 | Optimization Orchestrator — centralized orchestration layer | Current |
+| 018 | Action Engine Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â execution planning & approval queue | Current |
+| 019 | Automation Policy Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â configurable auto-approval rules | Current |
+| 020 | Approval Queue Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â multi-step approval workflow | Current |
+| 021 | Agent Framework Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â role-specific decision agents | Current |
+| 022 | Strategy Engine Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â goal-to-pipeline translation | Current |
+| 023 | Mission Engine Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â high-level goal decomposition | Current |
+| 024 | DOM Engine Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â selector-anchored patching | Current |
+| 025 | Homepage Engine Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â specialized homepage optimization | Current |
+| 026 | Content Generation Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â section-patch AI writers | Current |
+| 027 | Brand Profile Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â brand-aware content generation | Current |
+| 028 | Voice Detection Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â automatic brand voice analysis | Current |
+| 029 | Cost Tracker Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â per-provider cost tracking | Current |
+| 030 | Rate Limiter Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â provider rate limiting | Current |
+| 031 | Retry Engine Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â configurable retry with backoff | Current |
+| 032 | Provider Logger Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â structured provider call logging | Current |
+| 033 | Prompt History Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â execution history for prompts | Current |
+| 034 | Context Builder Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â AI context assembly from knowledge & memory | Current |
+| 035 | Project Resolver Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â multi-source project resolution | Current |
+| 036 | Knowledge Engine Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â project knowledge store | Current |
+| 037 | Memory Engine Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â event-sourced memory | Current |
+| 038 | Preflight Validator Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â pre-execution safety checks | Current |
+| 039 | Rollback Groups Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â atomic undo grouping | Current |
+| 040 | Pipeline Engine Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â dependency-ordered step execution | Current |
+| 041 | Skills Registry Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â AI skill definitions | Current |
+| 042 | Capability Detection Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â provider capability matrix | Current |
+| 043 | Fallback Logic Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â provider fallback on failure | Current |
+| 044 | Content Graph Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â deterministic content relationship mapping | Current |
+| 045 | Stable IDs Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â deterministic section identification | Current |
+| 046 | Gap Detection Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â deterministic content gap analysis | Current |
+| 047 | Quality Scores Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â deterministic content quality metrics | Current |
+| 048 | Section Detection Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â deterministic section classification | Current |
+| 049 | Page DNA Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â deterministic page type & intent classification | Current |
+| 050 | Snapshot Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â deterministic website snapshot model | Current |
+| 051 | Optimization Orchestrator Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â centralized orchestration layer | Current |
 
 ---
 
@@ -131,7 +131,7 @@
 **Status:** Current  
 **Date:** Sprint 1
 
-**Decision:** Architecture follows: analysis → recommendation → action → execution.
+**Decision:** Architecture follows: analysis Ä‚Ë˜Ã¢Â€Â Ã¢Â€Â™ recommendation Ä‚Ë˜Ã¢Â€Â Ã¢Â€Â™ action Ä‚Ë˜Ã¢Â€Â Ã¢Â€Â™ execution.
 
 **Rationale:** Clear separation of concerns, each layer has single responsibility.
 
@@ -168,7 +168,7 @@
 
 **Decision:** All execution commands default to dry-run mode.
 
-**Rationale:** Safety first — no accidental writes to production sites.
+**Rationale:** Safety first Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â no accidental writes to production sites.
 
 ---
 
@@ -309,7 +309,7 @@
 **Status:** Current  
 **Date:** Sprint 21
 
-**Decision:** Mission Engine defines high-level goals and decomposes them into agent → strategy → pipeline sequences.
+**Decision:** Mission Engine defines high-level goals and decomposes them into agent Ä‚Ë˜Ã¢Â€Â Ã¢Â€Â™ strategy Ä‚Ë˜Ã¢Â€Â Ã¢Â€Â™ pipeline sequences.
 
 **Rationale:** Provides end-to-end orchestration from business goal to execution.
 
@@ -337,7 +337,7 @@
 
 ---
 
-## ADR-026: Content Generation — section-patch AI writers
+## ADR-026: Content Generation Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â section-patch AI writers
 
 **Status:** Current  
 **Date:** Sprint 20
@@ -441,7 +441,7 @@
 **Status:** Current  
 **Date:** Sprint 8
 
-**Decision:** Multi-source project resolution (CLI flag → env → cwd).
+**Decision:** Multi-source project resolution (CLI flag Ä‚Ë˜Ã¢Â€Â Ã¢Â€Â™ env Ä‚Ë˜Ã¢Â€Â Ã¢Â€Â™ cwd).
 
 **Rationale:** Flexible project selection without requiring explicit flags every time.
 
@@ -621,20 +621,51 @@
 
 **Rationale:** Previously, engines were chained ad-hoc through pipelines, agents, or CLI scripts. This created scattered orchestration logic. Centralizing orchestration into one package provides:
 
-1. **Deterministic state machine** — all valid transitions are known and enforced
-2. **Shared context** — `OptimizationContext` carries all data produced by any engine; no engine rebuilds what another already produced
-3. **Declarative workflows** — workflow definitions are data, not code; new workflows don't require new engine code
-4. **Event system** — typed events consumable by Knowledge Engine, Memory Engine, future Dashboard/Scheduling without modifying orchestrator logic
-5. **Runtime metrics** — duration, step durations, tokens, cost, patches, approvals, rejections, rollback count
-6. **Engine registry** — engines registered by type; orchestrator resolves via registry instead of importing directly
+1. **Deterministic state machine** Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â all valid transitions are known and enforced
+2. **Shared context** Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â `OptimizationContext` carries all data produced by any engine; no engine rebuilds what another already produced
+3. **Declarative workflows** Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â workflow definitions are data, not code; new workflows don't require new engine code
+4. **Event system** Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â typed events consumable by Knowledge Engine, Memory Engine, future Dashboard/Scheduling without modifying orchestrator logic
+5. **Runtime metrics** Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â duration, step durations, tokens, cost, patches, approvals, rejections, rollback count
+6. **Engine registry** Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â engines registered by type; orchestrator resolves via registry instead of importing directly
 
-**Why not pipelines?** Pipelines are for data processing steps (read → analyze → recommend), not for coordinating multiple independent engines with a lifecycle state machine.
+**Why not pipelines?** Pipelines are for data processing steps (read Ä‚Ë˜Ã¢Â€Â Ã¢Â€Â™ analyze Ä‚Ë˜Ã¢Â€Â Ã¢Â€Â™ recommend), not for coordinating multiple independent engines with a lifecycle state machine.
 
 **Why not agents?** Agents are decision-makers (SEOAgent, ContentAgent), not orchestrators. Agents produce strategy; orchestrators execute strategy.
 
 **Constraints:**
-- Provider-independent — never imports `providers-wordpress`
-- Never generates content — delegates to `content-generation`
+- Provider-independent Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â never imports `providers-wordpress`
+- Never generates content Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â delegates to `content-generation`
 - Never knows WordPress, Elementor, or any CMS-specific concept
 
 *All ADRs audited and re-indexed Sprint 22A. Duplicate IDs resolved. "Future Decisions" entries that were already accepted have been promoted to Current status with their own ADR numbers.*
+
+---
+
+## ADR-052: DOM Engine & Universal Page Model
+
+**Status:** Current  
+**Date:** Sprint 23
+
+**Decision:** Establish `@forge/dom-engine` as the canonical website parser. It transforms raw HTML into a Universal Page Model (Page Ã¢Â†Â’ Regions Ã¢Â†Â’ Sections Ã¢Â†Â’ Blocks Ã¢Â†Â’ Elements Ã¢Â†Â’ Text Nodes Ã¢Â†Â’ Attributes Ã¢Â†Â’ Selectors). Everything that reads or writes HTML must use it Ã¢Â€Â” no other package parses HTML directly.
+
+**Rationale:** HTML parsing, DOM traversal, selector generation, and section extraction logic was scattered across multiple packages (tools, content-intelligence, homepage-engine, optimization-orchestrator). This created duplicated, inconsistent parsing. Centralizing into one package provides:
+
+1. **Single source of truth** Ã¢Â€Â” one parser, one page model, one set of selectors
+2. **Builder detection** Ã¢Â€Â” Elementor (containers, sections, widgets), Gutenberg (blocks), Classic Editor, Bricks
+3. **Stable IDs** Ã¢Â€Â” deterministic IDs for every region, section, block, element, text node; stable across repeated analyses
+4. **Deterministic selectors** Ã¢Â€Â” CSS selector, XPath, DOM path, stable Forge selector, section/block/attribute selectors
+5. **Region detection** Ã¢Â€Â” Header, Hero, Navigation, Breadcrumb, Main, Sidebar, Footer, Popup, Modal, Sticky, Hidden, Template parts
+6. **Semantic classification** Ã¢Â€Â” Hero, Benefits, Services, Products, Features, Testimonials, FAQ, Comparison, CTA, Pricing, Contact, About, Blog, etc.
+7. **DOM diff engine** Ã¢Â€Â” added/removed/modified/moved nodes, attribute changes, structural changes
+8. **Rich text model** Ã¢Â€Â” canonical editing model for headings, paragraphs, lists, tables, links, buttons, inline formatting, images, embeds
+9. **Rich text patches** Ã¢Â€Â” replace/insert/delete paragraph, heading, button text, CTA, list, table, image alt, caption, widget text, HTML block, shortcode content
+10. **DOM validation** Ã¢Â€Â” broken nesting, invalid heading order, duplicate IDs, empty sections, hidden content, broken images, malformed lists/tables, missing landmarks, invalid ARIA
+
+**Why not keep parsing in each package?** Duplicated parsing creates inconsistent results, divergent selectors, and maintenance burden. A single canonical parser ensures every consumer (Review, Execution, WordPress writes, Diff engine, Rollback) uses the same page model.
+
+**Constraints:**
+- 100% deterministic Ã¢Â€Â” no AI, no network, no provider calls
+- Provider-independent Ã¢Â€Â” never imports providers-wordpress
+- Never imports execution-engine, content-generation, homepage-engine
+- No dashboards, scheduling, analytics, cloud sync, databases, autonomous execution, or new AI features
+

@@ -1,6 +1,6 @@
 # Forge Architecture
 
-**Version:** v0.22.0 (Sprint 22B — Optimization Orchestrator)
+**Version:** v0.23.0 (Sprint 23 — DOM Engine & Universal Page Model)
 
 Forge is a layered, deterministic-first platform for autonomous website optimization. Every layer has a single responsibility and enforced boundaries.
 
@@ -171,11 +171,21 @@ Forge is a layered, deterministic-first platform for autonomous website optimiza
 
 | Aspect | Detail |
 |---|---|
-| **Purpose** | Map HTML to structured DOM with stable selectors; validate patches |
-| **Inputs** | HTML, ContentPatch |
-| **Outputs** | DomMap, PatchValidation, PatchPreview |
+| **Purpose** | Canonical website parser. Transforms raw HTML into a Universal Page Model (Page → Regions → Sections → Blocks → Elements → Text Nodes → Attributes → Selectors). Everything that reads or writes HTML must use it. |
+| **Inputs** | Raw HTML, WordPress post content, Elementor JSON, Gutenberg block markup |
+| **Outputs** | UniversalPage (Page → Regions → Sections → Blocks → Elements → Text Nodes → Attributes → Selectors), DomDiff, RichTextModel, RichTextPatch, DomValidationReport |
+| **Builder Detection** | Elementor (containers, sections, widgets), Gutenberg (blocks), Classic Editor, Bricks |
+| **Selectors** | CSS selector, XPath, DOM path, stable Forge selector, section/block/attribute selectors |
+| **Stable IDs** | Deterministic IDs for every region, section, block, element, text node |
+| **Region Detection** | Header, Hero, Navigation, Breadcrumb, Main, Sidebar, Footer, Popup, Modal, Sticky, Hidden, Template parts |
+| **Semantic Detection** | Hero, Benefits, Services, Products, Features, Testimonials, FAQ, Comparison, CTA, Pricing, Contact, About, Blog, Resources, Related, Team, Mission, Vision, Timeline, Statistics, Partners, Clients, Awards, Trust, Newsletter, Footer |
+| **DOM Diff** | Added/removed/modified/moved nodes, attribute changes, structural changes |
+| **Rich Text Model** | Headings, paragraphs, lists, tables, links, buttons, inline formatting, images, embeds, forms |
+| **DOM Validation** | Broken nesting, invalid heading order, duplicate IDs, empty sections, hidden content, broken images, malformed lists/tables, missing landmarks, invalid ARIA |
+| **Deterministic** | Yes — no AI, no network, no provider calls |
+| **Public APIs** | `parse()`, `buildUniversalPage()`, `detectBuilder()`, `buildSelectors()`, `buildStableIds()`, `diffDom()`, `normalizeRichText()`, `createPatch()`, `validateDom()` |
 | **Ownership** | `@forge/dom-engine` |
-| **CLI commands** | `forge dom map`, `forge dom preview`, `forge dom patch`, `forge dom validate`, `forge dom inspect` |
+| **CLI commands** | `forge dom analyze`, `forge dom tree`, `forge dom diff`, `forge dom validate`, `forge dom selectors`, `forge dom builder`, `forge dom export` |
 
 ### 2.8 Review
 
@@ -473,7 +483,8 @@ sequenceDiagram
 | 21 | Mission Engine, Strategy Engine, Optimization Composer |
 | 22A | Architecture consolidation — documentation sync |
 | 22B | Optimization Orchestrator — centralized orchestration layer |
+| 23 | DOM Engine & Universal Page Model — canonical parser, builder detection, stable IDs, selectors, DOM diff, rich text, validation |
 
 ---
 
-*This document supersedes all previous architecture.md versions. Updated Sprint 22B with Optimization Orchestrator.*
+*This document supersedes all previous architecture.md versions. Updated Sprint 23 with DOM Engine & Universal Page Model.*
