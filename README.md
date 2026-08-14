@@ -4,6 +4,8 @@
 
 Forge is a layered, deterministic-first platform for analyzing, generating, reviewing, composing, and executing website optimizations. It integrates with WordPress and other providers through a strict orchestration chain.
 
+**Dependency hygiene:** `pnpm check:deps` runs `scripts/audit-unused-deps.mjs --strict` and fails when any package declares a dependency its source never imports. Manifests must match reality — see `docs/dependency-graph.md` → *Dependency Hygiene*.
+
 ---
 
 ## Architecture at a Glance
@@ -237,6 +239,11 @@ planning only — nothing is generated, linked, or written.
 | `forge wp preview` | Preview write (`--field`, `--value`) |
 | `forge wp apply` | Apply write |
 | `forge wp rollback` | Rollback write (`--revision-id`) |
+| `forge wp elementor inspect <site> <user> <pass> <page>` | Inspect an Elementor document (version, widgets, editable controls) |
+| `forge wp elementor preview <site> <user> <pass> <page> --patch <file>` | Preview the exact Elementor change (zero remote writes) |
+| `forge wp elementor validate <site> <user> <pass> <page> --patch <file>` | Validate a patch (resolution, compatibility, mutation) |
+| `forge wp elementor apply <site> <user> <pass> <page> --patch <file>` | Apply a patch (dry-run by default; `--apply` writes; `--output` saves rollback payload) |
+| `forge wp elementor rollback <site> <user> <pass> <page> --original <file>` | Restore the exact original Elementor document |
 | `forge fetch <site> <username> <password>` | Fetch all site data |
 | `forge connect wordpress` | Connection wizard (instructions) |
 | `forge provider` | Show provider info |
@@ -410,7 +417,7 @@ Assemblies AI context from project knowledge & memory.
 
 ## Sprint History
 
-Sprint development records are maintained in `docs/sprint-*.md`. The full Sprint history can be found there. This README reflects architecture as of Sprint 24.
+Sprint development records are maintained in `docs/sprint-*.md`. The full Sprint history can be found there. This README reflects architecture as of Sprint 25.
 
 ### Sprint 24 — Site-Level Content Intelligence (extension of `@forge/content-intelligence`)
 
@@ -427,3 +434,31 @@ Generation / Review / Optimization (downstream consumers; nothing executed here)
 ```
 
 New CLI: `forge content site-analyze|topics|clusters|authority|opportunities|refresh|links`. New pipeline: `site-intelligence`. New orchestrator engine: `site-intelligence` (outputs only, never executes).
+
+### Sprint 25 — Universal Patch Application & Elementor/WordPress Write Bridge (extension of `@forge/dom-engine` + `@forge/providers-wordpress`)
+
+Sprint 25 establishes a safe, provider-aware path from rendered WordPress page → Universal Page Model → ContentPatch → Review → Composer → Execution → WordPress Provider → **Elementor document data** → updated rendered page. It is NOT a new engine and does NOT use Elementor MCP.
+
+```
+Rendered WordPress page
+        ↓
+Universal Page Model (dom-engine)
+        ↓
+ElementorDocument (dom-engine parses _elementor_data — source of truth)
+        ↓
+resolve → mutate → verify (deterministic, stale-safe)
+        ↓
+ElementorDocumentTransport (providers-wordpress, companion endpoint)
+        ↓
+ElementorWriteBridge (CLI composition root)
+        ↓
+WordPress Provider → Elementor native save → re-read verification
+```
+
+Key additions (all deterministic):
+
+- **`@forge/dom-engine`** — `ElementorDocument` model (version + fingerprint), UniversalPage ↔ Elementor mapping (via rendered `data-id`), `resolveElementorPatch` with typed error codes (`PATCH_TARGET_NOT_FOUND/AMBIGUOUS/NOT_EDITABLE/STALE/UNSUPPORTED_WIDGET/UNSUPPORTED_VERSION/INVALID_TARGET`), rich-text allowlist rules, and `applyElementorMutations` / `verifyElementorMutation`.
+- **`@forge/providers-wordpress`** — `ElementorDocumentTransport` (read/write with optimistic concurrency), provider `getElementorDocument` / `updateElementorDocument`, `applyWrite` routing + re-read verification, and an optional companion plugin (`packages/providers-wordpress/companion/forge-elementor-bridge.php`) that exposes the controlled endpoint and saves through Elementor's native API.
+- **CLI** — `forge wp elementor inspect|preview|validate|apply|rollback`. `apply` is dry-run by default; `--apply` performs the write; rollback restores the exact original document.
+
+Safety guarantees: dry-run = zero remote mutations; stale patches are rejected; writes are atomic whole-document replacements verified by re-read; unknown Elementor settings and `__globals__` survive round trips; unsupported widgets/versions are refused rather than guessed.

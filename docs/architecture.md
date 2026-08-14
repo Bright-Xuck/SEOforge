@@ -1,6 +1,6 @@
 # Forge Architecture
 
-**Version:** v0.24.0 (Sprint 24 — Site-Level Content Intelligence)
+**Version:** v0.25.0 (Sprint 25 — Universal Patch Application & Elementor/WordPress Write Bridge)
 
 Forge is a layered, deterministic-first platform for autonomous website optimization. Every layer has a single responsibility and enforced boundaries.
 
@@ -205,9 +205,10 @@ Generation / Review / Optimization
 
 | Aspect | Detail |
 |---|---|
-| **Purpose** | Canonical website parser. Transforms raw HTML into a Universal Page Model (Page → Regions → Sections → Blocks → Elements → Text Nodes → Attributes → Selectors). Everything that reads or writes HTML must use it. |
-| **Inputs** | Raw HTML, WordPress post content, Elementor JSON, Gutenberg block markup |
-| **Outputs** | UniversalPage (Page → Regions → Sections → Blocks → Elements → Text Nodes → Attributes → Selectors), DomDiff, RichTextModel, RichTextPatch, DomValidationReport |
+| **Purpose** | Canonical website parser. Transforms raw HTML into a Universal Page Model (Page → Regions → Sections → Blocks → Elements → Text Nodes → Attributes → Selectors). Everything that reads or writes HTML must use it. Also owns the provider-neutral Elementor document layer (Sprint 25). |
+| **Inputs** | Raw HTML, WordPress post content, Elementor JSON (`_elementor_data`), Gutenberg block markup |
+| **Outputs** | UniversalPage (Page → Regions → Sections → Blocks → Elements → Text Nodes → Attributes → Selectors), DomDiff, RichTextModel, RichTextPatch, DomValidationReport — plus ElementorDocument, UniversalPage↔Elementor mapping, patch resolution (typed error codes), mutation + verification |
+| **Elementor Document Layer** | `parseElementorDocument` (version + fingerprint), `mapUniversalPageToElementor` (rendered `data-id` → element id), `resolveElementorPatch` (`PATCH_TARGET_NOT_FOUND/AMBIGUOUS/NOT_EDITABLE/STALE/UNSUPPORTED_WIDGET/UNSUPPORTED_VERSION/INVALID_TARGET`), rich-text allowlist rules, `applyElementorMutations` + `verifyElementorMutation`. Provider-neutral — no WordPress meta names, REST endpoints, or auth. |
 | **Builder Detection** | Elementor (containers, sections, widgets), Gutenberg (blocks), Classic Editor, Bricks |
 | **Selectors** | CSS selector, XPath, DOM path, stable Forge selector, section/block/attribute selectors |
 | **Stable IDs** | Deterministic IDs for every region, section, block, element, text node |
@@ -345,16 +346,17 @@ sequenceDiagram
 
 | Aspect | Detail |
 |---|---|
-| **Purpose** | Read/write/rollback/preview content on WordPress sites |
-| **Inputs** | Provider config + WriteOperation / ReadRequest |
-| **Outputs** | ProviderResult, SiteInfo, Capabilities |
+| **Purpose** | Read/write/rollback/preview content on WordPress sites, including Elementor documents (Sprint 25) |
+| **Inputs** | Provider config + WriteOperation / ReadRequest; Elementor document reads/writes via companion endpoint |
+| **Outputs** | ProviderResult, SiteInfo, Capabilities, ElementorDocumentRead/WriteResult |
+| **Elementor transport** | `ElementorDocumentTransport` (GET/PUT `wp-json/forge/v1/elementor/documents/{id}` with optimistic concurrency), `WordPressProvider.getElementorDocument/updateElementorDocument`, `applyWrite` routing for `elementor-document` resources with re-read verification. The optional companion plugin (`packages/providers-wordpress/companion/forge-elementor-bridge.php`) exposes the endpoint and saves through Elementor's native document API. |
 | **Ownership** | `@forge/providers-wordpress` |
 
 **Read capabilities:** posts, pages, pages, media, categories, tags, settings, siteInfo, capabilities
 
 **Write capabilities:** update, create, preview, rollback
 
-**Limitations:** No browser automation, no visual builder integration, no elementor of any visual builder support
+**Limitations:** No browser automation. Elementor support is a conservative text-content patch path (see `docs/sprint-25.md` §7 Supported/Partial/Unsupported); it requires the optional companion plugin and never modifies rendered HTML.
 
 ---
 
@@ -518,6 +520,8 @@ sequenceDiagram
 | 22A | Architecture consolidation — documentation sync |
 | 22B | Optimization Orchestrator — centralized orchestration layer |
 | 23 | DOM Engine & Universal Page Model — canonical parser, builder detection, stable IDs, selectors, DOM diff, rich text, validation |
+| 24 | Site-level Content Intelligence — extension of content-intelligence (topic graph, clusters, authority, opportunities, refresh, internal links) |
+| 25 | Universal Patch Application & Elementor/WordPress Write Bridge — Elementor document model, mapping, resolution, rich text, transport, companion plugin, CLI (`forge wp elementor *`) |
 
 ---
 

@@ -4,6 +4,16 @@
 export { WordPressClient } from "./client.js";
 export { WordPressProvider, createWordPressProvider, WORDPRESS_PROVIDER_METADATA } from "./wordpress-provider.js";
 export { wordpressPlugin, registerWordPressPlugin } from "./wordpress-plugin.js";
+export {
+  ElementorDocumentTransport,
+  ElementorTransportError,
+  ELEMENTOR_COMPANION_PATH,
+} from "./elementor-transport.js";
+export type {
+  ElementorTransportErrorCode,
+  ElementorDocumentRead,
+  ElementorDocumentWriteResult,
+} from "./elementor-transport.js";
 export type {
   WordPressConnectionConfig,
   WordPressPost,

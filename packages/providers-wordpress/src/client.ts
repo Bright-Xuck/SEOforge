@@ -77,6 +77,43 @@ export class WordPressClient {
   }
 
   /**
+   * Make a request to a raw site path outside the wp/v2 namespace
+   * (e.g. the Forge companion plugin: wp-json/forge/v1/...).
+   * Returns the parsed JSON body (object or array).
+   */
+  async rawRequest<T = Record<string, unknown>>(
+    path: string,
+    method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
+    body?: unknown,
+  ): Promise<T> {
+    const url = `${this.baseUrl}/${path.replace(/^\/+/, "")}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: {
+          Authorization: this.authHeader,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (!response.ok) {
+        throw this.mapError(response.status);
+      }
+      return (await response.json()) as T;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("REQUEST_TIMEOUT");
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Core request method with retry, timeout, and error handling.
    */
   private async request<T>(

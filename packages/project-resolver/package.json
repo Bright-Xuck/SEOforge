@@ -16,7 +16,6 @@
     "clean": "del /q dist 2>nul || rmdir /s /q dist"
   },
   "dependencies": {
-    "@forge/core": "workspace:*",
-    "@forge/providers-wordpress": "workspace:*"
+    "@forge/core": "workspace:*"
   }
 }

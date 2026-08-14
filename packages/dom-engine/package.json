@@ -17,14 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@forge/ai-engine": "workspace:*",
     "@forge/content-intelligence": "workspace:*",
-    "@forge/content-generation": "workspace:*",
-    "@forge/core": "workspace:*",
-    "@forge/execution-engine": "workspace:*",
-    "@forge/knowledge-engine": "workspace:*",
-    "@forge/prompt-registry": "workspace:*",
-    "@forge/review-engine": "workspace:*",
     "cheerio": "^1.2.0"
   },
   "devDependencies": {

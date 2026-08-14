@@ -30,6 +30,8 @@ export interface MemoryEvent {
     | "review-commented"
     | "review-completed"
     | "site-analysis"
+    | "elementor-write"
+    | "elementor-rollback"
     | "error"
     | "warning";
   readonly project: string;

@@ -9,6 +9,7 @@
     "dev": "turbo dev",
     "test": "vitest run",
     "lint": "eslint .",
+    "check:deps": "node scripts/audit-unused-deps.mjs --strict",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "turbo typecheck",

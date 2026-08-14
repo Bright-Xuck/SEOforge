@@ -14,6 +14,7 @@
       "dependsOn": ["build"]
     },
     "lint": {},
+    "check:deps": {},
     "format": {},
     "typecheck": {
       "dependsOn": ["build"]

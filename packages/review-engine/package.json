@@ -17,11 +17,8 @@
     "test": "node ../../node_modules/vitest/vitest.mjs run packages/review-engine"
   },
   "dependencies": {
-    "@forge/action-engine": "workspace:*",
     "@forge/content-generation": "workspace:*",
-    "@forge/core": "workspace:*",
     "@forge/knowledge-engine": "workspace:*",
-    "@forge/memory-engine": "workspace:*",
-    "@forge/preflight-validator": "workspace:*"
+    "@forge/memory-engine": "workspace:*"
   }
 }

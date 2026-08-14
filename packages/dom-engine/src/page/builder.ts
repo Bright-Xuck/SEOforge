@@ -309,6 +309,11 @@ function parseBlock(
     }
   });
 
+  // Elementor rendered widgets carry data-id="<elementor element id>".
+  // This is the deterministic bridge between the rendered page and the
+  // Elementor document JSON — never nth-child or generated CSS classes.
+  const elementorDataId = attrs.find((a) => a.name === "data-id")?.value;
+
   return {
     id,
     kind,
@@ -318,7 +323,10 @@ function parseBlock(
     elements,
     children,
     selectors,
-    metadata: { tagName },
+    metadata: {
+      tagName,
+      ...(elementorDataId ? { elementorElementId: elementorDataId } : {}),
+    },
   };
 }
 

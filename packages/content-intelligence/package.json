@@ -18,7 +18,6 @@
   },
   "dependencies": {
     "@forge/core": "workspace:*",
-    "@forge/tools": "workspace:*",
     "cheerio": "^1.0.0"
   }
 }

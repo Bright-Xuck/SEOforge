@@ -59,6 +59,7 @@
 | 051 | Optimization Orchestrator Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â centralized orchestration layer | Current |
 | 052 | DOM Engine Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â Universal Page Model | Current |
 | 053 | Site-level topical intelligence belongs in @forge/content-intelligence | Current |
+| 054 | Elementor write bridge lives in dom-engine + providers-wordpress + CLI (no new engine, no MCP) | Current |
 
 ---
 
@@ -702,3 +703,27 @@
 - `src/site/` never persists — it consumes the existing knowledge/memory shapes structurally and emits `site-analysis` events that the existing memory system records.
 - `src/site/` is intelligence/planning only — no generation, no link modification, no scheduling, no provider writes. Downstream execution stays in the existing Optimization Composer / Review / Execution architecture.
 
+
+---
+
+## ADR-054: Elementor write bridge lives in dom-engine + providers-wordpress + CLI (no new engine, no MCP)
+
+**Status:** Current
+**Date:** Sprint 25
+
+**Decision:** Establish a safe, provider-aware Elementor/WordPress write path by extending existing packages — `@forge/dom-engine` (provider-neutral Elementor document layer), `@forge/providers-wordpress` (transport + companion endpoint), and the CLI composition root (bridge). No `@forge/elementor-engine` or similar package is created, and no Elementor MCP is introduced.
+
+**Rationale:**
+
+1. **Rendered HTML is not Elementor's source of truth.** Elementor stores page structure as structured JSON in the private `_elementor_data` post meta. Editing rendered HTML and sending it back could destroy Elementor structure. The bridge reads the Elementor document, mutates only approved settings on a clone, and writes the whole document atomically with optimistic concurrency.
+
+2. **Direct REST access is not safely available.** `_elementor_data` is private meta, not exposed by the standard wp/v2 REST API. SEO Forge therefore uses a minimal optional companion plugin (Path C) that exposes a controlled, authenticated endpoint and saves through Elementor's native document API (Path D). This is provider-specific and stays inside `@forge/providers-wordpress`.
+
+3. **No Elementor MCP.** None existed in the repository and none is required. SEO Forge works independently of whichever coding agent develops it. The provider abstraction is the source of truth.
+
+4. **Consolidation over new engines.** The Elementor document model is the same category of work dom-engine already owns (parsing, targeting, patching). The transport is the same category of work providers-wordpress already owns (REST, auth, provider-specific APIs). The bridge needs both plus the execution chain, so it lives in the CLI composition root — which already depends on all three packages. A separate bridge package would add a dependency edge to every consumer for no architectural benefit. dom-engine's manifest was also cleaned up during Sprint 25 follow-up: its unused workspace dependencies (`@forge/ai-engine`, `content-generation`, `core`, `execution-engine`, `knowledge-engine`, `prompt-registry`, `review-engine`) were removed so the manifest now matches its actual imports (`@forge/content-intelligence`, `cheerio`).
+
+**Architectural boundaries:**
+- Generic packages must not know WordPress REST endpoints, `_elementor_data` meta names, Elementor widget internals, or WordPress post IDs. dom-engine knows Elementor JSON structure and widget settings (format knowledge); providers-wordpress knows endpoints and meta names (provider knowledge).
+- All writes still pass through the existing Review → Optimization Composer → Execution Engine → Provider chain; there is no AI → WordPress or Generation → WordPress path.
+- Stale patches are rejected (`PATCH_STALE`); dry-run performs zero remote mutations; writes are verified by re-read; rollback restores the exact original document.

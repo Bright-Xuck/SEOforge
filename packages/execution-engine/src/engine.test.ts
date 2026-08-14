@@ -1,17 +1,20 @@
 // @forge/execution-engine/engine.test
 // Tests for execution engine.
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { execute, executeWithValidation, getRollbackOperations } from "./engine.js";
 import { RollbackStore } from "./rollback.js";
 import { ExecutionHistory } from "./history.js";
 import { PolicyEngine } from "./policies.js";
 import type { ExecutionPlan, Action } from "@forge/action-engine";
 import type { ValidationReport } from "@forge/preflight-validator";
+import type { WriteOperation } from "@forge/core";
 
 const mockProvider = {
   id: "mock-provider",
   name: "Mock Provider",
+  version: "1.0.0",
+  description: "Mock provider for tests",
   async previewWrite(operation: any) {
     return {
       operationId: operation.id,
@@ -169,6 +172,75 @@ describe("Execution Engine", () => {
       const result = await execute(plan, mockProvider as any, { dryRun: true });
 
       expect(result.executionTime).toMatch(/^\d+ms$/);
+    });
+  });
+
+  describe("execute with domEngine resolve (Elementor patches)", () => {
+    it("fetches raw content, resolves the patch, and passes the patched content to the provider", async () => {
+      const rawElementor = JSON.stringify([{ id: "h1", elType: "widget", widgetType: "heading", settings: { title: "Old heading" }, elements: [] }]);
+      const patchedElementor = JSON.stringify([{ id: "h1", elType: "widget", widgetType: "heading", settings: { title: "New heading" }, elements: [] }]);
+      const fetchResource = vi.fn(async () => rawElementor);
+      const domEngineResolve = vi.fn(async (_raw: string, patch: unknown) => {
+        void patch;
+        return patchedElementor;
+      });
+      const applySpy = vi.fn(async (operation: WriteOperation) => ({
+        operationId: operation.id,
+        providerId: "mock",
+        resourceType: operation.resourceType,
+        resourceId: operation.resourceId,
+        timestamp: new Date().toISOString(),
+        oldValue: {},
+        newValue: operation.newValue,
+        diffs: operation.diffs,
+        summary: operation.summary,
+        preview: false,
+        applied: true,
+        message: "applied",
+      }));
+      const provider = { ...mockProvider, applyWrite: applySpy };
+
+      const plan = createMockPlan([
+        createMockAction({
+          id: "elementor-action",
+          type: "content.update-content",
+          payload: {
+            pageId: 5,
+            patch: { target: { format: "elementor", elementId: "h1", settingsKey: "title" }, proposedContent: "New heading" },
+          },
+          status: "approved",
+        }),
+      ]);
+
+      const result = await execute(plan, provider, {
+        dryRun: false,
+        stopOnBlocked: true,
+        domEngine: { resolve: domEngineResolve },
+        fetchResource,
+      });
+
+      expect(result.completedActions).toContain("elementor-action");
+      expect(fetchResource).toHaveBeenCalledWith("page", 5);
+      expect(domEngineResolve).toHaveBeenCalledWith(rawElementor, expect.objectContaining({ proposedContent: "New heading" }));
+      const appliedOperation = applySpy.mock.calls[0]?.[0];
+      expect(appliedOperation?.newValue.content).toBe(patchedElementor);
+    });
+
+    it("runs the domEngine resolve path only for real (non-dry-run) execution", async () => {
+      const fetchResource = vi.fn(async () => "{}");
+      const domEngineResolve = vi.fn(async () => "{}");
+      const applySpy = vi.fn(async (operation: WriteOperation) => ({
+        operationId: operation.id, providerId: "mock", resourceType: operation.resourceType, resourceId: operation.resourceId,
+        timestamp: new Date().toISOString(), oldValue: {}, newValue: operation.newValue, diffs: operation.diffs, summary: operation.summary,
+        preview: false, applied: true, message: "applied",
+      }));
+      const provider = { ...mockProvider, applyWrite: applySpy };
+      const plan = createMockPlan([createMockAction({ id: "a1", payload: { patch: {} } })]);
+
+      await execute(plan, provider, { dryRun: true, domEngine: { resolve: domEngineResolve }, fetchResource });
+      expect(fetchResource).not.toHaveBeenCalled();
+      expect(domEngineResolve).not.toHaveBeenCalled();
+      expect(applySpy).not.toHaveBeenCalled();
     });
   });
 

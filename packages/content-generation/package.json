@@ -18,10 +18,8 @@
   "dependencies": {
     "@forge/ai-engine": "workspace:*",
     "@forge/content-intelligence": "workspace:*",
-    "@forge/context-builder": "workspace:*",
     "@forge/core": "workspace:*",
     "@forge/knowledge-engine": "workspace:*",
-    "@forge/memory-engine": "workspace:*",
     "@forge/mission-engine": "workspace:*",
     "@forge/prompt-registry": "workspace:*"
   }

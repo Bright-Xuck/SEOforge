@@ -1,6 +1,6 @@
 # Forge Project Structure
 
-**Version:** v0.24.0 (Sprint 24 — Site-Level Content Intelligence)
+**Version:** v0.25.0 (Sprint 25 — Universal Patch Application & Elementor/WordPress Write Bridge)
 
 ## Directory Layout
 
@@ -46,10 +46,10 @@ packages/
         memory.ts                   # site-analysis memory event factory
         types.ts                    # Site-level types + UniversalPageLike / knowledge / memory contracts
   content-generation/               # @forge/content-generation
-  dom-engine/                       # @forge/dom-engine — Universal Page Model, builder detection, DOM diff, rich text, validation
+  dom-engine/                       # @forge/dom-engine — Universal Page Model, builder detection, DOM diff, rich text, validation, Elementor document layer
     src/
       builder/                      # Builder detection (Elementor, Gutenberg, Classic, Bricks)
-      page/                         # Universal Page builder (Page → Regions → Sections → Blocks → Elements)
+      page/                         # Universal Page builder (Page → Regions → Sections → Blocks → Elements; captures Elementor data-id)
       ids/                          # Stable ID generation
       selectors/                    # CSS, XPath, DOM path, stable Forge selectors
       regions/                      # Region detection (Header, Hero, Nav, Footer, etc.)
@@ -57,6 +57,24 @@ packages/
       diff/                         # DOM diff engine
       richtext/                     # Rich text model & patches
       validation/                   # DOM validation
+      elementor/                    # Sprint 25 — provider-neutral Elementor document layer
+        document.ts                 #   ElementorDocument model, version gate, fingerprint
+        widget-schema.ts            #   Conservative widget→setting mapping + rich-text/plain-text flags
+        setting-path.ts             #   Nested settings paths (e.g. image.alt)
+        rich-text.ts                #   Rich-text allowlist sanitizer + compatibility rules
+        universal-mapper.ts         #   UniversalPage ↔ Elementor mapping (data-id / widget-type / text-anchor)
+        patch-resolver.ts           #   resolveElementorPatch with typed error codes + stale protection
+        mutator.ts                  #   applyElementorMutations + verifyElementorMutation
+        elementor-parser.ts         #   _elementor_data JSON → ContentNode tree (Sprint 21)
+        elementor-serializer.ts     #   ContentNode tree → _elementor_data JSON (Sprint 21)
+        elementor-target-resolver.ts#   elementId + settingsKey resolution (Sprint 21)
+  providers-wordpress/              # @forge/providers-wordpress
+    src/
+      elementor-transport.ts        # Sprint 25 — companion endpoint read/write with optimistic concurrency
+      client.ts                     # WordPress REST client (+ rawRequest for non-wp/v2 namespaces)
+      wordpress-provider.ts         # Provider incl. getElementorDocument / updateElementorDocument / routing
+    companion/
+      forge-elementor-bridge.php    # Sprint 25 — optional WordPress plugin (Path C + D, Elementor native save)
   ai-engine/                        # @forge/ai-engine
   skills/                           # @forge/skills
   prompt-registry/                  # @forge/prompt-registry
@@ -85,14 +103,14 @@ packages/
 | `pipeline-engine`     | Pipeline orchestration      | Core logic               |
 | `preflight-validator` | Pre-execution checks       | Core logic               |
 | `execution-engine`    | Execution                  | Provider integration     |
-| `providers-wordpress` | WordPress API              | Provider                 |
+| `providers-wordpress` | WordPress API + Elementor document transport | Provider        |
 | `project-resolver`    | Project resolution         | Project management       |
 | `knowledge-engine`    | Project knowledge store    | Project management       |
 | `memory-engine`       | Event-sourced memory       | Project management       |
 | `context-builder`     | AI context assembly        | Project management       |
 | `content-intelligence` | Page + site content understanding | Intelligence (deterministic) |
 | `content-generation`  | Section patch generation   | AI Generation            |
-| `dom-engine`          | Universal Page Model       | DOM                      |
+| `dom-engine`          | Universal Page Model + Elementor document layer | DOM               |
 | `ai-engine`           | Provider abstraction       | AI                       |
 | `skills`              | Skill registry             | AI                       |
 | `prompt-registry`     | Prompt templates           | AI                       |

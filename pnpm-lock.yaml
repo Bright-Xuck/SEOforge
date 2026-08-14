@@ -137,21 +137,12 @@ importers:
 
   packages/agent-engine:
     dependencies:
-      '@forge/ai-engine':
-        specifier: workspace:*
-        version: link:../ai-engine
       '@forge/context-builder':
         specifier: workspace:*
         version: link:../context-builder
-      '@forge/core':
-        specifier: workspace:*
-        version: link:../core
       '@forge/knowledge-engine':
         specifier: workspace:*
         version: link:../knowledge-engine
-      '@forge/memory-engine':
-        specifier: workspace:*
-        version: link:../memory-engine
       '@forge/pipeline-engine':
         specifier: workspace:*
         version: link:../pipeline-engine
@@ -197,18 +188,12 @@ importers:
       '@forge/content-intelligence':
         specifier: workspace:*
         version: link:../content-intelligence
-      '@forge/context-builder':
-        specifier: workspace:*
-        version: link:../context-builder
       '@forge/core':
         specifier: workspace:*
         version: link:../core
       '@forge/knowledge-engine':
         specifier: workspace:*
         version: link:../knowledge-engine
-      '@forge/memory-engine':
-        specifier: workspace:*
-        version: link:../memory-engine
       '@forge/mission-engine':
         specifier: workspace:*
         version: link:../mission-engine
@@ -221,9 +206,6 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
-      '@forge/tools':
-        specifier: workspace:*
-        version: link:../tools
       cheerio:
         specifier: ^1.0.0
         version: 1.2.0
@@ -233,38 +215,14 @@ importers:
       '@forge/ai-engine':
         specifier: workspace:*
         version: link:../ai-engine
-      '@forge/core':
-        specifier: workspace:*
-        version: link:../core
 
   packages/core: {}
 
   packages/dom-engine:
     dependencies:
-      '@forge/ai-engine':
-        specifier: workspace:*
-        version: link:../ai-engine
-      '@forge/content-generation':
-        specifier: workspace:*
-        version: link:../content-generation
       '@forge/content-intelligence':
         specifier: workspace:*
         version: link:../content-intelligence
-      '@forge/core':
-        specifier: workspace:*
-        version: link:../core
-      '@forge/execution-engine':
-        specifier: workspace:*
-        version: link:../execution-engine
-      '@forge/knowledge-engine':
-        specifier: workspace:*
-        version: link:../knowledge-engine
-      '@forge/prompt-registry':
-        specifier: workspace:*
-        version: link:../prompt-registry
-      '@forge/review-engine':
-        specifier: workspace:*
-        version: link:../review-engine
       cheerio:
         specifier: ^1.2.0
         version: 1.2.0
@@ -309,51 +267,23 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
-      '@forge/execution-engine':
-        specifier: workspace:*
-        version: link:../execution-engine
       '@forge/knowledge-engine':
         specifier: workspace:*
         version: link:../knowledge-engine
-      '@forge/memory-engine':
-        specifier: workspace:*
-        version: link:../memory-engine
-      '@forge/mission-engine':
-        specifier: workspace:*
-        version: link:../mission-engine
-      '@forge/pipeline-engine':
-        specifier: workspace:*
-        version: link:../pipeline-engine
       '@forge/preflight-validator':
         specifier: workspace:*
         version: link:../preflight-validator
       '@forge/prompt-registry':
         specifier: workspace:*
         version: link:../prompt-registry
-      '@forge/providers-wordpress':
-        specifier: workspace:*
-        version: link:../providers-wordpress
       '@forge/review-engine':
         specifier: workspace:*
         version: link:../review-engine
-      '@forge/strategy-engine':
-        specifier: workspace:*
-        version: link:../strategy-engine
-      '@forge/tools':
-        specifier: workspace:*
-        version: link:../tools
       cheerio:
         specifier: ^1.0.0
         version: 1.2.0
 
-  packages/knowledge-engine:
-    dependencies:
-      '@forge/core':
-        specifier: workspace:*
-        version: link:../core
-      '@forge/memory-engine':
-        specifier: workspace:*
-        version: link:../memory-engine
+  packages/knowledge-engine: {}
 
   packages/logger:
     dependencies:
@@ -361,11 +291,7 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/memory-engine:
-    dependencies:
-      '@forge/core':
-        specifier: workspace:*
-        version: link:../core
+  packages/memory-engine: {}
 
   packages/mission-engine:
     dependencies:
@@ -379,21 +305,10 @@ importers:
         specifier: workspace:*
         version: link:../strategy-engine
 
-  packages/optimization-composer:
-    dependencies:
-      '@forge/core':
-        specifier: workspace:*
-        version: link:../core
-    devDependencies:
-      typescript:
-        specifier: ^5.5.0
-        version: 5.9.3
+  packages/optimization-composer: {}
 
   packages/optimization-orchestrator:
     dependencies:
-      '@forge/action-engine':
-        specifier: workspace:*
-        version: link:../action-engine
       '@forge/ai-engine':
         specifier: workspace:*
         version: link:../ai-engine
@@ -412,12 +327,6 @@ importers:
       '@forge/knowledge-engine':
         specifier: workspace:*
         version: link:../knowledge-engine
-      '@forge/logger':
-        specifier: workspace:*
-        version: link:../logger
-      '@forge/memory-engine':
-        specifier: workspace:*
-        version: link:../memory-engine
       '@forge/optimization-composer':
         specifier: workspace:*
         version: link:../optimization-composer
@@ -427,9 +336,6 @@ importers:
       '@forge/review-engine':
         specifier: workspace:*
         version: link:../review-engine
-      '@forge/shared':
-        specifier: workspace:*
-        version: link:../shared
     devDependencies:
       cheerio:
         specifier: ^1.0.0
@@ -491,9 +397,6 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
-      '@forge/pipeline-engine':
-        specifier: workspace:*
-        version: link:../pipeline-engine
 
   packages/preflight-validator:
     dependencies:
@@ -510,24 +413,14 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
-      '@forge/providers-wordpress':
-        specifier: workspace:*
-        version: link:../providers-wordpress
 
-  packages/prompt-registry:
-    dependencies:
-      '@forge/core':
-        specifier: workspace:*
-        version: link:../core
+  packages/prompt-registry: {}
 
   packages/providers-wordpress:
     dependencies:
       '@forge/core':
         specifier: workspace:*
         version: link:../core
-      '@forge/plugin-registry':
-        specifier: workspace:*
-        version: link:../plugin-registry
 
   packages/recommendation-engine:
     dependencies:
@@ -537,24 +430,15 @@ importers:
 
   packages/review-engine:
     dependencies:
-      '@forge/action-engine':
-        specifier: workspace:*
-        version: link:../action-engine
       '@forge/content-generation':
         specifier: workspace:*
         version: link:../content-generation
-      '@forge/core':
-        specifier: workspace:*
-        version: link:../core
       '@forge/knowledge-engine':
         specifier: workspace:*
         version: link:../knowledge-engine
       '@forge/memory-engine':
         specifier: workspace:*
         version: link:../memory-engine
-      '@forge/preflight-validator':
-        specifier: workspace:*
-        version: link:../preflight-validator
 
   packages/shared: {}
 
@@ -593,9 +477,6 @@ importers:
       '@forge/context-builder':
         specifier: workspace:*
         version: link:../context-builder
-      '@forge/core':
-        specifier: workspace:*
-        version: link:../core
       '@forge/knowledge-engine':
         specifier: workspace:*
         version: link:../knowledge-engine

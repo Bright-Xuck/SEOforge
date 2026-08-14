@@ -18,8 +18,6 @@
   },
   "dependencies": {
     "@forge/core": "workspace:*",
-    "@forge/shared": "workspace:*",
-    "@forge/logger": "workspace:*",
     "@forge/content-intelligence": "workspace:*",
     "@forge/content-generation": "workspace:*",
     "@forge/review-engine": "workspace:*",
@@ -27,9 +25,7 @@
     "@forge/execution-engine": "workspace:*",
     "@forge/ai-engine": "workspace:*",
     "@forge/knowledge-engine": "workspace:*",
-    "@forge/memory-engine": "workspace:*",
-    "@forge/prompt-registry": "workspace:*",
-    "@forge/action-engine": "workspace:*"
+    "@forge/prompt-registry": "workspace:*"
   },
   "devDependencies": {
     "cheerio": "^1.0.0",

@@ -4,6 +4,7 @@
 // Forge command-line interface.
 
 import { Command } from "commander";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { FORGE_NAME, FORGE_VERSION } from "@forge/shared";
 import { createWordPressProvider, WORDPRESS_PROVIDER_METADATA } from "@forge/providers-wordpress";
 import { WebsiteReadError } from "@forge/core";
@@ -85,6 +86,8 @@ import {
   createSiteAnalysisMemoryEvent,
 } from "@forge/content-intelligence";
 import { buildUniversalPage } from "@forge/dom-engine";
+import { createElementorBridge } from "./elementor/bridge.js";
+import type { ElementorRollbackPayload, ElementorPatchInput, ElementorPreviewResult } from "./elementor/bridge.js";
 import { generateContent, buildProjectContext } from "@forge/content-generation";
 import {
   writeHero,
@@ -738,6 +741,260 @@ wpCommand
     }
     process.stdout.write(`Rolled back ${options.project ?? "default"}: ${result.message}\n`);
   });
+
+// ─── Sprint 25: Elementor/WordPress write bridge ───────────────────────────
+// Requires the optional forge-elementor-bridge companion plugin on the site.
+// All commands are safe by default: preview/validate/apply default to dry-run
+// (zero remote mutations). Only `apply --apply` performs a provider-backed write.
+
+function loadElementorPatchFromFile(path: string): ElementorPatchInput {
+  const raw = readFileSync(path, "utf8");
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  const patch = Array.isArray(parsed) ? (parsed[0] as Record<string, unknown>) : parsed;
+  return {
+    id: typeof patch.id === "string" ? patch.id : undefined,
+    currentContent: typeof patch.currentContent === "string" ? patch.currentContent : undefined,
+    proposedContent: typeof patch.proposedContent === "string" ? patch.proposedContent : "",
+    target: patch.target && (patch.target as { format?: string }).format === "elementor"
+      ? (patch.target as { format: "elementor"; elementId: string; settingsKey: string })
+      : undefined,
+    semanticIntent: patch.semanticIntent as { kind: string; value?: string; sectionKind?: string } | undefined,
+    sourceFingerprint: typeof patch.sourceFingerprint === "string" ? patch.sourceFingerprint : undefined,
+  };
+}
+
+async function resolveElementorPageId(provider: ReturnType<typeof createWordPressProvider>, pageArg: string): Promise<number> {
+  const trimmed = pageArg.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  const slug = trimmed.replace(/\/+$/, "").split("/").filter(Boolean).at(-1) ?? trimmed;
+  const pages = await provider.getPages({ search: slug, perPage: 1 });
+  const found = pages.data[0];
+  if (!found) {
+    throw new Error(`Could not resolve page "${pageArg}" to a WordPress page id. Pass a numeric post id or a page URL.`);
+  }
+  return found.id;
+}
+
+async function fetchRenderedPageHtml(provider: ReturnType<typeof createWordPressProvider>, pageId: number): Promise<string | undefined> {
+  try {
+    const page = await provider.getPage(pageId);
+    if (!page?.link) return undefined;
+    const response = await fetch(page.link);
+    if (!response.ok) return undefined;
+    return await response.text();
+  } catch {
+    return undefined;
+  }
+}
+
+function writeRollbackOutput(output: string | undefined, rollbackPayload: ElementorRollbackPayload): void {
+  const json = JSON.stringify(rollbackPayload, null, 2) + "\n";
+  if (output) {
+    writeFileSync(output, json);
+    process.stdout.write(`Rollback payload written to ${output}\n`);
+  } else {
+    process.stdout.write("\nRollback payload (save this to restore later):\n");
+    process.stdout.write(json);
+  }
+}
+
+const elementorCommand = wpCommand.command("elementor").description("Elementor document commands (requires forge-elementor-bridge companion plugin)");
+
+elementorCommand
+  .command("inspect")
+  .argument("<site>", "WordPress site URL")
+  .argument("<username>", "WordPress username")
+  .argument("<password>", "WordPress application password")
+  .argument("<page>", "Page ID or URL")
+  .option("--html <file>", "Rendered HTML file for UniversalPage mapping (defaults to live fetch)")
+  .option("--json", "Output result as JSON")
+  .description("Inspect an Elementor document: version, widgets, editable controls")
+  .action(async (site: string, username: string, password: string, pageArg: string, options: { html?: string; json?: boolean }) => {
+    try {
+      const provider = createWordPressProvider({ siteUrl: site, username, applicationPassword: password });
+      const pageId = await resolveElementorPageId(provider, pageArg);
+      const bridge = createElementorBridge(provider);
+      const renderedHtml = options.html && existsSync(options.html) ? readFileSync(options.html, "utf8") : await fetchRenderedPageHtml(provider, pageId);
+      const result = await bridge.inspect(pageId, renderedHtml);
+      if (options.json) {
+        process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+        return;
+      }
+      process.stdout.write(`Page: ${result.title} (id ${result.postId})\n`);
+      process.stdout.write(`Elementor version: ${result.elementorVersion ?? "unknown"} | edit mode: ${result.editMode ?? "unknown"}\n`);
+      process.stdout.write(`Support: ${result.support.supported ? "supported" : result.support.reason}\n`);
+      process.stdout.write(`Widgets: ${result.widgetCount}\n`);
+      process.stdout.write("Editable widgets:\n");
+      for (const w of result.editableWidgets) {
+        process.stdout.write(`  ${w.elementId} ${w.widgetType} [${w.settingsKeys.join(", ")}]${w.richText ? " (rich text)" : ""}\n`);
+      }
+      if (result.universalMapping) {
+        process.stdout.write(`Universal mapping: ${result.universalMapping.entries.length} matched, ${result.universalMapping.unmatchedBlocks.length} unmatched\n`);
+      }
+    } catch (error) {
+      process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.exit(1);
+    }
+  });
+
+elementorCommand
+  .command("preview")
+  .argument("<site>", "WordPress site URL")
+  .argument("<username>", "WordPress username")
+  .argument("<password>", "WordPress application password")
+  .argument("<page>", "Page ID or URL")
+  .option("--patch <file>", "Patch JSON file")
+  .option("--json", "Output result as JSON")
+  .description("Preview the exact Elementor change for a patch (zero remote writes)")
+  .action(async (site: string, username: string, password: string, pageArg: string, options: { patch?: string; json?: boolean }) => {
+    try {
+      if (!options.patch) throw new Error("--patch <file> is required");
+      const provider = createWordPressProvider({ siteUrl: site, username, applicationPassword: password });
+      const pageId = await resolveElementorPageId(provider, pageArg);
+      const bridge = createElementorBridge(provider);
+      const patch = loadElementorPatchFromFile(options.patch);
+      const preview = await bridge.preview(pageId, patch);
+      if (options.json) {
+        process.stdout.write(JSON.stringify(preview, null, 2) + "\n");
+        return;
+      }
+      const page = await provider.getPage(pageId);
+      process.stdout.write(renderElementorPreview(page?.title ?? `Page ${pageId}`, preview));
+    } catch (error) {
+      process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.exit(1);
+    }
+  });
+
+elementorCommand
+  .command("validate")
+  .argument("<site>", "WordPress site URL")
+  .argument("<username>", "WordPress username")
+  .argument("<password>", "WordPress application password")
+  .argument("<page>", "Page ID or URL")
+  .option("--patch <file>", "Patch JSON file")
+  .option("--json", "Output result as JSON")
+  .description("Validate a patch: target resolution, compatibility, mutation validity")
+  .action(async (site: string, username: string, password: string, pageArg: string, options: { patch?: string; json?: boolean }) => {
+    try {
+      if (!options.patch) throw new Error("--patch <file> is required");
+      const provider = createWordPressProvider({ siteUrl: site, username, applicationPassword: password });
+      const pageId = await resolveElementorPageId(provider, pageArg);
+      const bridge = createElementorBridge(provider);
+      const patch = loadElementorPatchFromFile(options.patch);
+      const result = await bridge.validate(pageId, patch);
+      if (options.json) {
+        process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+        return;
+      }
+      process.stdout.write(renderElementorValidation(result));
+    } catch (error) {
+      process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.exit(1);
+    }
+  });
+
+elementorCommand
+  .command("apply")
+  .argument("<site>", "WordPress site URL")
+  .argument("<username>", "WordPress username")
+  .argument("<password>", "WordPress application password")
+  .argument("<page>", "Page ID or URL")
+  .option("--patch <file>", "Patch JSON file")
+  .option("--apply", "Apply for real (default is dry-run with zero writes)")
+  .option("--output <file>", "Write rollback payload to this file")
+  .option("--json", "Output result as JSON")
+  .description("Apply a patch to an Elementor document (dry-run by default)")
+  .action(async (site: string, username: string, password: string, pageArg: string, options: { patch?: string; apply?: boolean; output?: string; json?: boolean }) => {
+    try {
+      if (!options.patch) throw new Error("--patch <file> is required");
+      const provider = createWordPressProvider({ siteUrl: site, username, applicationPassword: password });
+      const pageId = await resolveElementorPageId(provider, pageArg);
+      const bridge = createElementorBridge(provider);
+      const patch = loadElementorPatchFromFile(options.patch);
+      const dryRun = !options.apply;
+      if (dryRun) {
+        process.stdout.write("Dry-run mode: no remote mutation. Pass --apply to write for real.\n");
+      }
+      const result = await bridge.apply(pageId, patch, { dryRun });
+      if (options.json) {
+        process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+        return;
+      }
+      process.stdout.write(result.message + "\n");
+      if (result.mutation) {
+        for (const diff of result.mutation.diffs) {
+          process.stdout.write(`  ${diff.elementId}.${diff.settingsKey}: ${JSON.stringify(diff.before)} → ${JSON.stringify(diff.after)}\n`);
+        }
+      }
+      if (result.verification && !result.verification.ok) {
+        process.stdout.write("Verification errors:\n");
+        for (const error of result.verification.errors) process.stdout.write(`  - ${error}\n`);
+      }
+      if (result.rollbackPayload) writeRollbackOutput(options.output, result.rollbackPayload);
+    } catch (error) {
+      process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.exit(1);
+    }
+  });
+
+elementorCommand
+  .command("rollback")
+  .argument("<site>", "WordPress site URL")
+  .argument("<username>", "WordPress username")
+  .argument("<password>", "WordPress application password")
+  .argument("<page>", "Page ID or URL")
+  .option("--original <file>", "Rollback payload JSON file (from apply --output)")
+  .option("--json", "Output result as JSON")
+  .description("Restore the exact original Elementor document from a rollback payload")
+  .action(async (site: string, username: string, password: string, pageArg: string, options: { original?: string; json?: boolean }) => {
+    try {
+      if (!options.original) throw new Error("--original <file> is required (the rollback payload from apply --output)");
+      const provider = createWordPressProvider({ siteUrl: site, username, applicationPassword: password });
+      const pageId = await resolveElementorPageId(provider, pageArg);
+      const bridge = createElementorBridge(provider);
+      const payload = JSON.parse(readFileSync(options.original, "utf8")) as ElementorRollbackPayload;
+      if (String(payload.postId) !== String(pageId)) {
+        throw new Error(`Rollback payload targets post ${payload.postId}, not ${pageId}. Refusing to restore the wrong page.`);
+      }
+      const result = await bridge.rollback(payload);
+      if (options.json) {
+        process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+        return;
+      }
+      process.stdout.write(result.message + "\n");
+    } catch (error) {
+      process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
+      process.exit(1);
+    }
+  });
+
+function renderElementorPreview(title: string, preview: ElementorPreviewResult): string {
+  if (!preview.resolution.ok) {
+    return `Page: ${title}\nTarget: ${preview.message}\n`;
+  }
+  const lines: string[] = [`Page: ${title}`];
+  for (const target of preview.targets) {
+    lines.push(`Section: ${target.elementPath.join(" → ")}`);
+    lines.push(`Element: ${target.widgetType ?? target.elType} widget`);
+    lines.push(`Elementor ID: ${target.elementId}`);
+    lines.push(`Widget: ${target.widgetType ?? "n/a"}`);
+    lines.push(`Control: ${target.settingsKey}${target.richText ? " (rich text)" : ""}`);
+    lines.push(`Current: ${JSON.stringify(target.currentValue)}`);
+    lines.push(`Proposed: ${JSON.stringify(target.proposedValue)}`);
+  }
+  lines.push(`Impact: ${preview.compatible ? "safe deterministic text patch" : "INCOMPATIBLE — review required"}`);
+  return lines.join("\n") + "\n";
+}
+
+function renderElementorValidation(result: ElementorPreviewResult): string {
+  if (!result.resolution.ok) {
+    return `Invalid: ${result.message}\n`;
+  }
+  const lines = [`Valid: ${result.compatible ? "patch resolves and is compatible" : "patch resolves but has compatibility problems"}`];
+  for (const problem of result.problems) lines.push(`  - ${problem}`);
+  return lines.join("\n") + "\n";
+}
 
 const executionCommand = program.command("execution").description("Execution engine write commands");
 

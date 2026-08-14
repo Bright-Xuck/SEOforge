@@ -11,11 +11,11 @@ const wordpressManifest: CapabilityManifest = {
   id: "wordpress-provider",
   name: "WordPress Provider",
   version: "0.1.0",
-  description: "WordPress REST API provider for Forge",
+  description: "WordPress REST API provider for Forge (read/write/rollback; optional Elementor companion endpoint)",
   supportedPlatforms: ["wordpress"],
   requiredTools: [],
   supportedInputs: ["credentials"],
-  supportedOutputs: ["posts", "pages", "media", "categories", "tags", "settings"],
+  supportedOutputs: ["posts", "pages", "media", "categories", "tags", "settings", "elementor-documents"],
 };
 
 /**

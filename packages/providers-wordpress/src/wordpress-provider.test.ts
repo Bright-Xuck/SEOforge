@@ -33,6 +33,41 @@ describe("WordPressProvider write operations", () => {
     expect(result.oldValue).toEqual({ title: "Old" });
   });
 
+  it("routes elementor-document writes to the companion endpoint and verifies", async () => {
+    const originalData = JSON.stringify([{ id: "h1", elType: "widget", widgetType: "heading", settings: { title: "Old" }, elements: [] }]);
+    const newData = JSON.stringify([{ id: "h1", elType: "widget", widgetType: "heading", settings: { title: "New" }, elements: [] }]);
+
+    const rawRequestBody: { data?: string } = {};
+    const rawRequestMock: never = (async (_path: string, method?: string, body?: unknown) => {
+      if (method === "PUT") {
+        rawRequestBody.data = (body as { data?: string })?.data;
+        return { postId: 5, written: true, data: rawRequestBody.data, elementorVersion: "3.24.0", modified: "2026-08-02T00:00:00Z" };
+      }
+      return { postId: 5, title: "Home", type: "page", elementorVersion: "3.24.0", editMode: "builder", data: originalData, modified: "2026-08-01T00:00:00Z" };
+    }) as never;
+    vi.spyOn(WordPressClient.prototype, "rawRequest").mockImplementation(rawRequestMock);
+    vi.spyOn(WordPressClient.prototype, "get").mockResolvedValue({ data: [], totalItems: 0, totalPages: 0, currentPage: 1 } as never);
+
+    const provider = new WordPressProvider(config);
+    const result = await provider.applyWrite({
+      id: "elementor-op",
+      type: "content.update-elementor",
+      resourceType: "elementor-document",
+      resourceId: 5,
+      mode: "apply",
+      timestamp: new Date().toISOString(),
+      oldValue: {},
+      newValue: { elementor_data: newData, expectedFingerprint: "abc" },
+      diffs: [{ field: "elementor_data", oldValue: originalData, newValue: newData }],
+      summary: { totalChanges: 1, changedFields: ["elementor_data"], preview: false, rollbackSupported: true },
+    });
+
+    expect(result.applied).toBe(true);
+    expect(result.oldValue).toEqual({ elementor_data: originalData });
+    expect(result.newValue).toEqual({ elementor_data: newData });
+    expect(rawRequestBody.data).toBe(newData);
+  });
+
   it("updates page content through the REST client", async () => {
     const putSpy = vi.spyOn(WordPressClient.prototype, "put").mockResolvedValue({
       id: 1,

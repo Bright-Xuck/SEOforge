@@ -1,6 +1,6 @@
 # Forge Dependency Graph
 
-**Version:** v0.22.0 (Sprint 22A)
+**Version:** v0.25.0 (Sprint 25)
 
 ## Package Dependency DAG
 
@@ -147,6 +147,8 @@ graph TD
 |---|---|---|
 | `dom-engine` | core, shared, tools, content-intelligence | providers, execution-engine, content-generation |
 
+> **Sprint 25 (Elementor write bridge):** no new package edges were added. The bridge lives in the CLI composition root (`apps/cli/src/elementor/bridge.ts`), which already depends on dom-engine, providers-wordpress, and execution-engine. The provider's Elementor transport (`providers-wordpress/src/elementor-transport.ts`) imports only core + the package's own client — it does not import dom-engine. Follow-up cleanup removed dom-engine's unused workspace dependencies (`ai-engine`, `content-generation`, `core`, `execution-engine`, `knowledge-engine`, `prompt-registry`, `review-engine`); its manifest now declares only `content-intelligence` + `cheerio`, matching its actual imports.
+
 ### Quality Layer
 
 | Package | May Import | Must Never Import |
@@ -194,3 +196,9 @@ These import patterns would violate the architecture:
 | `agent-engine` imports `content-intelligence` | Agents orchestrate; they don't analyze content directly. |
 | `optimization-orchestrator` imports `providers-wordpress` | Orchestrator must be provider-independent. |
 | `optimization-orchestrator` imports `dom-engine` | Orchestrator coordinates engines, not DOM operations. |
+
+## Dependency Hygiene
+
+Manifests must match reality. `pnpm check:deps` (`scripts/audit-unused-deps.mjs`) fails the build when a package declares a dependency (workspace or external) that its source never imports. It counts type-only imports, test files, subpath imports, CLI tools invoked in `scripts`, and `@types/*` referenced in `tsconfig` — so it only flags genuinely orphaned declarations.
+
+**Sprint 25 follow-up cleanup:** 38 unused dependency declarations were removed across 16 packages (dom-engine alone: `ai-engine`, `content-generation`, `core`, `execution-engine`, `knowledge-engine`, `prompt-registry`, `review-engine`). Every removal was verified by full `build`/`typecheck`/`test` runs. Notably, `execution-engine` never imported `providers-wordpress` — it consumes the provider-agnostic `WriteProvider` from `@forge/core` — so the earlier ADR-054 workspace-cycle concern was based on dead declarations, not real code.

@@ -4,11 +4,11 @@
 import type { ContentPatch, PatchApplyResult } from "../types.js";
 import { applyPatch } from "../tree/tree-patcher.js";
 import { findNodeByPath } from "../tree/tree-node.js";
-import { resolveElementorTarget } from "../elementor/elementor-target-resolver.js";
 import { renderStructuredPreview } from "../preview/structured-preview.js";
 import { renderHtmlPreview } from "../preview/html-preview.js";
-import { parseElementorData } from "../elementor/elementor-parser.js";
-import { serializeElementorData } from "../elementor/elementor-serializer.js";
+import { parseElementorDocument, serializeElementorDocument } from "../elementor/document.js";
+import { resolveElementorPatch } from "../elementor/patch-resolver.js";
+import { applyElementorMutations } from "../elementor/mutator.js";
 import { parseGutenbergBlocks } from "../gutenberg/block-grammar-parser.js";
 import { serializeGutenbergPost } from "../gutenberg/block-grammar-serializer.js";
 
@@ -57,22 +57,34 @@ export async function applyContentPatch(
 }
 
 function applyElementorPatch(rawContent: string, patch: ContentPatch, target: { format: "elementor"; elementId: string; settingsKey: string }): PatchApplyResult {
-  const root = parseElementorData(rawContent);
-  if (!root) {
+  const document = parseElementorDocument(rawContent, {});
+  if (!document) {
     return { success: false, patchedContent: rawContent, preview: { before: rawContent, after: rawContent, renderFidelity: "structured-diff", warnings: ["Invalid Elementor data"] }, warnings: ["Invalid Elementor data"] };
   }
 
-  const node = resolveElementorTarget(root, target);
-  if (!node) {
-    return { success: false, patchedContent: rawContent, preview: { before: rawContent, after: rawContent, renderFidelity: "structured-diff", warnings: ["Element not found"] }, warnings: ["Element not found"] };
+  const patchLike = {
+    id: patch.id,
+    currentContent: patch.currentContent,
+    proposedContent: patch.proposedContent,
+    target: { format: "elementor" as const, elementId: target.elementId, settingsKey: target.settingsKey },
+  };
+  const expectedFingerprint =
+    typeof (patch as ContentPatch & { sourceFingerprint?: string }).sourceFingerprint === "string"
+      ? (patch as ContentPatch & { sourceFingerprint?: string }).sourceFingerprint
+      : undefined;
+
+  const resolution = resolveElementorPatch(document, patchLike, { expectedFingerprint });
+  if (!resolution.ok) {
+    const message = `${resolution.code}: ${resolution.message}`;
+    return { success: false, patchedContent: rawContent, preview: { before: rawContent, after: rawContent, renderFidelity: "structured-diff", warnings: [message] }, warnings: [message] };
   }
 
-  const before = JSON.stringify(node.settings[target.settingsKey]);
-  const cloned = applyPatch(root, [], "replace", { [target.settingsKey]: patch.proposedContent });
-  const after = JSON.stringify(cloned.settings[target.settingsKey]);
+  const before = JSON.stringify(resolution.targets[0]?.currentValue ?? null);
+  const mutation = applyElementorMutations(document, resolution.targets);
+  const after = JSON.stringify(mutation.diffs[0]?.after ?? null);
 
-  const patched = serializeElementorData(cloned);
-  const preview = renderStructuredPreview(before, after, target.settingsKey);
+  const patched = serializeElementorDocument(mutation.document);
+  const preview = renderStructuredPreview(before, after, resolution.targets[0]?.settingsKey ?? "settings");
 
   return { success: true, patchedContent: patched, preview, warnings: [] };
 }

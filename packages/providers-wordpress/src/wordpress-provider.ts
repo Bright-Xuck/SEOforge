@@ -20,6 +20,14 @@ import type {
   WriteDiff,
 } from "@forge/core";
 import { WordPressClient } from "./client.js";
+import {
+  ElementorDocumentTransport,
+  ElementorTransportError,
+} from "./elementor-transport.js";
+import type {
+  ElementorDocumentRead,
+  ElementorDocumentWriteResult,
+} from "./elementor-transport.js";
 
 /**
  * WordPress provider metadata.
@@ -58,6 +66,7 @@ export class WordPressProvider {
   readonly description = "WordPress REST API provider for Forge";
 
   private readonly client: WordPressClient;
+  private elementorTransport?: ElementorDocumentTransport;
 
   constructor(config: WordPressConnectionConfig) {
     this.client = new WordPressClient({
@@ -65,6 +74,14 @@ export class WordPressProvider {
       username: config.username,
       applicationPassword: config.applicationPassword,
     });
+  }
+
+  /**
+   * Lazily-created Elementor document transport (companion endpoint).
+   */
+  private getElementorTransport(): ElementorDocumentTransport {
+    this.elementorTransport ??= new ElementorDocumentTransport(this.client);
+    return this.elementorTransport;
   }
 
   /**
@@ -504,13 +521,119 @@ export class WordPressProvider {
 
   /**
    * Apply a write operation.
+   * Elementor-document operations are routed to the companion endpoint
+   * (atomic whole-document write + verification); everything else uses the
+   * standard wp/v2 REST API.
    */
   async applyWrite(operation: WriteOperation): Promise<WriteResult> {
+    if (operation.resourceType === "elementor-document") {
+      return this.applyElementorWrite(operation);
+    }
     const endpoint = this.getEndpoint(operation.resourceType, operation.resourceId);
     const current = await this.fetchResource(operation.resourceType, operation.resourceId);
     const updated = await this.client.put<Record<string, unknown>>(endpoint, operation.newValue);
     const revisionId = await this.fetchRevisionId(operation.resourceType, operation.resourceId);
     return this.createResult(operation.resourceType, operation.resourceId, current, updated, false, true, revisionId, operation);
+  }
+
+  // ─── Elementor document read/write (Sprint 25) ──────────────────────────
+
+  /**
+   * Read an Elementor document (raw `_elementor_data` + meta) via the
+   * companion endpoint. Returns null when the endpoint is unavailable.
+   */
+  async getElementorDocument(postId: number | string): Promise<ElementorDocumentRead | null> {
+    try {
+      return await this.getElementorTransport().readDocument(postId);
+    } catch (error) {
+      if (error instanceof ElementorTransportError) return null;
+      throw error;
+    }
+  }
+
+  /**
+   * Write an Elementor document atomically with optimistic concurrency.
+   */
+  async updateElementorDocument(
+    postId: number | string,
+    data: string,
+    expected?: { elementorVersion?: string; fingerprint?: string; modified?: string },
+  ): Promise<ElementorDocumentWriteResult> {
+    return this.getElementorTransport().writeDocument(postId, data, expected);
+  }
+
+  /**
+   * Whether the Elementor companion endpoint is available on the site.
+   */
+  async isElementorAvailable(): Promise<boolean> {
+    return this.getElementorTransport().isAvailable();
+  }
+
+  /**
+   * Elementor-document write path: read current source, write the new source
+   * atomically with optimistic concurrency, verify by re-reading, and return
+   * a WriteResult whose oldValue carries the original `_elementor_data` for
+   * rollback. A successful HTTP response alone is NOT sufficient — the
+   * re-read must contain the written data.
+   */
+  private async applyElementorWrite(operation: WriteOperation): Promise<WriteResult> {
+    if (operation.mode === "preview" || operation.mode === "dry-run") {
+      return this.createResult(
+        operation.resourceType,
+        operation.resourceId,
+        operation.oldValue,
+        operation.newValue,
+        true,
+        false,
+        operation.revisionId,
+        operation,
+      );
+    }
+
+    const transport = this.getElementorTransport();
+    const current = await transport.readDocument(operation.resourceId);
+
+    const payload = operation.newValue as Record<string, unknown>;
+    const data = typeof payload.elementor_data === "string"
+      ? payload.elementor_data
+      : typeof payload.content === "string"
+        ? payload.content
+        : null;
+    if (data === null) {
+      throw new ElementorTransportError(
+        "ELEMENTOR_INVALID_RESPONSE",
+        "Elementor write operation is missing elementor_data/content payload.",
+      );
+    }
+
+    const writeResult = await transport.writeDocument(operation.resourceId, data, {
+      elementorVersion: current.elementorVersion,
+      fingerprint: typeof payload.expectedFingerprint === "string" ? payload.expectedFingerprint : undefined,
+      modified: current.modified,
+    });
+
+    // Verification: the re-read must contain the exact written data.
+    if (!writeResult.reRead || writeResult.reRead.data !== data) {
+      throw new ElementorTransportError(
+        "ELEMENTOR_INVALID_RESPONSE",
+        "Verification failed: re-read Elementor document does not match the written data.",
+      );
+    }
+
+    const oldValue: Record<string, unknown> = { elementor_data: current.data };
+    const newValue: Record<string, unknown> = { elementor_data: writeResult.reRead.data };
+    const revisionId = await this.fetchRevisionId("pages", operation.resourceId).catch(() => undefined);
+
+    return this.createResult(
+      operation.resourceType,
+      operation.resourceId,
+      oldValue,
+      newValue,
+      false,
+      true,
+      revisionId,
+      operation,
+    );
   }
 
   /**

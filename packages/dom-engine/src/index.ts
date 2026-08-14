@@ -30,8 +30,43 @@ export { computeTreeDiff } from "./tree/tree-differ.js";
 export { validatePatch, validatePatchSequence } from "./tree/tree-validator.js";
 export { parseElementorData } from "./elementor/elementor-parser.js";
 export { serializeElementorData } from "./elementor/elementor-serializer.js";
-export { resolveElementorSettingsKey, ELEMENTOR_WIDGET_SCHEMA } from "./elementor/widget-schema.js";
+export { resolveElementorSettingsKey, ELEMENTOR_WIDGET_SCHEMA, isElementorRichTextSetting, isElementorPlainTextSetting, normalizeElementorWidgetType, isKnownElementorWidget, ELEMENTOR_UNSUPPORTED_WIDGETS } from "./elementor/widget-schema.js";
 export { resolveElementorTarget, buildElementorTarget } from "./elementor/elementor-target-resolver.js";
+
+// ─── Sprint 25: Elementor document model, mapping, resolution, mutation ──
+
+export type {
+  ElementorDocument,
+  ElementorDocumentMeta,
+  ElementorDocumentSupport,
+  ElementorElementMapEntry,
+  ElementorElementMap,
+  ElementorMapStrategy,
+  ElementorPatchResolutionCode,
+  ElementorTargetStrategy,
+  ResolvedElementorTarget,
+  ElementorPatchResolution,
+  ElementorPatchLike,
+  ElementorResolveOptions,
+  ElementorSettingDiff,
+  ElementorMutation,
+  ElementorMutationVerification,
+} from "./elementor/types.js";
+
+export {
+  parseElementorDocument,
+  serializeElementorDocument,
+  cloneElementorDocument,
+  fingerprintElementorTree,
+  checkElementorDocumentSupport,
+  ELEMENTOR_CURRENT_VERSION_MAJOR,
+  ELEMENTOR_MIN_VERSION_MAJOR,
+} from "./elementor/document.js";
+export { resolveElementorSettingPath, getNestedSetting, setNestedSetting } from "./elementor/setting-path.js";
+export { sanitizeElementorRichText, textContentOfRichText, normalizeText, assertElementorContentCompatible } from "./elementor/rich-text.js";
+export { mapUniversalPageToElementor } from "./elementor/universal-mapper.js";
+export { resolveElementorPatch } from "./elementor/patch-resolver.js";
+export { applyElementorMutations, verifyElementorMutation, deepEqual } from "./elementor/mutator.js";
 export { parseGutenbergBlocks, extractBlockNames } from "./gutenberg/block-grammar-parser.js";
 export { serializeGutenbergBlocks, serializeGutenbergPost } from "./gutenberg/block-grammar-serializer.js";
 export { computeBlockFingerprint, fingerprintsEqual } from "./gutenberg/block-fingerprint.js";
