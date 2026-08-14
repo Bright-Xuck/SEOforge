@@ -2,7 +2,7 @@
 // Deterministic ContentBrief builder — no AI, no providers.
 // Consumes PageDNA + BrandProfile + KnowledgeGraph + MemoryStore.
 
-import type { PageDNA, Entity, Topic } from "@forge/content-intelligence";
+import type { PageDNA, Entity, Topic, InternalLinkOpportunity, SiteOpportunity } from "@forge/content-intelligence";
 import type { BrandProfile } from "@forge/core";
 import type { KnowledgeGraph, MemorySummaryLike } from "@forge/knowledge-engine";
 
@@ -27,6 +27,16 @@ export interface ContentBrief {
 }
 
 /**
+ * Optional site-level context (Sprint 24) that enriches the brief with
+ * internal-link opportunities and related content opportunities. This is a
+ * minimal, backward-compatible extension — the engine itself is unchanged.
+ */
+export interface SiteBriefContext {
+  readonly internalLinks?: InternalLinkOpportunity[];
+  readonly opportunities?: SiteOpportunity[];
+}
+
+/**
  * Build a deterministic ContentBrief from available project data.
  */
 export function buildContentBrief(
@@ -35,9 +45,11 @@ export function buildContentBrief(
   knowledge: KnowledgeGraph,
   memory: MemorySummaryLike,
   targetKeyword?: string,
+  siteContext?: SiteBriefContext,
 ): ContentBrief {
   const intentPrimary = pageDNA.intent?.primary || "informational";
   const questions = extractUserQuestions(memory, "");
+  const internalLinks = extractInternalLinks(siteContext);
 
   return {
     primaryKeyword: targetKeyword || "",
@@ -51,7 +63,7 @@ export function buildContentBrief(
     pageGoal: `Optimize for ${intentPrimary} intent`,
     userQuestions: questions,
     requiredEntities: extractRequiredEntities(pageDNA, brand),
-    internalLinks: [],
+    internalLinks,
     ctaGoal: brand.ctaStyle || "learn-more",
     brand,
   };
@@ -64,6 +76,15 @@ function extractSecondaryKeywords(pageDNA: PageDNA, _knowledge: KnowledgeGraph):
 
 function extractUserQuestions(_memory: MemorySummaryLike, _keyword: string): string[] {
   return [];
+}
+
+function extractInternalLinks(siteContext?: SiteBriefContext): string[] {
+  if (!siteContext?.internalLinks?.length) return [];
+  return [...new Set(
+    siteContext.internalLinks
+      .map((link) => link.targetPage ?? link.sourcePage)
+      .filter((url): url is string => Boolean(url)),
+  )];
 }
 
 function extractRequiredEntities(pageDNA: PageDNA, brand: BrandProfile): string[] {

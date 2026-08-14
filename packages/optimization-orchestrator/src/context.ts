@@ -37,6 +37,15 @@ export interface OptimizationContext {
   gaps?: unknown;
   qualityScores?: unknown;
 
+  // ─── Site-level Content Intelligence (Sprint 24, deterministic) ───
+  websiteSnapshots?: unknown[];
+  universalPages?: unknown[];
+  siteIntelligence?: unknown;
+  siteOpportunities?: unknown[];
+  refreshCandidates?: unknown[];
+  internalLinkOpportunities?: unknown[];
+  topicCoverageGaps?: unknown[];
+
   // ─── AI Generation ───
   generatedPatches?: unknown[];
   brandProfile?: unknown;

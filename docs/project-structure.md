@@ -1,6 +1,6 @@
 # Forge Project Structure
 
-**Version:** v0.23.0 (Sprint 23 — DOM Engine & Universal Page Model)
+**Version:** v0.24.0 (Sprint 24 — Site-Level Content Intelligence)
 
 ## Directory Layout
 
@@ -29,6 +29,22 @@ packages/
   memory-engine/                    # @forge/memory-engine
   context-builder/                  # @forge/context-builder
   content-intelligence/             # @forge/content-intelligence
+    src/
+      page-dna/                     # PageDNA detectors (page type, intent, audience, topics, entities)
+      content-graph/                # Content Graph (page → section → block → paragraph → sentence)
+      gap/                          # Page-level gap detection
+      quality/                      # Quality scoring
+      site/                         # Site-level Content Intelligence (Sprint 24) — extension, not a new engine
+        model.ts                    # Site Content Model composed from PageDNA/ContentGraph/quality
+        topic-graph.ts              # Deterministic topic graph (related/supporting/parent/child/entity)
+        cluster-builder.ts          # Deterministic topic clusters with coverage scores
+        authority.ts                # Forge diagnostic authority/coverage scoring (0-100, not Google)
+        opportunities.ts            # Site-level content opportunities (extends gap detection)
+        internal-links.ts           # Internal link opportunities (output only)
+        refresh.ts                  # Refresh candidates (reasons, dimensions, priority, evidence)
+        analyzer.ts                 # analyzeSite / analyzeSiteFromPages entry points
+        memory.ts                   # site-analysis memory event factory
+        types.ts                    # Site-level types + UniversalPageLike / knowledge / memory contracts
   content-generation/               # @forge/content-generation
   dom-engine/                       # @forge/dom-engine — Universal Page Model, builder detection, DOM diff, rich text, validation
     src/
@@ -74,7 +90,7 @@ packages/
 | `knowledge-engine`    | Project knowledge store    | Project management       |
 | `memory-engine`       | Event-sourced memory       | Project management       |
 | `context-builder`     | AI context assembly        | Project management       |
-| `content-intelligence` | Content understanding     | Intelligence (deterministic) |
+| `content-intelligence` | Page + site content understanding | Intelligence (deterministic) |
 | `content-generation`  | Section patch generation   | AI Generation            |
 | `dom-engine`          | Universal Page Model       | DOM                      |
 | `ai-engine`           | Provider abstraction       | AI                       |

@@ -12,7 +12,8 @@ export type PipelineStepType =
   | "preflight-validator"
   | "execution-engine"
   | "review"
-  | "content-generation";
+  | "content-generation"
+  | "site-intelligence";
 
 export type PipelineStepStatus = "pending" | "running" | "completed" | "skipped" | "failed";
 
@@ -21,6 +22,11 @@ export interface PipelineContext {
   readonly rootDir?: string;
   readonly provider?: WriteProvider;
   snapshot?: WebsiteSnapshot;
+  /** Multiple page snapshots for site-level analysis (Sprint 24). */
+  siteSnapshots?: WebsiteSnapshot[];
+  /** Optional Universal Page Model structures keyed by page URL (from @forge/dom-engine). */
+  universalPages?: unknown[];
+  siteIntelligence?: unknown;
   findings?: unknown;
   recommendations?: unknown;
   executionPlan?: ExecutionPlan;

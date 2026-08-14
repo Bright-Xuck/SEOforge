@@ -161,6 +161,22 @@ docs/
 | `forge content gaps` | Detect content gaps (`--project`, `--json`) |
 | `forge content quality` | Score quality metrics (`--project`, `--json`) |
 
+### Site-level Content Intelligence (Sprint 24 — extension of Content Intelligence, deterministic, no AI)
+
+These commands treat the site as a complete content system, composing the existing
+PageDNA / ContentGraph / gap / quality data across pages. They are intelligence and
+planning only — nothing is generated, linked, or written.
+
+| Command | Description |
+|---|---|
+| `forge content site-analyze` | Full site analysis: model, topic graph, clusters, authority, opportunities, refresh, links (`--project`, `--depth`, `--limit`, `--json`). Records a `site-analysis` memory event. |
+| `forge content topics` | Topic graph with related/supporting/parent/child topics and associated entities |
+| `forge content clusters` | Topic clusters with coverage scores and missing coverage |
+| `forge content authority` | Forge diagnostic authority/coverage scores (0-100, never Google rankings) |
+| `forge content opportunities` | Site-level content opportunities (thin pages, missing FAQ/comparison/guides, glossary, etc.) |
+| `forge content refresh` | Refresh candidates with reasons, affected dimensions, and priority |
+| `forge content links` | Internal link opportunities (orphans, weak pages, missing hub/supporting links) — output only |
+
 ### AI Generation (section-patch only)
 
 | Command | Description |
@@ -369,7 +385,7 @@ Review sessions, approval queue, metrics, diff reports, comments, exports (md/js
 Patch bundler, dependency graph, conflict detector, priority ordering, batch validation.
 
 ### `@forge/content-intelligence`
-**Deterministic.** PageDNA, ContentGraph, Section detection, Entity extraction, Gap detection, Quality scoring. Never imports AI or providers.
+**Deterministic.** PageDNA, ContentGraph, Section detection, Entity extraction, Gap detection, Quality scoring — plus **site-level Content Intelligence** (Sprint 24): a Site Content Model, topic graph, topic clusters, authority/coverage scoring, content opportunities, refresh detection, and internal link opportunities composed across pages. Never imports AI or providers. Site-level intelligence consumes the existing knowledge/memory shapes and the `@forge/dom-engine` Universal Page Model; it never parses HTML itself.
 
 ### `@forge/content-generation`
 **Section-patch only.** AI section writers (writeHero, writeFaq, writeCta, etc.). Never publishes, never knows WordPress, never writes whole pages.
@@ -392,4 +408,22 @@ Assemblies AI context from project knowledge & memory.
 
 ## Sprint History
 
-Sprint development records are maintained in `docs/sprint-*.md`. The full Sprint history can be found there. This README reflects architecture as of Sprint 23.
+## Sprint History
+
+Sprint development records are maintained in `docs/sprint-*.md`. The full Sprint history can be found there. This README reflects architecture as of Sprint 24.
+
+### Sprint 24 — Site-Level Content Intelligence (extension of `@forge/content-intelligence`)
+
+Sprint 24 extends Content Intelligence with a site-level analysis layer. It is NOT a new engine. The flow:
+
+```
+Page-level Content Intelligence (PageDNA / ContentGraph / gaps / quality)
+        ↓
+Site-level Content Intelligence (Site Content Model → Topic Graph → Clusters → Authority → Opportunities → Refresh → Internal Links)
+        ↓
+Knowledge / Memory (consumed for brand, entities, history; site-analysis events recorded)
+        ↓
+Generation / Review / Optimization (downstream consumers; nothing executed here)
+```
+
+New CLI: `forge content site-analyze|topics|clusters|authority|opportunities|refresh|links`. New pipeline: `site-intelligence`. New orchestrator engine: `site-intelligence` (outputs only, never executes).

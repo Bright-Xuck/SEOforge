@@ -344,6 +344,43 @@ export function createContentQualityStep(): PipelineStepDefinition {
   };
 }
 
+// Sprint 24: Site-level Content Intelligence step (deterministic, no AI).
+// Site Content Intelligence is an extension of @forge/content-intelligence —
+// it composes PageDNA/ContentGraph across pages. No new engine, no persistence.
+import { analyzeSite } from "@forge/content-intelligence";
+
+export function createSiteIntelligenceStep(): PipelineStepDefinition {
+  return {
+    id: "site-intelligence",
+    name: "Site Intelligence",
+    version: "0.24.0",
+    description: "Site-level content intelligence: topic graph, clusters, authority, opportunities, refresh, links (no AI).",
+    type: "site-intelligence",
+    inputs: ["siteSnapshots", "snapshot"],
+    outputs: ["siteIntelligence"],
+    dependencies: ["website-reader"],
+    execute: (context) => {
+      const snapshots = context.siteSnapshots?.length
+        ? context.siteSnapshots
+        : context.snapshot
+          ? [context.snapshot]
+          : null;
+      if (!snapshots || snapshots.length === 0) {
+        throw new Error("Pipeline context missing siteSnapshots or snapshot");
+      }
+      const report = analyzeSite(snapshots, {
+        baseUrl: context.variables?.["baseUrl"] as string | undefined,
+        universalPages: context.universalPages as never,
+        knowledge: context.knowledge as never,
+        memory: context.memorySummary as never,
+      });
+      context.siteIntelligence = report;
+      context.outputs = { ...context.outputs, siteIntelligence: report };
+      return report;
+    },
+  };
+}
+
 // Sprint 17: Section Content Generation steps (AI, section-scoped only).
 import { AIEngine, ProviderFactory } from "@forge/ai-engine";
 import { PromptRegistry } from "@forge/prompt-registry";

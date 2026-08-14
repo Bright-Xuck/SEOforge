@@ -50,6 +50,7 @@ export type {
 // Engine Adapters
 export {
   createContentIntelligenceEngine,
+  createSiteIntelligenceEngine,
   createContentGenerationEngine,
   createReviewEngine,
   createComposerEngine,

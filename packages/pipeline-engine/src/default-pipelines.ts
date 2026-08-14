@@ -5,6 +5,7 @@ import {
   createContentIntelligenceStep,
   createContentQualityStep,
   createDiffGenerationStep,
+  createSiteIntelligenceStep,
   createReviewCreateStep,
   createReviewFilterStep,
   createReviewSortStep,
@@ -148,6 +149,20 @@ export function createValidationOnlyPipeline(_url: string): PipelineDefinition {
   };
 }
 
+export function createSiteIntelligencePipeline(url: string): PipelineDefinition {
+  return {
+    id: "site-intelligence",
+    name: "Site Intelligence",
+    version: "0.24.0",
+    description: "Site-level content intelligence: topic graph, clusters, authority, opportunities, refresh, internal links (no AI).",
+    steps: [
+      createWebsiteReaderStep(url),
+      createSiteIntelligenceStep(),
+    ],
+    metadata: { category: "content-intelligence" },
+  };
+}
+
 export function createContentIntelligencePipeline(url: string): PipelineDefinition {
   return {
     id: "content-intelligence",
@@ -209,6 +224,7 @@ export function listDefaultPipelines(): PipelineDefinition[] {
     createWeeklyOptimizationPipeline("https://example.com"),
     createValidationOnlyPipeline("https://example.com"),
     createContentIntelligencePipeline("https://example.com"),
+    createSiteIntelligencePipeline("https://example.com"),
     createSectionGenerationPipeline("https://example.com"),
     createReviewPipeline(),
   ];

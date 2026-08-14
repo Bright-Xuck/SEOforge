@@ -46,7 +46,7 @@ export type {
 } from "./types.js";
 
 // Page DNA
-export { buildPageDNA } from "./page-dna/builder.js";
+export { buildPageDNA, buildPageDNAFromSnapshot } from "./page-dna/builder.js";
 export { detectPageType } from "./page-dna/page-type-detector.js";
 export { detectSearchIntent } from "./page-dna/search-intent-detector.js";
 export { detectAudience } from "./page-dna/audience-detector.js";
@@ -117,3 +117,70 @@ export { detectGaps } from "./gap/detector.js";
 
 // Quality Scoring
 export { scoreQuality } from "./quality/scorer.js";
+
+// ---------------------------------------------------------------------------
+// Site-level Content Intelligence (Sprint 24)
+// An EXTENSION of page-level Content Intelligence — not a new engine.
+// Deterministic. NO AI. NO network. NO persistence.
+// ---------------------------------------------------------------------------
+
+// Site types
+export type {
+  UniversalPageLike,
+  SiteAnalysisKnowledge,
+  SiteAnalysisMemory,
+  SitePageEntry,
+  SiteSectionCoverage,
+  SiteQualitySummary,
+  SiteFreshnessSummary,
+  SiteSemanticCoverage,
+  SiteContentModel,
+  TopicRelationshipKind,
+  TopicEdge,
+  SiteTopic,
+  TopicGraphEdge,
+  TopicGraph,
+  TopicCluster,
+  SiteAuthorityDimension,
+  SiteAuthorityScores,
+  SiteOpportunityKind,
+  OpportunityReference,
+  SiteOpportunity,
+  InternalLinkOpportunityKind,
+  InternalLinkOpportunity,
+  RefreshReasonKind,
+  RefreshCandidate,
+  SiteIntelligenceSummary,
+  SiteIntelligenceContext,
+  SiteIntelligenceReport,
+  SiteAnalysisOptions,
+  SitePageInput,
+  SiteAnalysisEvent,
+} from "./site/types.js";
+
+// Site model (composes PageDNA / ContentGraph / quality)
+export { extractUniversalPageStructure, buildSitePageEntry, buildSiteContentModel } from "./site/model.js";
+
+// Topic graph
+export { buildTopicGraph } from "./site/topic-graph.js";
+
+// Topic clusters
+export { buildTopicClusters } from "./site/cluster-builder.js";
+
+// Site authority / coverage (Forge diagnostic scores only)
+export { scoreSiteAuthority } from "./site/authority.js";
+
+// Content opportunities (extends page-level gap detection)
+export { detectSiteOpportunities } from "./site/opportunities.js";
+
+// Internal link opportunities (output only)
+export { detectInternalLinkOpportunities } from "./site/internal-links.js";
+
+// Content refresh detection
+export { detectRefreshCandidates } from "./site/refresh.js";
+
+// Site analyzer
+export { analyzeSite, analyzeSiteFromPages } from "./site/analyzer.js";
+
+// Memory integration (records through the existing memory system)
+export { createSiteAnalysisMemoryEvent } from "./site/memory.js";

@@ -16,6 +16,7 @@ export { generateSection } from "./generators/orchestrator.js";
 
 // Sprint 20 — Content Brief
 export { buildContentBrief } from "./brief/builder.js";
+export type { SiteBriefContext } from "./brief/builder.js";
 export type { ContentBrief } from "./brief/builder.js";
 
 // Sprint 20 — Brand

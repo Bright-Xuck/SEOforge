@@ -65,6 +65,9 @@ importers:
       '@forge/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@forge/dom-engine':
+        specifier: workspace:*
+        version: link:../../packages/dom-engine
       '@forge/execution-engine':
         specifier: workspace:*
         version: link:../../packages/execution-engine

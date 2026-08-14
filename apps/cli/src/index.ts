@@ -67,7 +67,7 @@ import {
   executePipeline,
   listDefaultPipelines,
 } from "@forge/pipeline-engine";
-import type { WriteOperation, WriteMode } from "@forge/core";
+import type { WebsiteSnapshot, WriteOperation, WriteMode } from "@forge/core";
 import { execute as executeExecution, rollbackExecution } from "@forge/execution-engine";
 import { HomepageAnalyzer, HomepageDetector, HomepagePlanner, createReviewSessionFromHomepage } from "@forge/homepage-engine";
 import type { HomepageOptimizationPlan, HomepagePreviewItem } from "@forge/homepage-engine";
@@ -81,7 +81,10 @@ import {
   scoreQuality,
   extractEntities,
   extractTopics,
+  analyzeSite,
+  createSiteAnalysisMemoryEvent,
 } from "@forge/content-intelligence";
+import { buildUniversalPage } from "@forge/dom-engine";
 import { generateContent, buildProjectContext } from "@forge/content-generation";
 import {
   writeHero,
@@ -497,7 +500,7 @@ program
   });
 
 // WordPress provider commands
-program
+const wpCommand = program
   .command("wp")
   .description("WordPress provider commands")
   .addCommand(
@@ -654,7 +657,7 @@ program
     }
   });
 
-const wpCommand = program.command("wp").description("WordPress provider write commands");
+wpCommand.description("WordPress provider commands (connection + write)");
 
 wpCommand
   .command("preview")
@@ -1546,6 +1549,70 @@ async function loadContentContext(project: string) {
   return { resolved, siteUrl, snapshot, $ };
 }
 
+// Sprint 24: Site-level content intelligence — crawl a bounded set of internal
+// pages and build a Universal Page Model for each (dom-engine is the canonical
+// parser). Site Content Intelligence consumes these snapshots + structures.
+async function loadSiteContext(project: string, options: { depth?: number; limit?: number } = {}) {
+  const { resolved, knowledge, memory } = await loadProjectContext(project, "content:site");
+  const siteUrl = resolveHomepageUrl(resolved.project);
+  let rootUrl = siteUrl;
+  try {
+    rootUrl = new URL(siteUrl).origin + "/";
+  } catch {
+    // keep raw siteUrl as the base
+  }
+  const depth = Math.max(0, options.depth ?? 1);
+  const limit = Math.max(1, options.limit ?? 10);
+  const snapshots: WebsiteSnapshot[] = [];
+  const seen = new Set<string>();
+  const queue: { url: string; level: number }[] = [{ url: siteUrl, level: 0 }];
+
+  while (queue.length > 0 && snapshots.length < limit) {
+    const entry = queue.shift();
+    if (!entry) break;
+    if (seen.has(entry.url)) continue;
+    seen.add(entry.url);
+    let snapshot: WebsiteSnapshot | null = null;
+    try {
+      snapshot = await readWebsite(entry.url);
+    } catch {
+      // Skip unreachable pages — the analysis works with what it can read.
+    }
+    if (!snapshot) continue;
+    snapshots.push(snapshot);
+    if (entry.level >= depth) continue;
+    for (const link of snapshot.links) {
+      if (!link.isInternal) continue;
+      let resolvedLink: string;
+      try {
+        resolvedLink = new URL(link.href, rootUrl).href;
+      } catch {
+        continue;
+      }
+      if (!resolvedLink.startsWith(rootUrl)) continue;
+      if (seen.has(resolvedLink)) continue;
+      queue.push({ url: resolvedLink, level: entry.level + 1 });
+    }
+  }
+
+  const universalPages = snapshots.map((snapshot) =>
+    buildUniversalPage(snapshot.rawHtml || "", snapshot.finalUrl || snapshot.originalUrl, snapshot.pageTitle),
+  );
+  const memorySummary = memory.summarize(resolved.project);
+  return {
+    resolved,
+    knowledge,
+    memory,
+    snapshots,
+    universalPages,
+    baseUrl: rootUrl,
+    memoryContext: {
+      lastAnalysisAt: memorySummary.lastEventAt,
+      previousAnalysisCount: memorySummary.total,
+    },
+  };
+}
+
 contentCommand
   .command("analyze")
   .option("--project <project>", "Project ID")
@@ -1644,6 +1711,169 @@ contentCommand
     }
     process.stdout.write(`Overall quality: ${quality.overall}\n`);
     process.stdout.write(`Readability: ${quality.readability.score}, Depth: ${quality.contentDepth.score}\n`);
+  });
+
+// Sprint 24: Site-level content intelligence commands.
+// Site Content Intelligence is an extension of Content Intelligence — no new engine.
+
+async function runSiteReport(options: { project?: string; depth?: string; limit?: string }) {
+  const project = options.project ?? "default";
+  const { snapshots, universalPages, knowledge, baseUrl, memoryContext } = await loadSiteContext(project, {
+    depth: options.depth ? Number(options.depth) : 1,
+    limit: options.limit ? Number(options.limit) : 10,
+  });
+  const report = analyzeSite(snapshots, {
+    baseUrl,
+    universalPages,
+    knowledge: knowledge as never,
+    memory: memoryContext as never,
+    analyzedAt: new Date().toISOString(),
+  });
+  return { project, snapshots, universalPages, knowledge, report };
+}
+
+contentCommand
+  .command("site-analyze")
+  .option("--project <project>", "Project ID")
+  .option("--depth <depth>", "Internal-link crawl depth", "1")
+  .option("--limit <limit>", "Maximum pages to analyze", "10")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; depth?: string; limit?: string; json?: boolean }) => {
+    const { project, report } = await runSiteReport(options);
+    // Record the site-level analysis through the existing memory system.
+    const rootDir = "projects";
+    const store = await loadMemory(rootDir, project);
+    store.append(createSiteAnalysisMemoryEvent(project, report));
+    await saveMemory(rootDir, project, store);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Site analysis (${report.analyzedAt})\n`);
+    process.stdout.write(`Pages: ${report.summary.pageCount}, Topics: ${report.summary.topicCount}, Clusters: ${report.summary.clusterCount}\n`);
+    process.stdout.write(`Authority (diagnostic): ${report.authority.overall}/100\n`);
+    process.stdout.write(`Opportunities: ${report.summary.opportunityCount} (${report.summary.highPriorityOpportunities} high), Refresh: ${report.summary.refreshCandidateCount}, Link opportunities: ${report.summary.internalLinkOpportunityCount}\n`);
+    process.stdout.write(`Structure source: ${report.context.structureSource} (knowledge=${report.context.knowledgeApplied}, memory=${report.context.memoryApplied})\n`);
+    process.stdout.write(`Recorded site-analysis memory event for ${project}\n`);
+  });
+
+contentCommand
+  .command("topics")
+  .option("--project <project>", "Project ID")
+  .option("--depth <depth>", "Internal-link crawl depth", "1")
+  .option("--limit <limit>", "Maximum pages to analyze", "10")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; depth?: string; limit?: string; json?: boolean }) => {
+    const { report } = await runSiteReport(options);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(report.topicGraph, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Topic Graph (${report.topicGraph.topicCount} topics)\n`);
+    for (const topic of report.topicGraph.topics.slice(0, 25)) {
+      const parent = topic.parentTopic ? ` <- ${topic.parentTopic}` : "";
+      process.stdout.write(`  ${topic.term} (pages=${topic.pageCount}, conf=${topic.confidence.toFixed(2)})${parent}\n`);
+    }
+  });
+
+contentCommand
+  .command("clusters")
+  .option("--project <project>", "Project ID")
+  .option("--depth <depth>", "Internal-link crawl depth", "1")
+  .option("--limit <limit>", "Maximum pages to analyze", "10")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; depth?: string; limit?: string; json?: boolean }) => {
+    const { report } = await runSiteReport(options);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(report.clusters, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Topic Clusters (${report.clusters.length})\n`);
+    for (const cluster of report.clusters) {
+      process.stdout.write(`  ${cluster.primaryTopic} (coverage=${cluster.coverageScore}, pages=${cluster.pages.length}, supporting=${cluster.supportingPages.length})\n`);
+      if (cluster.missingCoverage.length > 0) {
+        process.stdout.write(`    missing: ${cluster.missingCoverage.join(", ")}\n`);
+      }
+    }
+  });
+
+contentCommand
+  .command("authority")
+  .option("--project <project>", "Project ID")
+  .option("--depth <depth>", "Internal-link crawl depth", "1")
+  .option("--limit <limit>", "Maximum pages to analyze", "10")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; depth?: string; limit?: string; json?: boolean }) => {
+    const { report } = await runSiteReport(options);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(report.authority, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Site Authority (Forge diagnostic scores — not Google rankings)\n`);
+    process.stdout.write(`  Topical coverage:   ${report.authority.topicalCoverage}\n`);
+    process.stdout.write(`  Semantic depth:     ${report.authority.semanticDepth}\n`);
+    process.stdout.write(`  Supporting content: ${report.authority.supportingContent}\n`);
+    process.stdout.write(`  Internal linking:   ${report.authority.internalLinking}\n`);
+    process.stdout.write(`  Entity coverage:    ${report.authority.entityCoverage}\n`);
+    process.stdout.write(`  Completeness:       ${report.authority.contentCompleteness}\n`);
+    process.stdout.write(`  Freshness:          ${report.authority.freshness}\n`);
+    process.stdout.write(`  Overall:            ${report.authority.overall}\n`);
+  });
+
+contentCommand
+  .command("opportunities")
+  .option("--project <project>", "Project ID")
+  .option("--depth <depth>", "Internal-link crawl depth", "1")
+  .option("--limit <limit>", "Maximum pages to analyze", "10")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; depth?: string; limit?: string; json?: boolean }) => {
+    const { report } = await runSiteReport(options);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(report.opportunities, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Content Opportunities (${report.opportunities.length})\n`);
+    for (const opportunity of report.opportunities) {
+      process.stdout.write(`  [${opportunity.priority}] ${opportunity.title}\n`);
+    }
+  });
+
+contentCommand
+  .command("refresh")
+  .option("--project <project>", "Project ID")
+  .option("--depth <depth>", "Internal-link crawl depth", "1")
+  .option("--limit <limit>", "Maximum pages to analyze", "10")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; depth?: string; limit?: string; json?: boolean }) => {
+    const { report } = await runSiteReport(options);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(report.refreshCandidates, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Refresh Candidates (${report.refreshCandidates.length})\n`);
+    for (const candidate of report.refreshCandidates) {
+      process.stdout.write(`  [${candidate.priority}] ${candidate.pageUrl}\n`);
+      process.stdout.write(`    reasons: ${candidate.reasons.join(", ")}\n`);
+    }
+  });
+
+contentCommand
+  .command("links")
+  .option("--project <project>", "Project ID")
+  .option("--depth <depth>", "Internal-link crawl depth", "1")
+  .option("--limit <limit>", "Maximum pages to analyze", "10")
+  .option("--json", "Output result as JSON")
+  .action(async (options: { project?: string; depth?: string; limit?: string; json?: boolean }) => {
+    const { report } = await runSiteReport(options);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(report.internalLinkOpportunities, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Internal Link Opportunities (${report.internalLinkOpportunities.length}) — output only, no link changes\n`);
+    for (const link of report.internalLinkOpportunities) {
+      const source = link.sourcePage ? `${link.sourcePage} -> ` : "";
+      process.stdout.write(`  [${link.priority}] ${link.kind}: ${source}${link.targetPage ?? ""}\n`);
+    }
   });
 
 const generateCommand = program.command("generate").description("Section-scoped AI content generation (Sprint 17)");

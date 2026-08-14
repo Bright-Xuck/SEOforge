@@ -1,6 +1,6 @@
 ﻿# Architecture Decision Records
 
-**Version:** v0.22.0 (Sprint 22A)
+**Version:** v0.24.0 (Sprint 24)
 
 ## ADR Index
 
@@ -57,6 +57,8 @@
 | 049 | Page DNA Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â deterministic page type & intent classification | Current |
 | 050 | Snapshot Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â deterministic website snapshot model | Current |
 | 051 | Optimization Orchestrator Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â centralized orchestration layer | Current |
+| 052 | DOM Engine Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â Universal Page Model | Current |
+| 053 | Site-level topical intelligence belongs in @forge/content-intelligence | Current |
 
 ---
 
@@ -668,4 +670,35 @@
 - Provider-independent Ã¢Â€Â” never imports providers-wordpress
 - Never imports execution-engine, content-generation, homepage-engine
 - No dashboards, scheduling, analytics, cloud sync, databases, autonomous execution, or new AI features
+
+---
+
+## ADR-053: Site-level topical intelligence belongs in @forge/content-intelligence
+
+**Status:** Current
+**Date:** Sprint 24
+
+**Decision:** Site-level topical intelligence — Site Content Model, topic graph, topic clusters, authority/coverage scoring, content opportunities, refresh detection, and internal link opportunities — lives inside `@forge/content-intelligence` under `src/site/`. It is an extension of the existing package, NOT a new engine (no `@forge/topic-engine`).
+
+**Rationale:**
+
+1. **Same layer, same guarantees.** Site-level intelligence is the same category of work as page-level intelligence: deterministic content understanding with zero AI. It shares the exact same inputs (WebsiteSnapshot, PageDNA, ContentGraph, sections, quality scores), the same constraints (no AI, no network, no providers, no persistence), and the same consumers. A separate package would duplicate the dependency rules, the deterministic guarantees, and the testing surface.
+
+2. **Composition over duplication.** Site-level analysis is built by composing the existing PageDNA / ContentGraph / gap / quality outputs across pages. Keeping it in the same package lets it import those models directly without crossing package boundaries or re-exporting internals through a public API.
+
+3. **One intelligence package, one entry point.** `analyzeSite()` is the natural sibling of `buildPageDNA()`. Consumers (CLI, pipeline-engine, optimization-orchestrator) already depend on `@forge/content-intelligence`; a new package would add a dependency edge to every consumer for no architectural benefit.
+
+4. **Consolidation is the priority near MVP.** SEO Forge is approaching MVP. Adding `@forge/topic-engine` would be exactly the "capability with a new name → new engine" anti-pattern this sprint prohibits. The requirement is a working end-to-end product and architectural consolidation, not more packages.
+
+**How site-level intelligence differs (and why it still belongs here):**
+
+- It aggregates across pages (topics, entities, links, quality) — but aggregation is a function of the same deterministic models.
+- It introduces topic clusters and authority scores — but these are deterministic compositions of existing topics/entities/sections/links, explicitly labeled as heuristic diagnostic scores, not semantic AI understanding.
+- It detects opportunities and refresh candidates — but it extends the existing `detectGaps` concept; page-level gaps remain owned by `gap/`, site-level opportunities reference the underlying PageDNA/quality/section findings.
+
+**Boundaries:**
+
+- `src/site/` never parses HTML — it consumes the `@forge/dom-engine` Universal Page Model shape (`UniversalPageLike`) and the existing detectors.
+- `src/site/` never persists — it consumes the existing knowledge/memory shapes structurally and emits `site-analysis` events that the existing memory system records.
+- `src/site/` is intelligence/planning only — no generation, no link modification, no scheduling, no provider writes. Downstream execution stays in the existing Optimization Composer / Review / Execution architecture.
 

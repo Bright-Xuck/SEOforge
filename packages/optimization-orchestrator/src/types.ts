@@ -8,6 +8,7 @@ import type { OptimizationEvent } from "./events.js";
 
 export type EngineType =
   | "content-intelligence"
+  | "site-intelligence"
   | "content-generation"
   | "review"
   | "composer"

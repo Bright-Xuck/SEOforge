@@ -28,6 +28,7 @@
     "@forge/content-generation": "workspace:*",
     "@forge/content-intelligence": "workspace:*",
     "@forge/core": "workspace:*",
+    "@forge/dom-engine": "workspace:*",
     "@forge/execution-engine": "workspace:*",
     "@forge/homepage-engine": "workspace:*",
     "@forge/logger": "workspace:*",

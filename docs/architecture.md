@@ -1,6 +1,6 @@
 # Forge Architecture
 
-**Version:** v0.23.0 (Sprint 23 — DOM Engine & Universal Page Model)
+**Version:** v0.24.0 (Sprint 24 — Site-Level Content Intelligence)
 
 Forge is a layered, deterministic-first platform for autonomous website optimization. Every layer has a single responsibility and enforced boundaries.
 
@@ -112,15 +112,15 @@ Forge is a layered, deterministic-first platform for autonomous website optimiza
 
 | Aspect | Detail |
 |---|---|
-| **Purpose** | Analyze and classify content 100% deterministically |
-| **Inputs** | `WebsiteSnapshot` (re-parsed HTML) |
-| **Outputs** | PageDNA, ContentGraph, Sections, Entities, Topics, QualityScores, ContentGaps |
+| **Purpose** | Analyze and classify content 100% deterministically — at the page level AND at the site level (Sprint 24) |
+| **Inputs** | `WebsiteSnapshot[]` (pages), optional `@forge/dom-engine` Universal Page Model structures, optional knowledge/memory context |
+| **Outputs** | PageDNA, ContentGraph, Sections, Entities, Topics, QualityScores, ContentGaps — plus Site Content Model, Topic Graph, Topic Clusters, Authority/Coverage scores, Site Opportunities, Refresh Candidates, Internal Link Opportunities |
 | **Deterministic** | Yes — no AI, no network calls, no prompt registry |
 | **May import** | `core`, `shared`, `tools`, `logger` |
 | **Must never import** | `ai-engine`, `prompt-registry`, `skills`, `providers-wordpress`, `must-execute`, `content-generation` |
 | **Ownership** | `content-intelligence` |
 
-**API surface:**
+**API surface (page level):**
 
 - `buildPageDNA(snapshot, $)` → PageDNA (pageType, intent, audience, entities, topics)
 - `buildContentGraph(snapshot, $)` → ContentGraph (nodes by type)
@@ -129,6 +129,40 @@ Forge is a layered, deterministic-first platform for autonomous website optimiza
 - `extractTopics(snapshot)` → Topic[]
 - `detectGaps(snapshot, $)` → ContentGap[]
 - `scoreQuality(snapshot, $)` → QualityScore (overall, readability, depth, freshness, entity density)
+
+### 2.5.1 Site-level Content Intelligence (Sprint 24)
+
+Site-level Content Intelligence is an **extension of `@forge/content-intelligence`**, not a new engine. It composes the existing page-level outputs across all pages of a site so Forge understands the website as a complete content system.
+
+```
+Page-level Content Intelligence (PageDNA / ContentGraph / gaps / quality)
+        ↓
+Site-level Content Intelligence
+        ↓
+Knowledge / Memory
+        ↓
+Generation / Review / Optimization
+```
+
+**Data flow (all deterministic):**
+
+1. `analyzeSite(snapshots, options)` composes each page through the existing PageDNA / ContentGraph / quality engines (`buildSitePageEntry`, `buildSiteContentModel` → `SiteContentModel`).
+2. `buildTopicGraph(model)` derives deterministic topic relationships (related, supporting, parent/child via term inclusion and URL path, associated entities).
+3. `buildTopicClusters(model, graph)` groups topics into clusters with primary topic, pages, supporting pages, missing coverage and a diagnostic coverage score.
+4. `scoreSiteAuthority(...)` returns normalized Forge diagnostic scores (topical coverage, semantic depth, supporting content, internal linking, entity coverage, completeness, freshness). These are **not** Google rankings.
+5. `detectRefreshCandidates(model)` flags pages needing refresh with reasons, affected dimensions, priority and evidence.
+6. `detectInternalLinkOpportunities(model, clusters)` outputs link opportunities only — links are never modified here.
+7. `detectSiteOpportunities(...)` extends the existing page-level gap detection with site-level opportunities, each referencing the underlying PageDNA / quality / section findings.
+
+**Integration contract:**
+
+- **DOM Engine** — the site layer consumes the Universal Page Model shape (`UniversalPageLike`) for sections, blocks and builder information. It never parses HTML itself.
+- **Knowledge / Memory** — consumes `SiteAnalysisKnowledge` / `SiteAnalysisMemory` (structural shapes of the existing knowledge-engine and memory-engine) for brand, entities, keywords and history. Meaningful runs are recorded through the existing memory system as `site-analysis` events (`createSiteAnalysisMemoryEvent`).
+- **Pipeline** — `site-intelligence` step and pipeline in `@forge/pipeline-engine`.
+- **Optimization Orchestrator** — `createSiteIntelligenceEngine()` adapter exposes opportunities, refresh candidates, internal link opportunities and topic coverage gaps into the workflow context. It never executes anything.
+- **CLI** — `forge content site-analyze|topics|clusters|authority|opportunities|refresh|links`.
+
+**MVP boundary:** this layer is intelligence/planning only. No generation, no link modification, no scheduling, no dashboards, no persistence, no provider writes.
 
 ### 2.6 Content Generation
 

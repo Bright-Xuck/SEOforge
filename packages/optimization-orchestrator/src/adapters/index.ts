@@ -2,6 +2,7 @@
 // Adapters barrel export — wraps real engines into the Engine interface
 
 export { createContentIntelligenceEngine } from "./content-intelligence-adapter.js";
+export { createSiteIntelligenceEngine } from "./site-intelligence-adapter.js";
 export { createContentGenerationEngine } from "./content-generation-adapter.js";
 export type { ContentGenerationAdapterOptions } from "./content-generation-adapter.js";
 export { createReviewEngine } from "./review-adapter.js";
@@ -12,6 +13,7 @@ export type { ExecutionAdapterOptions } from "./execution-adapter.js";
 
 import type { Engine } from "../types.js";
 import { createContentIntelligenceEngine } from "./content-intelligence-adapter.js";
+import { createSiteIntelligenceEngine } from "./site-intelligence-adapter.js";
 import { createComposerEngine } from "./composer-adapter.js";
 import { createReviewEngine } from "./review-adapter.js";
 
@@ -25,6 +27,7 @@ import { createReviewEngine } from "./review-adapter.js";
 export function createDefaultEngines(): Engine[] {
   return [
     createContentIntelligenceEngine(),
+    createSiteIntelligenceEngine(),
     createReviewEngine(),
     createComposerEngine(),
   ];
