@@ -239,12 +239,17 @@ planning only — nothing is generated, linked, or written.
 | `forge wp preview` | Preview write (`--field`, `--value`) |
 | `forge wp apply` | Apply write |
 | `forge wp rollback` | Rollback write (`--revision-id`) |
-| `forge wp elementor inspect <site> <user> <pass> <page>` | Inspect an Elementor document (version, widgets, editable controls) |
-| `forge wp elementor preview <site> <user> <pass> <page> --patch <file>` | Preview the exact Elementor change (zero remote writes) |
-| `forge wp elementor validate <site> <user> <pass> <page> --patch <file>` | Validate a patch (resolution, compatibility, mutation) |
-| `forge wp elementor apply <site> <user> <pass> <page> --patch <file>` | Apply a patch (dry-run by default; `--apply` writes; `--output` saves rollback payload) |
-| `forge wp elementor rollback <site> <user> <pass> <page> --original <file>` | Restore the exact original Elementor document |
+| `forge wp elementor doctor [<page>]` | Typed health check: reachability, auth, Elementor availability/version, document writability (`--json`) |
+| `forge wp elementor inspect <page>` | Inspect an Elementor document (fingerprint, widgets, editable/unsupported controls; `--json`, `--raw`) |
+| `forge wp elementor preview <page> --patch <file>` | Preview the exact Elementor change (SAFE, zero remote writes) |
+| `forge wp elementor validate <page> --patch <file>` | Validate a patch (resolution, compatibility, mutation; SAFE) |
+| `forge wp elementor apply <page> --patch <file>` | Dry-run by default; `--apply` writes then re-reads and verifies structurally; `--output` saves rollback payload |
+| `forge wp elementor rollback <page> --original <file>` | Restore the original Elementor document (refuses to overwrite newer changes; `--force` overrides) |
 | `forge fetch <site> <username> <password>` | Fetch all site data |
+
+Elementor commands accept `<site> <username> <password>` positionally or the
+`FORGE_WP_SITE_URL` / `FORGE_WP_USERNAME` / `FORGE_WP_APPLICATION_PASSWORD` environment
+variables with just the page.
 | `forge connect wordpress` | Connection wizard (instructions) |
 | `forge provider` | Show provider info |
 
@@ -462,3 +467,43 @@ Key additions (all deterministic):
 - **CLI** — `forge wp elementor inspect|preview|validate|apply|rollback`. `apply` is dry-run by default; `--apply` performs the write; rollback restores the exact original document.
 
 Safety guarantees: dry-run = zero remote mutations; stale patches are rejected; writes are atomic whole-document replacements verified by re-read; unknown Elementor settings and `__globals__` survive round trips; unsupported widgets/versions are refused rather than guessed.
+
+### Sprint 26 — Production Elementor Integration & End-to-End Workflow Hardening
+
+Sprint 26 hardens (not expands) the Sprint 25 path against real WordPress/Elementor sites:
+
+- **`forge wp elementor doctor`** — typed health check (WP reachability, auth validity,
+  Elementor availability/version, target-page existence/Elementor-state/readability/writability),
+  backed by a new companion-plugin `GET /wp-json/forge/v1/system` contract.
+- **Real-defect fixes found by auditing the source:** the write and
+  rollback-after-apply paths could never succeed on a real site (a stale
+  structural-equality guard rejected every mutation; read/write timestamps used
+  incompatible formats; rollback sent the pre-apply timestamp); client-side
+  verification compared raw pretty-printed vs compact JSON strings. All fixed —
+  writes are guarded by consistent ISO-8601 `expectedModified` + `expectedVersion`,
+  validated payloads, server-side re-read verification (`verified` flag), and
+  client-side *structural fingerprint* verification (which survives Elementor
+  reformatting).
+- **Typed failures everywhere:** transport plugin-body codes → bridge taxonomy
+  (`ELEMENTOR_NOT_INSTALLED/AUTHENTICATION_FAILED/PAGE_NOT_FOUND/
+  NOT_ELEMENTOR_DOCUMENT/DOCUMENT_STALE/UNSUPPORTED_WIDGET/UNSUPPORTED_SETTING/
+  WRITE_FAILED/VERIFICATION_FAILED/ROLLBACK_FAILED/...`), shown as
+  `Error [CODE]: actionable message` — raw PHP/HTTP errors are never the primary surface.
+- **Patch resolution hardening** (`@forge/dom-engine`): new
+  `PATCH_WIDGET_TYPE_CHANGED` and `PATCH_UNSUPPORTED_SETTING` codes, patches
+  carry `expectedWidgetType` + `sourceFingerprint`, a deeply structural
+  fingerprint (recursive key sort), and a provider-neutral
+  `inventoryElementorDocument()` inspection model.
+- **Rich-text safety:** URL-scheme allowlist (`isElementorUrlSafe`) enforced by the
+  sanitizer — `javascript:`/`data:`/`vbscript:` hrefs are stripped, text survives.
+- **Rollback:** payload gains `appliedFingerprint`; rollback validates payloads,
+  refuses (by default) to overwrite newer documents, verifies by structural
+  fingerprint, reports the final fingerprint (`--force` documents the override).
+- **Observability:** `elementor-write`/`elementor-rollback` memory events through the
+  existing MemoryStore — fingerprints, ids, provider, verification/rollback status. Never secrets.
+- **Tests:** +34 tests (446 total): Phase-3/4 dom-engine cases, transport body-contract
+  cases, bridge stale/verify/rollback-refusal/zero-write-regression cases, a full
+  ContentPatch→Review→Composer→Bridge e2e suite, and two opt-in real-site suites
+  (transport + full 13-step workflow).
+
+See `docs/sprint-26.md` for the audit, workflow, integration-test setup, security model, and limitations.

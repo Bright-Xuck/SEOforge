@@ -143,3 +143,32 @@ export function isKnownElementorWidget(widgetType: string | undefined): boolean 
   const normalized = normalizeElementorWidgetType(widgetType);
   return normalized ? normalized in ELEMENTOR_WIDGET_SCHEMA : false;
 }
+
+/**
+ * Whether a specific settings key is a declared, editable control for a
+ * widget type (Sprint 26). Used to distinguish "the element exists but this
+ * control is not editable for it" (unsupported setting) from "the element
+ * does not exist at all" (target not found).
+ */
+export function isKnownElementorControl(widgetType: string | undefined, settingsKey: string): boolean {
+  if (!widgetType) return false;
+  const normalized = normalizeElementorWidgetType(widgetType);
+  if (!normalized) return false;
+  const widgetSchema = ELEMENTOR_WIDGET_SCHEMA[normalized];
+  if (!widgetSchema) return false;
+  const declared = new Set(Object.values(widgetSchema));
+  return declared.has(settingsKey);
+}
+
+/**
+ * All declared editable settings keys for a widget type (Sprint 26).
+ * Used by inspection to report supported vs unsupported fields.
+ */
+export function getElementorEditableControls(widgetType: string | undefined): string[] {
+  if (!widgetType) return [];
+  const normalized = normalizeElementorWidgetType(widgetType);
+  if (!normalized) return [];
+  const widgetSchema = ELEMENTOR_WIDGET_SCHEMA[normalized];
+  if (!widgetSchema) return [];
+  return [...new Set(Object.values(widgetSchema))];
+}

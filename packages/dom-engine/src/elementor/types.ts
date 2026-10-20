@@ -27,3 +27,9 @@ export type {
   ElementorMutation,
   ElementorMutationVerification,
 } from "./mutator.js";
+
+export type {
+  ElementorWidgetInventory,
+  ElementorFieldInventory,
+  ElementorDocumentInventory,
+} from "./inventory.js";

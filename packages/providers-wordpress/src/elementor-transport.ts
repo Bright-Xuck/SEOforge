@@ -24,7 +24,11 @@ export type ElementorTransportErrorCode =
   | "ELEMENTOR_VERSION_CONFLICT"
   | "ELEMENTOR_FORBIDDEN"
   | "ELEMENTOR_NOT_ACTIVE"
-  | "ELEMENTOR_INVALID_RESPONSE";
+  | "ELEMENTOR_INVALID_RESPONSE"
+  | "AUTHENTICATION_FAILED"
+  | "ELEMENTOR_VERSION_UNSUPPORTED"
+  | "WRITE_FAILED"
+  | "VERIFICATION_FAILED";
 
 export class ElementorTransportError extends Error {
   public readonly code: ElementorTransportErrorCode;
@@ -39,6 +43,30 @@ export class ElementorTransportError extends Error {
 }
 
 /**
+ * Companion system/health endpoint (Sprint 26).
+ */
+export const ELEMENTOR_SYSTEM_PATH = "wp-json/forge/v1/system";
+
+/**
+ * Typed health/capability status returned by `GET /wp-json/forge/v1/system`
+ * (forge-elementor-bridge 0.2.0+).
+ */
+export interface ElementorSystemStatus {
+  readonly plugin: string;
+  readonly pluginVersion: string;
+  readonly generatedAt?: string;
+  readonly wordpressVersion?: string;
+  /** True — reaching the endpoint proves REST authentication succeeded. */
+  readonly authenticated: boolean;
+  readonly elementorInstalled: boolean;
+  readonly elementorVersion?: string;
+  readonly minimumSupportedMajor: number;
+  readonly elementorSupported: boolean;
+  readonly supportedWidgets: string[];
+  readonly unsupportedWidgets: string[];
+}
+
+/**
  * Raw Elementor document read from the companion endpoint.
  */
 export interface ElementorDocumentRead {
@@ -46,6 +74,8 @@ export interface ElementorDocumentRead {
   readonly postId: number | string;
   readonly title: string;
   readonly type: string;
+  /** Permalink of the page (when the companion plugin provides it). */
+  readonly url?: string;
   /** Elementor plugin version (e.g. "3.24.0"). */
   readonly elementorVersion?: string;
   /** Elementor edit mode marker. */
@@ -84,11 +114,67 @@ function extractStatus(error: unknown): number | undefined {
 }
 
 /**
+ * Extract the typed error code from a companion-plugin error body
+ * (rawRequest attaches the parsed body to thrown errors).
+ */
+function extractBodyCode(error: unknown): string | undefined {
+  if (error && typeof error === "object" && "body" in error) {
+    const body = (error as { body?: unknown }).body;
+    if (body && typeof body === "object" && !Array.isArray(body)) {
+      const code = (body as Record<string, unknown>)["code"];
+      if (typeof code === "string") return code;
+      const legacy = (body as Record<string, unknown>)["error"];
+      if (typeof legacy === "string") return legacy;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Companion plugin error code → transport error code (Sprint 26).
+ * The plugin returns typed bodies: { code, message }.
+ */
+const PLUGIN_CODE_MAP: Record<string, ElementorTransportErrorCode> = {
+  page_not_found: "ELEMENTOR_DOCUMENT_NOT_FOUND",
+  not_elementor_document: "ELEMENTOR_NOT_ACTIVE",
+  version_conflict: "ELEMENTOR_VERSION_CONFLICT",
+  authentication_failed: "AUTHENTICATION_FAILED",
+  elementor_version_unsupported: "ELEMENTOR_VERSION_UNSUPPORTED",
+  write_failed: "WRITE_FAILED",
+  verification_failed: "VERIFICATION_FAILED",
+  elementor_not_installed: "ELEMENTOR_ENDPOINT_UNAVAILABLE",
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Map any thrown transport error to a typed ElementorTransportError, preferring
+ * the plugin's typed body code over status-code guessing.
+ */
+function mapTransportError(error: unknown, fallback: string): ElementorTransportError {
+  if (error instanceof ElementorTransportError) return error;
+  const status = extractStatus(error);
+  const pluginCode = extractBodyCode(error);
+  if (pluginCode && PLUGIN_CODE_MAP[pluginCode]) {
+    const message = isRecord(error) && isRecord((error as { body?: unknown }).body)
+      && typeof ((error as { body: Record<string, unknown> }).body["message"]) === "string"
+      ? ((error as { body: Record<string, unknown> }).body["message"] as string)
+      : fallback;
+    return new ElementorTransportError(PLUGIN_CODE_MAP[pluginCode], message, status);
+  }
+  if (status !== undefined) return mapStatus(status, fallback);
+  return new ElementorTransportError("ELEMENTOR_INVALID_RESPONSE", `${fallback}: ${error instanceof Error ? error.message : String(error)}`);
+}
+
+/**
  * HTTP status → transport error mapping.
  */
 function mapStatus(status: number, fallback: string): ElementorTransportError {
   switch (status) {
     case 401:
+      return new ElementorTransportError("AUTHENTICATION_FAILED", "Authentication failed: invalid or missing WordPress credentials.", status);
     case 403:
       return new ElementorTransportError("ELEMENTOR_FORBIDDEN", "Forbidden: the credentials cannot edit this Elementor document.", status);
     case 404:
@@ -100,6 +186,31 @@ function mapStatus(status: number, fallback: string): ElementorTransportError {
     default:
       return new ElementorTransportError("ELEMENTOR_INVALID_RESPONSE", fallback, status);
   }
+}
+
+/**
+ * Parse and validate the system-status payload.
+ */
+function parseSystemStatus(response: Record<string, unknown>): ElementorSystemStatus {
+  const wordpress = isRecord(response.wordpress) ? response.wordpress : {};
+  const authentication = isRecord(response.authentication) ? response.authentication : {};
+  const elementor = isRecord(response.elementor) ? response.elementor : {};
+  const capabilities = isRecord(response.capabilities) ? response.capabilities : {};
+  const stringList = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  return {
+    plugin: typeof response.plugin === "string" ? response.plugin : "",
+    pluginVersion: typeof response.pluginVersion === "string" ? response.pluginVersion : "",
+    generatedAt: typeof response.generatedAt === "string" ? response.generatedAt : undefined,
+    wordpressVersion: typeof wordpress["version"] === "string" ? wordpress["version"] : undefined,
+    authenticated: authentication["valid"] === true,
+    elementorInstalled: elementor["installed"] === true,
+    elementorVersion: typeof elementor["version"] === "string" ? elementor["version"] : undefined,
+    minimumSupportedMajor: typeof elementor["minimumSupportedMajor"] === "number" ? elementor["minimumSupportedMajor"] : 2,
+    elementorSupported: elementor["supported"] === true,
+    supportedWidgets: stringList(capabilities["supportedWidgets"]),
+    unsupportedWidgets: stringList(capabilities["unsupportedWidgets"]),
+  };
 }
 
 /**
@@ -118,6 +229,9 @@ export class ElementorDocumentTransport {
    * Probe whether the companion endpoint is available.
    * A 404 on a real post id means the plugin is missing (endpoint unavailable),
    * which we surface distinctly from "document not found".
+   * NOTE (Sprint 26): prefer `readSystemStatus()` — it is the authoritative,
+   * typed health check. This legacy probe can misreport when permission
+   * callbacks reject the probe id before the route matches.
    */
   async isAvailable(): Promise<boolean> {
     try {
@@ -127,6 +241,30 @@ export class ElementorDocumentTransport {
       if (error instanceof ElementorTransportError) return false;
       return false;
     }
+  }
+
+  /**
+   * Read the typed site health/capability status (Sprint 26).
+   * Fails with ELEMENTOR_ENDPOINT_UNAVAILABLE when the plugin is missing and
+   * AUTHENTICATION_FAILED when credentials are rejected.
+   */
+  async readSystemStatus(): Promise<ElementorSystemStatus> {
+    let response: Record<string, unknown>;
+    try {
+      response = await this.client.rawRequest<Record<string, unknown>>(ELEMENTOR_SYSTEM_PATH, "GET");
+    } catch (error) {
+      if (error instanceof ElementorTransportError) throw error;
+      const status = extractStatus(error);
+      if (status === 401) {
+        throw new ElementorTransportError("AUTHENTICATION_FAILED", "Authentication failed: invalid or missing WordPress credentials.", status);
+      }
+      throw new ElementorTransportError(
+        "ELEMENTOR_ENDPOINT_UNAVAILABLE",
+        "The Forge Elementor bridge system endpoint is not available on this site. Install/activate the forge-elementor-bridge plugin (packages/providers-wordpress/companion).",
+        status,
+      );
+    }
+    return parseSystemStatus(response);
   }
 
   /**
@@ -151,6 +289,7 @@ export class ElementorDocumentTransport {
       postId: (response.postId as number | string | undefined) ?? postId,
       title: typeof response.title === "string" ? response.title : "",
       type: typeof response.type === "string" ? response.type : "page",
+      url: typeof response.url === "string" ? response.url : undefined,
       elementorVersion: typeof response.elementorVersion === "string" ? response.elementorVersion : undefined,
       editMode: typeof response.editMode === "string" ? response.editMode : undefined,
       data: response.data as string,
@@ -198,24 +337,27 @@ export class ElementorDocumentTransport {
       throw new ElementorTransportError("ELEMENTOR_INVALID_RESPONSE", "Companion endpoint returned an unexpected write response.");
     }
 
+    // Server-side verification result (Sprint 26): `verified: false` is NOT
+    // success even though the HTTP request returned 200.
+    if (response.verified === false) {
+      throw new ElementorTransportError(
+        "VERIFICATION_FAILED",
+        "Verification failed: the re-read Elementor document does not structurally match the written document (server-side check).",
+        200,
+      );
+    }
+    if (!written) {
+      throw new ElementorTransportError("WRITE_FAILED", "The companion endpoint did not write the document.", 200);
+    }
+
     return { postId, written, reRead };
   }
 
   private rethrowReadError(error: unknown, postId: number | string): never {
-    if (error instanceof ElementorTransportError) throw error;
-    const status = extractStatus(error);
-    if (status !== undefined) {
-      throw mapStatus(status, `Failed to read Elementor document ${postId}.`);
-    }
-    throw new ElementorTransportError("ELEMENTOR_INVALID_RESPONSE", `Failed to read Elementor document ${postId}: ${error instanceof Error ? error.message : String(error)}`);
+    throw mapTransportError(error, `Failed to read Elementor document ${postId}.`);
   }
 
   private rethrowWriteError(error: unknown, postId: number | string): never {
-    if (error instanceof ElementorTransportError) throw error;
-    const status = extractStatus(error);
-    if (status !== undefined) {
-      throw mapStatus(status, `Failed to write Elementor document ${postId}.`);
-    }
-    throw new ElementorTransportError("ELEMENTOR_INVALID_RESPONSE", `Failed to write Elementor document ${postId}: ${error instanceof Error ? error.message : String(error)}`);
+    throw mapTransportError(error, `Failed to write Elementor document ${postId}.`);
   }
 }

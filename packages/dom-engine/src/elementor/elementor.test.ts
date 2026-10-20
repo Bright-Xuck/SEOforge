@@ -20,6 +20,7 @@ import {
   sanitizeElementorRichText,
   textContentOfRichText,
   assertElementorContentCompatible,
+  isElementorUrlSafe,
 } from "./rich-text.js";
 import {
   mapUniversalPageToElementor,
@@ -144,11 +145,75 @@ describe("Patch resolution", () => {
     expect(resolution.code).toBe("PATCH_TARGET_NOT_FOUND");
   });
 
-  it("returns PATCH_TARGET_NOT_FOUND when the setting is absent", () => {
+  it("returns PATCH_UNSUPPORTED_SETTING for an undeclared control on an existing widget (Sprint 26)", () => {
     const doc = parse(FIXTURE_A_HERO);
     const resolution = resolveElementorPatch(doc, {
       proposedContent: "x",
       target: { format: "elementor", elementId: "button-1", settingsKey: "not_a_real_control" },
+    });
+    expect(resolution.ok).toBe(false);
+    if (resolution.ok) return;
+    expect(resolution.code).toBe("PATCH_UNSUPPORTED_SETTING");
+    if (resolution.code !== "PATCH_UNSUPPORTED_SETTING") return;
+    expect(resolution.details?.["supportedControls"]).toContain("text");
+  });
+
+  it("returns PATCH_WIDGET_TYPE_CHANGED when the target is now a different widget (Sprint 26)", () => {
+    const doc = parse(FIXTURE_A_HERO);
+    const resolution = resolveElementorPatch(doc, {
+      currentContent: "Accounting Software for Small Businesses",
+      proposedContent: "New",
+      expectedWidgetType: "text-editor",
+      target: { format: "elementor", elementId: "heading-1", settingsKey: "title" },
+    });
+    expect(resolution.ok).toBe(false);
+    if (resolution.ok) return;
+    expect(resolution.code).toBe("PATCH_WIDGET_TYPE_CHANGED");
+  });
+
+  it("accepts a patch whose expectedWidgetType still matches (Sprint 26)", () => {
+    const doc = parse(FIXTURE_A_HERO);
+    const resolution = resolveElementorPatch(doc, {
+      currentContent: "Accounting Software for Small Businesses",
+      proposedContent: "New",
+      expectedWidgetType: "heading.default",
+      target: { format: "elementor", elementId: "heading-1", settingsKey: "title" },
+    });
+    expect(resolution.ok).toBe(true);
+  });
+
+  it("rejects a patch when the document fingerprint changed on the same page (Sprint 26)", () => {
+    const doc = parse(FIXTURE_A_HERO);
+    const before = doc.fingerprint;
+    // Simulate a remote edit: same page, different document content.
+    const changedDoc = parse(FIXTURE_A_HERO.replace("Accounting Software for Small Businesses", "Someone edited this"));
+    expect(changedDoc.fingerprint).not.toBe(before);
+    const resolution = resolveElementorPatch(changedDoc, {
+      currentContent: "Accounting Software for Small Businesses",
+      proposedContent: "New",
+      sourceFingerprint: before,
+      target: { format: "elementor", elementId: "heading-1", settingsKey: "title" },
+    }, { expectedFingerprint: before });
+    expect(resolution.ok).toBe(false);
+    if (resolution.ok) return;
+    expect(resolution.code).toBe("PATCH_STALE");
+  });
+
+  it("rejects a patch whose target widget was removed from the document (Sprint 26)", () => {
+    const doc = parse(JSON.stringify([
+      {
+        id: "hero-container",
+        elType: "container",
+        settings: {},
+        elements: [
+          { id: "text-1", elType: "widget", widgetType: "text-editor", settings: { editor: "<p>Kept</p>" }, elements: [] },
+        ],
+      },
+    ]));
+    const resolution = resolveElementorPatch(doc, {
+      currentContent: "Accounting Software for Small Businesses",
+      proposedContent: "New",
+      target: { format: "elementor", elementId: "heading-1", settingsKey: "title" },
     });
     expect(resolution.ok).toBe(false);
     if (resolution.ok) return;
@@ -277,6 +342,106 @@ describe("Rich text rules", () => {
 
   it("accepts markup in rich-text controls (heading title)", () => {
     expect(assertElementorContentCompatible("heading", "title", "<strong>Bold</strong> heading")).toHaveLength(0);
+  });
+
+  // ─── Sprint 26: realistic rich-text safety ────────────────────────────
+
+  it("preserves paragraph + bold (Sprint 26)", () => {
+    const out = sanitizeElementorRichText("<p>Leading text <strong>bold tail</strong></p>");
+    expect(out).toContain("<p>Leading text <strong>bold tail</strong></p>");
+  });
+
+  it("preserves paragraph + link and strips unsafe link schemes (Sprint 26)", () => {
+    const out = sanitizeElementorRichText(
+      '<p>See <a href="https://example.com/docs">docs</a> and <a href="javascript:alert(1)">bad</a> and <a href="data:text/html,bad">worse</a>.</p>',
+    );
+    expect(out).toContain('<a href="https://example.com/docs">docs</a>');
+    expect(out).not.toContain("javascript:");
+    expect(out).not.toContain("data:text/html");
+    // Link text is preserved even when the unsafe href is stripped.
+    expect(out).toContain("<a>bad</a>");
+  });
+
+  it("preserves ordered and unordered lists (Sprint 26)", () => {
+    const ol = sanitizeElementorRichText("<ol><li>First</li><li>Second</li></ol>");
+    expect(ol).toContain("<ol><li>First</li><li>Second</li></ol>");
+    const ul = sanitizeElementorRichText("<ul><li>One</li><li>Two</li></ul>");
+    expect(ul).toContain("<ul><li>One</li><li>Two</li></ul>");
+  });
+
+  it("preserves nested inline emphasis (Sprint 26)", () => {
+    const out = sanitizeElementorRichText("<p>Nested <strong>bold <em>and italic</em></strong> end</p>");
+    expect(out).toContain("<strong>bold <em>and italic</em></strong>");
+  });
+
+  it("preserves headings and paragraphs (Sprint 26)", () => {
+    const out = sanitizeElementorRichText("<h2>Section</h2><p>Body copy.</p>");
+    expect(out).toContain("<h2>Section</h2>");
+    expect(out).toContain("<p>Body copy.</p>");
+  });
+
+  it("rejects (removes) executable and embedded markup (Sprint 26)", () => {
+    const out = sanitizeElementorRichText(
+      '<p onclick="evil()" onmouseover="evil()">x</p><iframe src="https://evil.example"></iframe><object></object><embed><form action="https://evil.example"><input></form>',
+    );
+    expect(out).not.toContain("onclick");
+    expect(out).not.toContain("onmouseover");
+    expect(out).not.toContain("<iframe");
+    expect(out).not.toContain("<object");
+    expect(out).not.toContain("<embed");
+    expect(out).not.toContain("<form");
+    expect(out).not.toContain("<input");
+  });
+
+  it("survives malformed HTML without crashing (Sprint 26)", () => {
+    const out = sanitizeElementorRichText("<p>Unclosed <strong>bold <p>misnested</p><a href='https://example.com'>link");
+    expect(typeof out).toBe("string");
+    expect(out.length).toBeGreaterThan(0);
+    expect(out).not.toContain("<script");
+  });
+
+  it("returns empty output for empty content (Sprint 26)", () => {
+    expect(sanitizeElementorRichText("")).toBe("");
+    expect(sanitizeElementorRichText("   ")).toBe("");
+  });
+
+  it("classifies URL safety for the href allowlist (Sprint 26)", () => {
+    expect(isElementorUrlSafe("https://example.com")).toBe(true);
+    expect(isElementorUrlSafe("http://example.com/x?y=1")).toBe(true);
+    expect(isElementorUrlSafe("mailto:hi@example.com")).toBe(true);
+    expect(isElementorUrlSafe("tel:+123456")).toBe(true);
+    expect(isElementorUrlSafe("#anchor")).toBe(true);
+    expect(isElementorUrlSafe("/relative/path")).toBe(true);
+    expect(isElementorUrlSafe("//cdn.example.com/a.png")).toBe(true);
+    expect(isElementorUrlSafe("../up/one")).toBe(true);
+    expect(isElementorUrlSafe("javascript:alert(1)")).toBe(false);
+    expect(isElementorUrlSafe("JaVaScRiPt:alert(1)")).toBe(false);
+    expect(isElementorUrlSafe("data:text/html,<b>x</b>")).toBe(false);
+    expect(isElementorUrlSafe("vbscript:msgbox")).toBe(false);
+    expect(isElementorUrlSafe("file:///etc/passwd")).toBe(false);
+    expect(isElementorUrlSafe("")).toBe(false);
+  });
+});
+
+describe("Fingerprint stability (Sprint 26)", () => {
+  it("is insensitive to nested key order (structural fingerprint)", () => {
+    const a = parse(JSON.stringify([
+      { id: "w", elType: "widget", widgetType: "button", settings: { text: "Go", link: { url: "https://x", custom: { a: 1, b: 2 } } }, elements: [] },
+    ]));
+    const b = parse(JSON.stringify([
+      { id: "w", elType: "widget", widgetType: "button", settings: { link: { custom: { b: 2, a: 1 }, url: "https://x" }, text: "Go" }, elements: [] },
+    ]));
+    expect(a.fingerprint).toBe(b.fingerprint);
+  });
+
+  it("changes when any value changes", () => {
+    const a = parse(JSON.stringify([
+      { id: "w", elType: "widget", widgetType: "button", settings: { text: "Go" }, elements: [] },
+    ]));
+    const b = parse(JSON.stringify([
+      { id: "w", elType: "widget", widgetType: "button", settings: { text: "Stop" }, elements: [] },
+    ]));
+    expect(a.fingerprint).not.toBe(b.fingerprint);
   });
 });
 

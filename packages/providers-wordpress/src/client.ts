@@ -101,7 +101,18 @@ export class WordPressClient {
       });
       clearTimeout(timeoutId);
       if (!response.ok) {
-        throw this.mapError(response.status);
+        // Attach the response body (when parseable) so typed transports can
+        // surface provider error codes instead of status-code guessing only.
+        const rawBody = await response.text().catch(() => undefined);
+        const error = this.mapError(response.status) as ProviderError & { body?: unknown };
+        if (rawBody) {
+          try {
+            (error as { body?: unknown }).body = JSON.parse(rawBody);
+          } catch {
+            (error as { body?: unknown }).body = rawBody;
+          }
+        }
+        throw error;
       }
       return (await response.json()) as T;
     } catch (error) {

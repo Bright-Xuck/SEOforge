@@ -83,11 +83,29 @@ export function fingerprintElementorTree(root: ContentNode): string {
   return hashJson(JSON.stringify(walk(root)));
 }
 
+/**
+ * Deeply normalize settings for fingerprinting: object keys are sorted
+ * recursively (arrays keep their order) so the fingerprint is a *structural*
+ * property. This makes fingerprint comparison tolerant of JSON reformatting
+ * (e.g. Elementor re-serializing the document after a native save) while
+ * remaining sensitive to any value change.
+ */
 function normalizeSettings(settings: Record<string, unknown>): Record<string, unknown> {
-  const keys = Object.keys(settings).sort();
-  const out: Record<string, unknown> = {};
-  for (const key of keys) out[key] = settings[key];
-  return out;
+  return sortObjectKeys(settings) as Record<string, unknown>;
+}
+
+function sortObjectKeys(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortObjectKeys);
+  }
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      out[key] = sortObjectKeys((value as Record<string, unknown>)[key]);
+    }
+    return out;
+  }
+  return value;
 }
 
 function hashJson(input: string): string {

@@ -45,39 +45,59 @@ const GLOBALS_DOC = JSON.stringify([
  * dry-run performed ZERO remote mutations.
  */
 function memoryProvider(initialData: string, version = "3.24.0"): ElementorProviderLike & { writes: { data: string }[]; current: string } {
-  let current = initialData;
+  const state = { data: initialData };
   const writes: { data: string }[] = [];
   return {
     writes,
     get current() {
-      return current;
+      return state.data;
     },
-    async getElementorDocument() {
+    set current(value: string) {
+      state.data = value;
+    },
+    async readElementorDocument() {
       return {
         postId: 5,
         title: "Home",
         type: "page",
+        url: "https://example.com/home",
         elementorVersion: version,
         editMode: "builder",
-        data: current,
+        data: state.data,
         modified: "2026-08-01T00:00:00Z",
       };
     },
     async updateElementorDocument(_postId, data) {
       writes.push({ data });
-      current = data;
+      state.data = data;
       return {
         postId: 5,
         written: true,
+        verified: true,
         reRead: {
           postId: 5,
           title: "Home",
           type: "page",
           elementorVersion: version,
           editMode: "builder",
-          data: current,
+          data: state.data,
           modified: "2026-08-01T00:00:00Z",
         },
+      };
+    },
+    async getElementorSystemStatus() {
+      return {
+        plugin: "forge-elementor-bridge",
+        pluginVersion: "0.2.0",
+        generatedAt: "2026-08-14T12:00:00+00:00",
+        wordpressVersion: "6.7.1",
+        authenticated: true,
+        elementorInstalled: true,
+        elementorVersion: version,
+        minimumSupportedMajor: 2,
+        elementorSupported: true,
+        supportedWidgets: ["heading", "text-editor", "button", "image"],
+        unsupportedWidgets: ["html", "shortcode", "form"],
       };
     },
   };
@@ -90,14 +110,36 @@ const headingPatch = {
 };
 
 describe("ElementorWriteBridge", () => {
-  it("inspects a document and inventories editable widgets", async () => {
+  it("inspects a document and inventories editable widgets (Sprint 26 fingerprint + inventory)", async () => {
     const provider = memoryProvider(HERO_DOC);
     const bridge = createElementorBridge(provider);
     const result = await bridge.inspect(5);
     expect(result.title).toBe("Home");
     expect(result.support.supported).toBe(true);
-    expect(result.widgetCount).toBe(3);
-    expect(result.editableWidgets.map((w) => w.widgetType)).toEqual(["heading", "text-editor", "button"]);
+    expect(result.fingerprint).toMatch(/^[0-9a-z]+$/);
+    expect(result.inventory.widgetCount).toBe(3);
+    expect(result.inventory.widgets.map((w) => w.widgetType)).toEqual(["heading", "text-editor", "button"]);
+    const heading = result.inventory.widgets.find((w) => w.widgetType === "heading");
+    expect(heading?.supported).toBe(true);
+    expect(heading?.supportedFields.some((f) => f.settingsKey === "title" && f.richText)).toBe(true);
+    const button = result.inventory.widgets.find((w) => w.widgetType === "button");
+    // `link` is a schema-declared control (button-link → link), so it is supported.
+    expect(button?.supportedFields.some((f) => f.settingsKey === "link")).toBe(true);
+    expect(result.pageUrl).toBe("https://example.com/home");
+  });
+
+  it("checkHealth reports Elementor availability, version support, and document writability (Sprint 26)", async () => {
+    const provider = memoryProvider(HERO_DOC);
+    const bridge = createElementorBridge(provider);
+    const health = await bridge.checkHealth(5);
+    expect(health.ok).toBe(true);
+    const labels = health.checks.map((c) => c.id);
+    expect(labels).toContain("elementor-installed");
+    expect(labels).toContain("elementor-version");
+    expect(labels).toContain("page-exists");
+    expect(labels).toContain("document-writable");
+    expect(health.document?.supported).toBe(true);
+    expect(health.site?.supportedWidgets).toContain("heading");
   });
 
   it("preview resolves the exact target and performs zero remote writes", async () => {
@@ -221,7 +263,7 @@ describe("ElementorWriteBridge", () => {
     // original document is restored and verified.
     let failed = false;
     const failing: ElementorProviderLike = {
-      async getElementorDocument() {
+      async readElementorDocument() {
         return {
           postId: 5,
           title: "Home",
@@ -241,6 +283,7 @@ describe("ElementorWriteBridge", () => {
         return {
           postId: 5,
           written: true,
+          verified: true,
           reRead: { postId: 5, title: "Home", type: "page", elementorVersion: "3.24.0", editMode: "builder", data, modified: "2026-08-01T00:00:00Z" },
         };
       },
@@ -250,5 +293,141 @@ describe("ElementorWriteBridge", () => {
     expect(result.applied).toBe(false);
     expect(result.rolledBack).toBe(true);
     expect(result.message).toContain("restored");
+  });
+
+  // ─── Sprint 26: deterministic stale protection, verification, rollback ──
+
+  it("rejects a patch whose widget type changed since review (PATCH_WIDGET_TYPE_CHANGED)", async () => {
+    const provider = memoryProvider(HERO_DOC);
+    const bridge = createElementorBridge(provider);
+    const result = await bridge.apply(5, {
+      currentContent: "Accounting Software for Small Businesses",
+      proposedContent: "New heading",
+      expectedWidgetType: "text-editor",
+      target: { format: "elementor", elementId: "heading-1", settingsKey: "title" },
+    }, { dryRun: false });
+    expect(result.applied).toBe(false);
+    if (!result.resolution.ok) expect(result.resolution.code).toBe("PATCH_WIDGET_TYPE_CHANGED");
+    expect(result.errorCode).toBe("DOCUMENT_STALE");
+    expect(provider.writes).toHaveLength(0);
+  });
+
+  it("rejects a patch with an unsupported setting (UNSUPPORTED_SETTING)", async () => {
+    const provider = memoryProvider(HERO_DOC);
+    const bridge = createElementorBridge(provider);
+    const result = await bridge.apply(5, {
+      proposedContent: "x",
+      target: { format: "elementor", elementId: "button-1", settingsKey: "not_a_control" },
+    }, { dryRun: false });
+    expect(result.applied).toBe(false);
+    if (!result.resolution.ok) expect(result.resolution.code).toBe("PATCH_UNSUPPORTED_SETTING");
+    expect(result.errorCode).toBe("UNSUPPORTED_SETTING");
+    expect(provider.writes).toHaveLength(0);
+  });
+
+  it("fails verification and refuses to roll back over a changed document (200 != success)", async () => {
+    // The write succeeds but the re-read returns a DIFFERENT document — the
+    // classic "HTTP 200 returned but nothing was stored correctly" case. The
+    // apply must NOT claim success, and the automatic rollback must REFUSE to
+    // overwrite the newer (tampered) remote document.
+    let tampered = false;
+    const tampering: ElementorProviderLike = {
+      async readElementorDocument() {
+        return {
+          postId: 5,
+          title: "Home",
+          type: "page",
+          elementorVersion: "3.24.0",
+          editMode: "builder",
+          data: tampered
+            ? JSON.stringify([
+                { id: "hero-container", elType: "container", settings: {}, elements: [
+                  { id: "heading-1", elType: "widget", widgetType: "heading", settings: { title: "SOMEONE ELSE WROTE THIS" }, elements: [] },
+                  { id: "text-1", elType: "widget", widgetType: "text-editor", settings: { editor: "<p>x</p>" }, elements: [] },
+                  { id: "button-1", elType: "widget", widgetType: "button", settings: { text: "Get Started", link: { url: "https://example.com/signup" } }, elements: [] },
+                ] },
+              ])
+            : HERO_DOC,
+          modified: "2026-08-01T00:00:00Z",
+        };
+      },
+      async updateElementorDocument(_postId, data) {
+        tampered = data.includes("Modern Accounting Software");
+        return {
+          postId: 5,
+          written: true,
+          verified: true,
+          reRead: { postId: 5, title: "Home", type: "page", elementorVersion: "3.24.0", editMode: "builder", data, modified: "2026-08-01T00:00:00Z" },
+        };
+      },
+    };
+    const bridge = createElementorBridge(tampering);
+    const result = await bridge.apply(5, headingPatch, { dryRun: false });
+    expect(result.applied).toBe(false);
+    // Verification failed; the automatic rollback refused to overwrite the
+    // changed remote document — both outcomes fail closed (no success claim).
+    expect(["VERIFICATION_FAILED", "ROLLBACK_FAILED"]).toContain(result.errorCode);
+    expect(result.rolledBack).toBe(false);
+    expect(result.message).toContain("Verification failed");
+  });
+
+  it("rollback refuses to overwrite a document changed since the apply (Sprint 26)", async () => {
+    const provider = memoryProvider(HERO_DOC);
+    const bridge = createElementorBridge(provider);
+    const apply = await bridge.apply(5, headingPatch, { dryRun: false });
+    expect(apply.applied).toBe(true);
+    if (!apply.rollbackPayload) throw new Error("expected rollback payload");
+
+    // Simulate a newer edit after the apply.
+    const newer = provider.current.replace("Modern Accounting Software for Growing Businesses", "A NEWER EDIT BY SOMEONE ELSE");
+    (provider as { current: string }).current = newer;
+
+    const writesBefore = provider.writes.length;
+    const rollback = await bridge.rollback(apply.rollbackPayload);
+    expect(rollback.restored).toBe(false);
+    expect(rollback.refused).toBe(true);
+    expect(rollback.message).toContain("REFUSED");
+    // Nothing was written during the refusal.
+    expect(provider.writes).toHaveLength(writesBefore);
+    expect(provider.current).toBe(newer);
+  });
+
+  it("rollback --force overwrites the newer document deliberately (Sprint 26)", async () => {
+    const provider = memoryProvider(HERO_DOC);
+    const bridge = createElementorBridge(provider);
+    const apply = await bridge.apply(5, headingPatch, { dryRun: false });
+    if (!apply.rollbackPayload) throw new Error("expected rollback payload");
+    (provider as { current: string }).current = provider.current.replace(
+      "Modern Accounting Software for Growing Businesses",
+      "A NEWER EDIT BY SOMEONE ELSE",
+    );
+    const rollback = await bridge.rollback(apply.rollbackPayload, { force: true });
+    expect(rollback.restored).toBe(true);
+    expect(provider.current).toBe(HERO_DOC);
+    expect(rollback.finalFingerprint).toBe(apply.rollbackPayload.originalFingerprint);
+  });
+
+  it("rollback rejects a corrupted payload (fingerprint mismatch) without writing", async () => {
+    const provider = memoryProvider(HERO_DOC);
+    const bridge = createElementorBridge(provider);
+    const writesBefore = provider.writes.length;
+    const corrupted = await bridge.rollback({
+      postId: 5,
+      originalData: HERO_DOC.replace("Accounting Software for Small Businesses", "Tampered original"),
+      originalFingerprint: "deadbeef",
+      appliedFingerprint: "deadbeef2",
+    });
+    expect(corrupted.restored).toBe(false);
+    expect(corrupted.message).toContain("Invalid rollback payload");
+    expect(provider.writes).toHaveLength(writesBefore);
+  });
+
+  it("dry-run regression: preview, validate and apply-dry-run perform zero remote writes (Sprint 26)", async () => {
+    const provider = memoryProvider(HERO_DOC);
+    const bridge = createElementorBridge(provider);
+    await bridge.preview(5, headingPatch);
+    await bridge.validate(5, headingPatch);
+    await bridge.apply(5, headingPatch, { dryRun: true });
+    expect(provider.writes).toHaveLength(0);
   });
 });

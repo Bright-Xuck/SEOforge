@@ -32,6 +32,17 @@ describe.skipIf(!enabled)("Elementor real-provider integration (opt-in)", () => 
     expect(pageId).toBeGreaterThan(0);
   });
 
+  it("reads the typed system status (health contract, Sprint 26)", async () => {
+    const provider = new WordPressProvider({ siteUrl, username, applicationPassword });
+    const status = await provider.getElementorSystemStatus();
+    expect(status.plugin).toBe("forge-elementor-bridge");
+    expect(status.authenticated).toBe(true);
+    expect(status.elementorInstalled).toBe(true);
+    expect(status.elementorSupported).toBe(true);
+    // Credentials are never echoed in the payload.
+    expect(JSON.stringify(status)).not.toContain(applicationPassword);
+  });
+
   it("reads an Elementor document from the companion endpoint and parses its JSON", async () => {
     const provider = new WordPressProvider({ siteUrl, username, applicationPassword });
     const read = await provider.getElementorDocument(pageId);

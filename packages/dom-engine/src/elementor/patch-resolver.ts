@@ -8,15 +8,20 @@
 //   → editable field → current value
 //
 // Resolution is deterministic and conservative. Failure produces a typed code:
-//   PATCH_TARGET_NOT_FOUND      — the element/setting does not exist
+//   PATCH_TARGET_NOT_FOUND      — the element (or a declared setting value) does not exist
 //   PATCH_TARGET_AMBIGUOUS      — multiple targets match a semantic intent
 //   PATCH_TARGET_NOT_EDITABLE   — the target exists but is not an editable field
-//   PATCH_STALE                 — current content no longer matches the patch
+//   PATCH_STALE                 — document fingerprint or target content changed since review
+//   PATCH_WIDGET_TYPE_CHANGED   — the target element exists but is a different widget now
 //   PATCH_UNSUPPORTED_WIDGET    — the widget type is unknown or refused
+//   PATCH_UNSUPPORTED_SETTING   — the control is not a declared editable setting for the widget
 //   PATCH_UNSUPPORTED_VERSION   — the Elementor document version is unsupported
 //   PATCH_INVALID_TARGET        — the patch carries no usable target
 //
-// Stale patches are never silently applied.
+// Stale patches are never silently applied. A patch is only considered to
+// still address "the exact element that was reviewed" when the element id,
+// the widget type, the schema-declared setting path and the reviewed content
+// all still match.
 
 import type { ContentNode } from "../types.js";
 import type { ElementorDocument } from "./document.js";
@@ -25,6 +30,8 @@ import { findNodeById } from "../tree/tree-node.js";
 import {
   normalizeElementorWidgetType,
   isKnownElementorWidget,
+  isKnownElementorControl,
+  getElementorEditableControls,
   resolveElementorSettingsKey,
   ELEMENTOR_UNSUPPORTED_WIDGETS,
   isElementorRichTextSetting,
@@ -40,7 +47,9 @@ export type ElementorPatchResolutionCode =
   | "PATCH_TARGET_AMBIGUOUS"
   | "PATCH_TARGET_NOT_EDITABLE"
   | "PATCH_STALE"
+  | "PATCH_WIDGET_TYPE_CHANGED"
   | "PATCH_UNSUPPORTED_WIDGET"
+  | "PATCH_UNSUPPORTED_SETTING"
   | "PATCH_UNSUPPORTED_VERSION"
   | "PATCH_INVALID_TARGET";
 
@@ -107,6 +116,12 @@ export interface ElementorPatchLike {
   readonly semanticIntent?: { readonly kind: string; readonly value?: string; readonly sectionKind?: string };
   /** Optional captured document fingerprint — extra stale protection. */
   readonly sourceFingerprint?: string;
+  /**
+   * Widget type the patch was reviewed against (Sprint 26). When provided and
+   * the live element is now a different widget type, resolution fails with
+   * PATCH_WIDGET_TYPE_CHANGED instead of silently patching the new widget.
+   */
+  readonly expectedWidgetType?: string;
 }
 
 export interface ElementorResolveOptions {
@@ -268,6 +283,32 @@ function resolveNode(
       code: "PATCH_UNSUPPORTED_WIDGET",
       message: `Widget type "${widgetType ?? "unknown"}" is not in the conservative widget schema.`,
       details: { elementId: node.id, widgetType: widgetType ?? null },
+    };
+  }
+
+  // Widget-type-change protection (Sprint 26): the patch was reviewed against
+  // a specific widget type. If the live element is now a different widget,
+  // the reviewed decision no longer describes this element.
+  const expectedWidgetType = patch.expectedWidgetType ? normalizeElementorWidgetType(patch.expectedWidgetType) : undefined;
+  if (expectedWidgetType && expectedWidgetType !== widgetType) {
+    return {
+      ok: false,
+      code: "PATCH_WIDGET_TYPE_CHANGED",
+      message: `Element ${node.id} changed widget type since review: expected "${expectedWidgetType}", found "${widgetType}".`,
+      details: { elementId: node.id, expected: expectedWidgetType, actual: widgetType },
+    };
+  }
+
+  // Unsupported-setting protection (Sprint 26): the control must be a
+  // declared editable setting for THIS widget type in the conservative
+  // schema. This distinguishes "wrong control for this widget" from
+  // "element missing" so failures stay actionable.
+  if (!isKnownElementorControl(widgetType, settingsKey)) {
+    return {
+      ok: false,
+      code: "PATCH_UNSUPPORTED_SETTING",
+      message: `Control "${settingsKey}" is not an editable, schema-declared setting for widget "${widgetType}".`,
+      details: { elementId: node.id, widgetType, settingsKey, supportedControls: getElementorEditableControls(widgetType) },
     };
   }
 

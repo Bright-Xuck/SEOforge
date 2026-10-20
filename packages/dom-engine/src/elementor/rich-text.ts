@@ -28,6 +28,35 @@ const ALLOWED_ATTRIBUTES: Record<string, string[]> = {
 };
 
 /**
+ * URL schemes allowed in `a[href]` (Sprint 26 rich-text safety).
+ * Everything else (javascript:, data:, vbscript:, file:, …) is stripped.
+ * Scheme-less values (relative paths, fragments, protocol-relative URLs)
+ * are allowed.
+ */
+const ALLOWED_URL_SCHEMES = new Set(["http", "https", "mailto", "tel"]);
+
+/**
+ * Validate a URL value for an Elementor rich-text control.
+ * Returns true when the URL is safe to keep.
+ */
+export function isElementorUrlSafe(url: string): boolean {
+  const trimmed = url.trim();
+  if (trimmed === "") return false;
+  // Fragments, relative paths and protocol-relative URLs are safe.
+  if (/^#[\w\-./?%&=~]*$/.test(trimmed)) return true;
+  if (/^\/(?!\/)/.test(trimmed)) return true;
+  if (/^\/\//.test(trimmed)) return true;
+  if (/^\.{1,2}\//.test(trimmed)) return true;
+  // Absolute URL: validate the scheme (URL parsing rejects malformed input).
+  try {
+    const parsed = new URL(trimmed);
+    return ALLOWED_URL_SCHEMES.has(parsed.protocol.replace(/:$/, ""));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Tags that are removed entirely (content discarded) — scripts, styles, iframes,
  * forms, images and embeds are not part of the safe text-copy surface.
  */
@@ -71,6 +100,16 @@ export function sanitizeElementorRichText(html: string): string {
       for (const name of Object.keys(attrs)) {
         if (!allowed.includes(name)) {
           el.removeAttr(name);
+          continue;
+        }
+        // URL-valued attributes must pass the scheme allowlist (Sprint 26):
+        // javascript:/data:/vbscript: payloads are stripped, the element
+        // (and its text content) is preserved.
+        if (name === "href") {
+          const value = el.attr(name) ?? "";
+          if (!isElementorUrlSafe(value)) {
+            el.removeAttr(name);
+          }
         }
       }
     }

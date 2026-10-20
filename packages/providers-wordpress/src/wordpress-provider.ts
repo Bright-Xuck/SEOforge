@@ -27,6 +27,7 @@ import {
 import type {
   ElementorDocumentRead,
   ElementorDocumentWriteResult,
+  ElementorSystemStatus,
 } from "./elementor-transport.js";
 
 /**
@@ -541,6 +542,8 @@ export class WordPressProvider {
   /**
    * Read an Elementor document (raw `_elementor_data` + meta) via the
    * companion endpoint. Returns null when the endpoint is unavailable.
+   * NOTE (Sprint 26): prefer `readElementorDocument` — it surfaces typed,
+   * actionable failures instead of collapsing every error into null.
    */
   async getElementorDocument(postId: number | string): Promise<ElementorDocumentRead | null> {
     try {
@@ -549,6 +552,25 @@ export class WordPressProvider {
       if (error instanceof ElementorTransportError) return null;
       throw error;
     }
+  }
+
+  /**
+   * Read an Elementor document, throwing typed transport errors on failure
+   * (Sprint 26): ELEMENTOR_ENDPOINT_UNAVAILABLE, AUTHENTICATION_FAILED,
+   * ELEMENTOR_FORBIDDEN, ELEMENTOR_DOCUMENT_NOT_FOUND, ELEMENTOR_NOT_ACTIVE,
+   * ELEMENTOR_VERSION_CONFLICT, ELEMENTOR_INVALID_RESPONSE.
+   */
+  async readElementorDocument(postId: number | string): Promise<ElementorDocumentRead> {
+    return this.getElementorTransport().readDocument(postId);
+  }
+
+  /**
+   * Read the typed site health/capability status from the companion plugin
+   * (Sprint 26): WordPress reachability/auth, Elementor installed/version/
+   * supported, and the supported widget capability list.
+   */
+  async getElementorSystemStatus(): Promise<ElementorSystemStatus> {
+    return this.getElementorTransport().readSystemStatus();
   }
 
   /**

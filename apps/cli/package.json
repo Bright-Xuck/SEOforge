@@ -36,6 +36,7 @@
     "@forge/memory-engine": "workspace:*",
     "@forge/mission-engine": "workspace:*",
     "@forge/optimization-orchestrator": "workspace:*",
+    "@forge/optimization-composer": "workspace:*",
     "@forge/project-resolver": "workspace:*",
     "@forge/pipeline-engine": "workspace:*",
     "@forge/preflight-validator": "workspace:*",

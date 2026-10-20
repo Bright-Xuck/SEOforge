@@ -8,11 +8,13 @@ export {
   ElementorDocumentTransport,
   ElementorTransportError,
   ELEMENTOR_COMPANION_PATH,
+  ELEMENTOR_SYSTEM_PATH,
 } from "./elementor-transport.js";
 export type {
   ElementorTransportErrorCode,
   ElementorDocumentRead,
   ElementorDocumentWriteResult,
+  ElementorSystemStatus,
 } from "./elementor-transport.js";
 export type {
   WordPressConnectionConfig,
