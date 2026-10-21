@@ -1,0 +1,278 @@
+{
+  "sessionId": "review-1792570505687-2tuebi",
+  "projectId": "seoforge-e2e",
+  "createdAt": "2026-10-21T08:15:05.687Z",
+  "createdBy": "cli:optimize",
+  "patches": [
+    {
+      "id": "patch-metadata-title-1",
+      "sectionId": "metadata-title",
+      "operation": "replace",
+      "selector": "rank-math:title",
+      "currentContent": "Forge Elementor E2E Staging Page",
+      "proposedContent": "Accounting Software: Forge Elementor E2E Staging Page",
+      "diff": {
+        "sectionId": "metadata-title",
+        "current": "Forge Elementor E2E Staging Page",
+        "generated": "Accounting Software: Forge Elementor E2E Staging Page",
+        "changedSentences": [
+          "Accounting Software: Forge Elementor E2E Staging Page"
+        ],
+        "addedEntities": [
+          "Accounting Software"
+        ],
+        "removedEntities": [
+          "Forge Elementor",
+          "Staging Page"
+        ],
+        "seoScoreDelta": 0
+      },
+      "validation": {
+        "valid": true,
+        "errors": [],
+        "warnings": []
+      },
+      "confidence": 0.9,
+      "estimatedImpact": "Improves search-result relevance and click-through",
+      "warnings": [],
+      "generatedBy": "metadata-proposal",
+      "provider": "deterministic",
+      "promptVersion": "metadata-v1",
+      "createdAt": "2026-10-21T08:15:05.683Z",
+      "target": {
+        "format": "rank-math",
+        "pageId": 6,
+        "field": "rank_math_title",
+        "label": "title"
+      }
+    },
+    {
+      "id": "patch-metadata-description-2",
+      "sectionId": "metadata-description",
+      "operation": "replace",
+      "selector": "rank-math:description",
+      "currentContent": "Staging page used by Forge end-to-end tests.",
+      "proposedContent": "Accounting Software: Staging page used by Forge end-to-end tests. SEO Forge.",
+      "diff": {
+        "sectionId": "metadata-description",
+        "current": "Staging page used by Forge end-to-end tests.",
+        "generated": "Accounting Software: Staging page used by Forge end-to-end tests. SEO Forge.",
+        "changedSentences": [
+          "Accounting Software: Staging page used by Forge end-to-end tests.",
+          "SEO Forge."
+        ],
+        "addedEntities": [
+          "Accounting Software"
+        ],
+        "removedEntities": [
+          "Staging",
+          "Forge"
+        ],
+        "seoScoreDelta": 0
+      },
+      "validation": {
+        "valid": true,
+        "errors": [],
+        "warnings": []
+      },
+      "confidence": 0.9,
+      "estimatedImpact": "Improves search-result snippet clarity and click-through",
+      "warnings": [],
+      "generatedBy": "metadata-proposal",
+      "provider": "deterministic",
+      "promptVersion": "metadata-v1",
+      "createdAt": "2026-10-21T08:15:05.683Z",
+      "target": {
+        "format": "rank-math",
+        "pageId": 6,
+        "field": "rank_math_description",
+        "label": "description"
+      }
+    }
+  ],
+  "items": [
+    {
+      "id": "patch-metadata-title-1",
+      "patch": {
+        "id": "patch-metadata-title-1",
+        "sectionId": "metadata-title",
+        "operation": "replace",
+        "selector": "rank-math:title",
+        "currentContent": "Forge Elementor E2E Staging Page",
+        "proposedContent": "Accounting Software: Forge Elementor E2E Staging Page",
+        "diff": {
+          "sectionId": "metadata-title",
+          "current": "Forge Elementor E2E Staging Page",
+          "generated": "Accounting Software: Forge Elementor E2E Staging Page",
+          "changedSentences": [
+            "Accounting Software: Forge Elementor E2E Staging Page"
+          ],
+          "addedEntities": [
+            "Accounting Software"
+          ],
+          "removedEntities": [
+            "Forge Elementor",
+            "Staging Page"
+          ],
+          "seoScoreDelta": 0
+        },
+        "validation": {
+          "valid": true,
+          "errors": [],
+          "warnings": []
+        },
+        "confidence": 0.9,
+        "estimatedImpact": "Improves search-result relevance and click-through",
+        "warnings": [],
+        "generatedBy": "metadata-proposal",
+        "provider": "deterministic",
+        "promptVersion": "metadata-v1",
+        "createdAt": "2026-10-21T08:15:05.683Z",
+        "target": {
+          "format": "rank-math",
+          "pageId": 6,
+          "field": "rank_math_title",
+          "label": "title"
+        }
+      },
+      "before": "Forge Elementor E2E Staging Page",
+      "after": "Accounting Software: Forge Elementor E2E Staging Page",
+      "diff": {
+        "sectionId": "metadata-title",
+        "current": "Forge Elementor E2E Staging Page",
+        "generated": "Accounting Software: Forge Elementor E2E Staging Page",
+        "changedSentences": [
+          "Accounting Software: Forge Elementor E2E Staging Page"
+        ],
+        "addedEntities": [
+          "Accounting Software"
+        ],
+        "removedEntities": [
+          "Forge Elementor",
+          "Staging Page"
+        ],
+        "seoScoreDelta": 0
+      },
+      "section": "metadata-title",
+      "severity": "safe",
+      "confidence": 0.9,
+      "estimatedImpact": "Improves search-result relevance and click-through",
+      "validation": {
+        "valid": true,
+        "errors": [],
+        "warnings": []
+      },
+      "warnings": [],
+      "comments": [],
+      "decision": "APPROVE",
+      "decidedBy": "policy",
+      "decidedAt": "2026-10-21T08:15:05.689Z"
+    },
+    {
+      "id": "patch-metadata-description-2",
+      "patch": {
+        "id": "patch-metadata-description-2",
+        "sectionId": "metadata-description",
+        "operation": "replace",
+        "selector": "rank-math:description",
+        "currentContent": "Staging page used by Forge end-to-end tests.",
+        "proposedContent": "Accounting Software: Staging page used by Forge end-to-end tests. SEO Forge.",
+        "diff": {
+          "sectionId": "metadata-description",
+          "current": "Staging page used by Forge end-to-end tests.",
+          "generated": "Accounting Software: Staging page used by Forge end-to-end tests. SEO Forge.",
+          "changedSentences": [
+            "Accounting Software: Staging page used by Forge end-to-end tests.",
+            "SEO Forge."
+          ],
+          "addedEntities": [
+            "Accounting Software"
+          ],
+          "removedEntities": [
+            "Staging",
+            "Forge"
+          ],
+          "seoScoreDelta": 0
+        },
+        "validation": {
+          "valid": true,
+          "errors": [],
+          "warnings": []
+        },
+        "confidence": 0.9,
+        "estimatedImpact": "Improves search-result snippet clarity and click-through",
+        "warnings": [],
+        "generatedBy": "metadata-proposal",
+        "provider": "deterministic",
+        "promptVersion": "metadata-v1",
+        "createdAt": "2026-10-21T08:15:05.683Z",
+        "target": {
+          "format": "rank-math",
+          "pageId": 6,
+          "field": "rank_math_description",
+          "label": "description"
+        }
+      },
+      "before": "Staging page used by Forge end-to-end tests.",
+      "after": "Accounting Software: Staging page used by Forge end-to-end tests. SEO Forge.",
+      "diff": {
+        "sectionId": "metadata-description",
+        "current": "Staging page used by Forge end-to-end tests.",
+        "generated": "Accounting Software: Staging page used by Forge end-to-end tests. SEO Forge.",
+        "changedSentences": [
+          "Accounting Software: Staging page used by Forge end-to-end tests.",
+          "SEO Forge."
+        ],
+        "addedEntities": [
+          "Accounting Software"
+        ],
+        "removedEntities": [
+          "Staging",
+          "Forge"
+        ],
+        "seoScoreDelta": 0
+      },
+      "section": "metadata-description",
+      "severity": "safe",
+      "confidence": 0.9,
+      "estimatedImpact": "Improves search-result snippet clarity and click-through",
+      "validation": {
+        "valid": true,
+        "errors": [],
+        "warnings": []
+      },
+      "warnings": [],
+      "comments": [],
+      "decision": "APPROVE",
+      "decidedBy": "policy",
+      "decidedAt": "2026-10-21T08:15:05.689Z"
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "approved": 2,
+    "rejected": 0,
+    "edited": 0,
+    "skipped": 0,
+    "deferred": 0,
+    "pending": 0
+  },
+  "status": "completed",
+  "comments": [],
+  "policy": {
+    "name": "balanced",
+    "riskThreshold": 0.5,
+    "autoApproveSafeOnly": false,
+    "autoApproveMediumConfidence": true
+  },
+  "metrics": {
+    "approvalRate": 1,
+    "rejectionRate": 0,
+    "averageConfidence": 0.9,
+    "averageEstimatedImpact": 0,
+    "warnings": 0,
+    "highRiskChanges": 0,
+    "aiTokenEstimate": 33,
+    "estimatedExecutionTimeMs": 500
+  }
+}

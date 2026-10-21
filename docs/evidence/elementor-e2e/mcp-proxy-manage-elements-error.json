@@ -1,0 +1,1 @@
+{"data":{"status":"error","results":[{"index":0,"action":"update","status":"error","code":"elementor_v3_not_supported","message":"Legacy V3 element cannot be modified through this MCP. Edit V3 elements directly in the Elementor editor."}],"post_id":6,"edit_url":"http:\/\/127.0.0.1:8080\/wp-admin\/post.php?post=6&action=elementor"},"meta":[]}

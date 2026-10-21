@@ -260,11 +260,13 @@ describe("OptimizationOrchestrator", () => {
       dryRun: true,
     });
 
+    const siEngine = createMockEngine("site-intelligence");
     const ciEngine = createMockEngine("content-intelligence");
     const reviewEngine = createMockEngine("review");
     const composerEngine = createMockEngine("composer");
     const execEngine = createMockEngine("execution");
 
+    orchestrator.registerEngine("site-intelligence", siEngine);
     orchestrator.registerEngine("content-intelligence", ciEngine);
     orchestrator.registerEngine("review", reviewEngine);
     orchestrator.registerEngine("composer", composerEngine);
@@ -305,11 +307,13 @@ describe("OptimizationOrchestrator", () => {
     orchestrator.getEventBus().on(OptimizationEvent.WorkflowPrepared, (p) => events.push(p.event));
     orchestrator.getEventBus().on(OptimizationEvent.ExecutionCompleted, (p) => events.push(p.event));
 
+    const siEngine = createMockEngine("site-intelligence");
     const ciEngine = createMockEngine("content-intelligence");
     const reviewEngine = createMockEngine("review");
     const composerEngine = createMockEngine("composer");
     const execEngine = createMockEngine("execution");
 
+    orchestrator.registerEngine("site-intelligence", siEngine);
     orchestrator.registerEngine("content-intelligence", ciEngine);
     orchestrator.registerEngine("review", reviewEngine);
     orchestrator.registerEngine("composer", composerEngine);
@@ -328,6 +332,7 @@ describe("OptimizationOrchestrator", () => {
       dryRun: true,
     });
 
+    orchestrator.registerEngine("site-intelligence", createMockEngine("site-intelligence"));
     orchestrator.registerEngine("content-intelligence", createMockEngine("content-intelligence"));
     orchestrator.registerEngine("review", createMockEngine("review"));
     orchestrator.registerEngine("composer", createMockEngine("composer"));
@@ -355,6 +360,7 @@ describe("OptimizationOrchestrator", () => {
     orchestrator.getLifecycle().on(OptimizationState.Analysing, async () => { hookCalled.push("analysing"); });
     orchestrator.getLifecycle().on(OptimizationState.Completed, async () => { hookCalled.push("completed"); });
 
+    orchestrator.registerEngine("site-intelligence", createMockEngine("site-intelligence"));
     orchestrator.registerEngine("content-intelligence", createMockEngine("content-intelligence"));
     orchestrator.registerEngine("review", createMockEngine("review"));
     orchestrator.registerEngine("composer", createMockEngine("composer"));
@@ -364,5 +370,42 @@ describe("OptimizationOrchestrator", () => {
 
     expect(hookCalled).toContain("analysing");
     expect(hookCalled).toContain("completed");
+  });
+
+  it("seeds initial context and exposes the populated context after the run", async () => {
+    const metadataProposal = {
+      id: "metadata-6-test",
+      pageId: 6,
+      title: "Proposed title",
+      description: "Proposed description",
+    };
+    const orchestrator = new OptimizationOrchestrator({
+      workflowId: "content-refresh",
+      project: "test-project",
+      dryRun: true,
+      initialContext: {
+        pageId: 6,
+        pageUrl: "https://example.com/?page_id=6",
+        metadataProposal,
+      },
+    });
+
+    orchestrator.registerEngine("site-intelligence", createMockEngine("site-intelligence"));
+    orchestrator.registerEngine("content-intelligence", createMockEngine("content-intelligence"));
+    orchestrator.registerEngine("review", createMockEngine("review"));
+    orchestrator.registerEngine("composer", createMockEngine("composer"));
+    orchestrator.registerEngine("execution", createMockEngine("execution"));
+
+    const result = await orchestrator.run();
+    const context = orchestrator.getContext();
+
+    expect(result.state).toBe(OptimizationState.Completed);
+    expect(context.id).toBe(result.contextId);
+    expect(context.project).toBe("test-project");
+    expect(context.pageId).toBe(6);
+    expect(context.pageUrl).toBe("https://example.com/?page_id=6");
+    expect(context.metadataProposal).toEqual(metadataProposal);
+    // Engine output is visible on the same object, not a copy.
+    expect((context as Record<string, unknown>)["content-intelligenceDone"]).toBe(true);
   });
 });

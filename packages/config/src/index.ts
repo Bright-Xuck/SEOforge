@@ -3,10 +3,180 @@
 // No business logic.
 
 import process from "node:process";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { ForgeError } from "@forge/core";
 import { FORGE_NAME } from "@forge/shared";
 
 export type { ForgeError };
+
+/**
+ * Result of loading a dotenv file.
+ *
+ * The result intentionally reports variable *names* only. Values (which may be
+ * API keys or application passwords) are never returned or logged.
+ */
+export interface EnvFileLoadResult {
+  /** Absolute path that was inspected. */
+  readonly path: string;
+  /** Whether the file existed and was read successfully. */
+  readonly loaded: boolean;
+  /** Variables applied because they were not already present in the process. */
+  readonly applied: string[];
+  /** Variables skipped because the shell/process environment already had them. */
+  readonly preserved: string[];
+  /** Parse/read errors, with line numbers but never secret values. */
+  readonly errors: string[];
+}
+
+export interface ParsedEnvFile {
+  readonly values: Map<string, string>;
+  readonly errors: string[];
+}
+
+/**
+ * Load a dotenv file without overriding variables that already exist.
+ *
+ * Precedence is deliberately: real environment > `.env` file. This lets a
+ * developer or CI system override a local file without editing it, and avoids
+ * a checked-out `.env` silently changing a production shell environment.
+ */
+export function loadEnvFile(path = ".env"): EnvFileLoadResult {
+  const absolutePath = resolve(path);
+  if (!existsSync(absolutePath)) {
+    return { path: absolutePath, loaded: false, applied: [], preserved: [], errors: [] };
+  }
+
+  let raw: string;
+  try {
+    raw = readFileSync(absolutePath, "utf8");
+  } catch (error) {
+    return {
+      path: absolutePath,
+      loaded: false,
+      applied: [],
+      preserved: [],
+      errors: [`Could not read ${absolutePath}: ${error instanceof Error ? error.message : String(error)}`],
+    };
+  }
+
+  const parsed = parseEnvFile(raw);
+  const applied: string[] = [];
+  const preserved: string[] = [];
+  for (const [key, value] of parsed.values) {
+    if (process.env[key] !== undefined) {
+      preserved.push(key);
+      continue;
+    }
+    process.env[key] = value;
+    applied.push(key);
+  }
+
+  return {
+    path: absolutePath,
+    loaded: true,
+    applied,
+    preserved,
+    errors: parsed.errors,
+  };
+}
+
+/**
+ * Parse dotenv syntax (KEY=VALUE) without reading or mutating the environment.
+ *
+ * Supported: comments, blank lines, optional `export`, single/double quotes,
+ * escaped newlines/tabs in double-quoted values, and `#` comments after
+ * unquoted values. Multiline values are not supported and produce an error
+ * rather than being guessed.
+ */
+export function parseEnvFile(content: string): ParsedEnvFile {
+  const values = new Map<string, string>();
+  const errors: string[] = [];
+  const lines = content.split(/\r?\n/);
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const lineNumber = index + 1;
+    const line = lines[index] ?? "";
+    const trimmed = line.trim();
+    if (trimmed === "" || trimmed.startsWith("#")) continue;
+
+    const declaration = trimmed.startsWith("export ") ? trimmed.slice("export ".length).trim() : trimmed;
+    const equals = declaration.indexOf("=");
+    if (equals <= 0) {
+      errors.push(`Line ${lineNumber}: expected KEY=VALUE.`);
+      continue;
+    }
+
+    const key = declaration.slice(0, equals).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      errors.push(`Line ${lineNumber}: invalid variable name.`);
+      continue;
+    }
+
+    const parsedValue = parseValue(declaration.slice(equals + 1).trim(), lineNumber);
+    if (parsedValue.error) {
+      errors.push(parsedValue.error);
+      continue;
+    }
+    values.set(key, parsedValue.value);
+  }
+
+  return { values, errors };
+}
+
+function parseValue(raw: string, lineNumber: number): { value: string; error?: string } {
+  if (raw.startsWith('"')) {
+    const closing = findClosingDoubleQuote(raw);
+    if (closing === -1) {
+      return { value: "", error: `Line ${lineNumber}: unterminated double-quoted value.` };
+    }
+    const trailingError = validateTrailingCharacters(raw, closing, lineNumber, "double-quoted");
+    if (trailingError) return { value: "", error: trailingError };
+    const body = raw.slice(1, closing);
+    const value = body
+      .replace(/\\n/g, "\n")
+      .replace(/\\r/g, "\r")
+      .replace(/\\t/g, "\t")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\");
+    return { value };
+  }
+
+  if (raw.startsWith("'")) {
+    const closing = raw.indexOf("'", 1);
+    if (closing === -1) {
+      return { value: "", error: `Line ${lineNumber}: unterminated single-quoted value.` };
+    }
+    const trailingError = validateTrailingCharacters(raw, closing, lineNumber, "single-quoted");
+    if (trailingError) return { value: "", error: trailingError };
+    return { value: raw.slice(1, closing) };
+  }
+
+  const commentIndex = raw.search(/\s#/);
+  return { value: (commentIndex >= 0 ? raw.slice(0, commentIndex) : raw).trimEnd() };
+}
+
+function findClosingDoubleQuote(raw: string): number {
+  for (let index = 1; index < raw.length; index += 1) {
+    if (raw[index] === "\\") {
+      index += 1;
+      continue;
+    }
+    if (raw[index] === '"') return index;
+  }
+  return -1;
+}
+
+function validateTrailingCharacters(
+  raw: string,
+  closingIndex: number,
+  lineNumber: number,
+  kind: string,
+): string | undefined {
+  const trailing = raw.slice(closingIndex + 1).trim();
+  if (trailing === "" || trailing.startsWith("#")) return undefined;
+  return `Line ${lineNumber}: unexpected characters after ${kind} value.`;
+}
 
 /**
  * Runtime configuration for Forge.
@@ -28,6 +198,7 @@ export interface AIProviderConfig {
   readonly anthropicApiKey?: string;
   readonly geminiApiKey?: string;
   readonly openrouterApiKey?: string;
+  readonly zaiApiKey?: string;
   readonly ollamaBaseUrl: string;
   readonly ollamaModel: string;
   readonly defaultProvider: string;
@@ -48,6 +219,7 @@ export function loadAIProviderConfig(): AIProviderConfig {
     anthropicApiKey: envOptional("ANTHROPIC_API_KEY"),
     geminiApiKey: envOptional("GEMINI_API_KEY"),
     openrouterApiKey: envOptional("OPENROUTER_API_KEY"),
+    zaiApiKey: envOptional("ZAI_API_KEY"),
     ollamaBaseUrl: env("OLLAMA_BASE_URL", "http://localhost:11434"),
     ollamaModel: env("OLLAMA_MODEL", "llama3"),
     defaultProvider: env("DEFAULT_PROVIDER", "ollama"),

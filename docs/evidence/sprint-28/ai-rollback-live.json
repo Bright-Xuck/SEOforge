@@ -1,0 +1,27 @@
+{
+  "capturedAt": "2026-10-21T09:17:06.1277344Z",
+  "pageId": 6,
+  "pageUrl": "http://127.0.0.1:8080/?page_id=6",
+  "elementor": {
+    "modified": "2026-10-21T10:16:41+01:00",
+    "widgets": {
+      "heading": "Accounting Software for Small Businesses",
+      "textEditor": "<p>Premium accounting software for modern businesses. Trusted by 2,000+ teams.</p>",
+      "button": "Start Free Trial"
+    }
+  },
+  "rankMath": {
+    "title": "Forge Elementor E2E Staging Page",
+    "description": "Staging page used by Forge end-to-end tests.",
+    "focusKeyword": null,
+    "canonical": null,
+    "robots": []
+  },
+  "rendered": {
+    "baselineHeading": true,
+    "baselineBody": true,
+    "baselineCta": true,
+    "optimizedHeadingAbsent": true,
+    "optimizedCtaAbsent": true
+  }
+}

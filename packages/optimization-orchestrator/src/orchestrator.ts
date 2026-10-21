@@ -34,6 +34,13 @@ export interface OrchestratorOptions {
   apply?: boolean;
   dryRun?: boolean;
   configuration?: Record<string, unknown>;
+  /**
+   * Seed values for the run context (site snapshot, page DNA inputs, brand,
+   * concrete provider targets). The orchestrator owns the context lifecycle;
+   * callers that already read the real site must be able to hand those facts
+   * in rather than have every engine re-read or re-derive them.
+   */
+  initialContext?: Record<string, unknown>;
 }
 
 export class OptimizationOrchestrator {
@@ -43,7 +50,8 @@ export class OptimizationOrchestrator {
   private metrics: IMetricsCollector;
   private lifecycle: LifecycleManager;
   private context!: OptimizationContext;
-  private options: Required<OrchestratorOptions>;
+  private options: Required<Omit<OrchestratorOptions, "initialContext">>;
+  private readonly initialContext?: Record<string, unknown>;
   private events: OptimizationEvent[] = [];
 
   constructor(options: OrchestratorOptions = {}) {
@@ -51,6 +59,7 @@ export class OptimizationOrchestrator {
     this.stateMachine = new StateMachine();
     this.eventBus = new EventBus();
     this.lifecycle = new LifecycleManager();
+    this.initialContext = options.initialContext;
     this.options = {
       workflowId: options.workflowId ?? "homepage-optimization",
       project: options.project ?? "default",
@@ -99,6 +108,9 @@ export class OptimizationOrchestrator {
       workflow,
       this.options.configuration,
     );
+    if (this.initialContext) {
+      Object.assign(this.context, this.initialContext);
+    }
 
     try {
       // Created → Prepared
@@ -111,9 +123,11 @@ export class OptimizationOrchestrator {
           throw new ExecutionCancelledError(this.context.id, "Workflow was cancelled");
         }
 
-        // Transition to the step's phase
+        // Transition to the step's phase. Multiple steps can share a phase
+        // (e.g. site-intelligence then page analysis), so a same-state step is
+        // a no-op rather than an invalid transition.
         const stepEvent = Object.entries(EVENT_TO_STATE).find(([, s]) => s === step.phase)?.[0] as OptimizationEvent | undefined;
-        if (stepEvent) {
+        if (stepEvent && this.stateMachine.getCurrentState() !== step.phase) {
           await this.transition(step.phase, stepEvent);
         }
 
@@ -134,17 +148,33 @@ export class OptimizationOrchestrator {
       }
 
       // Final state: Completed
+      this.syncMetricsFromContext();
       await this.transition(OptimizationState.Completed, OptimizationEvent.ExecutionCompleted);
-      this.metrics.recordExecutionSuccess(true);
+      const execution = this.context.executionResult as
+        | { failedActions?: unknown[]; errors?: unknown[] }
+        | undefined;
+      this.metrics.recordExecutionSuccess(
+        !execution ||
+          ((execution.failedActions?.length ?? 0) === 0 && (execution.errors?.length ?? 0) === 0),
+      );
     } catch (err) {
       if (err instanceof ExecutionCancelledError) {
         await this.transition(OptimizationState.Cancelled, OptimizationEvent.WorkflowCancelled);
       } else {
         await this.transition(OptimizationState.Failed, OptimizationEvent.ExecutionFailed);
       }
+      this.syncMetricsFromContext();
       this.metrics.recordExecutionSuccess(false);
 
-      return this.buildResult(err instanceof WorkflowError ? err : undefined);
+      const failure =
+        err instanceof WorkflowError
+          ? err
+          : new WorkflowError(
+              "ENGINE_EXECUTION_ERROR",
+              err instanceof Error ? err.message : String(err),
+              this.context.id,
+            );
+      return this.buildResult(failure);
     }
 
     return this.buildResult();
@@ -167,6 +197,38 @@ export class OptimizationOrchestrator {
   }
 
   // ─── Private ──────────────────────────────────────────────
+
+  /**
+   * Project the concrete artifacts produced by adapters into the public
+   * metrics. The orchestrator cannot know these counts itself: review owns the
+   * decisions, generation owns the patches, and execution owns failures.
+   */
+  private syncMetricsFromContext(): void {
+    const context = this.context;
+    if (this.options.provider) {
+      this.metrics.recordProvider(this.options.provider);
+    }
+
+    const patches = context.generatedPatches;
+    if (Array.isArray(patches)) {
+      this.metrics.recordPatchesGenerated(patches.length);
+    }
+
+    const sections = Array.isArray(context.documentSections)
+      ? context.documentSections
+      : (context.sections as { sections?: unknown[] } | undefined)?.sections;
+    if (Array.isArray(sections)) {
+      this.metrics.recordSectionsAnalysed(sections.filter((section) => (section as { present?: boolean }).present !== false).length);
+    }
+
+    const session = context.reviewSession as
+      | { summary?: { approved?: number; edited?: number; rejected?: number } }
+      | undefined;
+    if (session?.summary) {
+      this.metrics.recordPatchesApproved((session.summary.approved ?? 0) + (session.summary.edited ?? 0));
+      this.metrics.recordPatchesRejected(session.summary.rejected ?? 0);
+    }
+  }
 
   private async transition(
     to: OptimizationState,

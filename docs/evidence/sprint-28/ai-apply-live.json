@@ -1,0 +1,27 @@
+{
+  "capturedAt": "2026-10-21T09:16:12.2860798Z",
+  "pageId": 6,
+  "pageUrl": "http://127.0.0.1:8080/?page_id=6",
+  "elementor": {
+    "modified": "2026-10-21T10:15:30+01:00",
+    "widgets": {
+      "heading": "Small Business Accounting Software Simplified",
+      "textEditor": "Save time and grow your business\n\n<p>Our accounting software helps small businesses manage finances efficiently, so you can focus on what matters most.</p>\n<ul>\n  <li>Trusted by 2,000+ teams to handle financial tasks accurately.</li>\n  <li>Automate invoicing and payments to reduce manual work.</li>\n  <li>Track expenses and income in real-time for clear insights.</li>\n  <li>Generate reports quickly without complex spreadsheets.</li>\n</ul>",
+      "button": "Try Accounting Software Free"
+    }
+  },
+  "rankMath": {
+    "title": "Accounting Software: Forge Elementor E2E Staging Page",
+    "description": "Accounting Software: Staging page used by Forge end-to-end tests. SEO Forge.",
+    "focusKeyword": null,
+    "canonical": null,
+    "robots": []
+  },
+  "rendered": {
+    "newHeading": true,
+    "newBenefit": true,
+    "newCta": true,
+    "oldHeadingAbsent": true,
+    "oldCtaAbsent": true
+  }
+}

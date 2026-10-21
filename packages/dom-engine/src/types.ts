@@ -20,6 +20,14 @@ export interface ElementorPatchTarget {
   readonly format: "elementor";
   readonly elementId: string;
   readonly settingsKey: string;
+  /** WordPress post/page id that owns the document. */
+  readonly pageId?: number;
+  /** Widget type observed when the patch was created (stale guard). */
+  readonly expectedWidgetType?: string;
+  /** Elementor document fingerprint observed when the patch was created. */
+  readonly sourceFingerprint?: string;
+  /** Whether the control stores rich text HTML. */
+  readonly richText?: boolean;
 }
 
 /**
@@ -78,6 +86,8 @@ export interface ContentPatch {
   readonly createdAt: string;
   readonly target?: PatchTarget;
   readonly semanticIntent?: SemanticIntent;
+  /** Document fingerprint captured when the patch was created (stale guard). */
+  readonly sourceFingerprint?: string;
 }
 
 /**

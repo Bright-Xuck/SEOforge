@@ -1,7 +1,7 @@
 // @forge/review-engine
 // Session persistence under projects/<project>/reviews/{active,completed}/<sessionId>.json.
 
-import { mkdir, readFile, rename, writeFile, readdir } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { ReviewSession, ReviewStatus } from "./types.js";
 
@@ -40,6 +40,11 @@ export async function saveReviewSession(
   const targetDir = session.status === "completed" ? completedDir(rootDir, session.projectId) : activeDir(rootDir, session.projectId);
   await mkdir(targetDir, { recursive: true });
   await writeFile(join(targetDir, `${session.sessionId}.json`), JSON.stringify(session, null, 2), "utf8");
+  // loadReviewSession reads active/ first. Remove the stale active copy when a
+  // session is completed, otherwise callers load the pre-completion snapshot.
+  if (session.status === "completed") {
+    await rm(join(activeDir(rootDir, session.projectId), `${session.sessionId}.json`), { force: true });
+  }
   await updateReviewIndex(rootDir, session);
 }
 

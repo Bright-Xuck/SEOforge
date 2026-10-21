@@ -1,0 +1,12 @@
+{
+  "id": "forge-e2e-1792505029779",
+  "currentContent": "Accounting Software for Small Businesses",
+  "proposedContent": "Accounting Software for Small Businesses — Forge E2E 1792505029779",
+  "sourceFingerprint": "8qz5ct",
+  "expectedWidgetType": "heading",
+  "target": {
+    "format": "elementor",
+    "elementId": "e1f2a3b4",
+    "settingsKey": "title"
+  }
+}

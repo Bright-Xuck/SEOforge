@@ -1,0 +1,69 @@
+{
+  "result": {
+    "url": "http://127.0.0.1:8080",
+    "executedAt": "2026-10-21T08:16:19.628Z",
+    "completedActions": [
+      "action-patch-metadata-title-1",
+      "action-patch-metadata-description-2"
+    ],
+    "failedActions": [],
+    "skippedActions": [],
+    "rollbackPlan": [
+      {
+        "actionId": "action-patch-metadata-title-1",
+        "resourceType": "seo-meta",
+        "resourceId": 6,
+        "originalValue": {
+          "seoMeta": {
+            "title": "Forge Elementor E2E Staging Page",
+            "description": "Staging page used by Forge end-to-end tests.",
+            "focusKeyword": null,
+            "canonical": null,
+            "robots": []
+          }
+        },
+        "newValue": {
+          "pageId": 6,
+          "pageUrl": "http://127.0.0.1:8080",
+          "fields": {
+            "title": "Accounting Software: Forge Elementor E2E Staging Page"
+          }
+        },
+        "rollbackMethod": "restore_previous_meta",
+        "providerId": "wordpress",
+        "revisionId": "2026-10-20T14:04:30+00:00",
+        "timestamp": "2026-10-21T08:16:13.840Z"
+      },
+      {
+        "actionId": "action-patch-metadata-description-2",
+        "resourceType": "seo-meta",
+        "resourceId": 6,
+        "originalValue": {
+          "seoMeta": {
+            "title": "Accounting Software: Forge Elementor E2E Staging Page",
+            "description": "Staging page used by Forge end-to-end tests.",
+            "focusKeyword": null,
+            "canonical": null,
+            "robots": []
+          }
+        },
+        "newValue": {
+          "pageId": 6,
+          "pageUrl": "http://127.0.0.1:8080",
+          "fields": {
+            "description": "Accounting Software: Staging page used by Forge end-to-end tests. SEO Forge."
+          }
+        },
+        "rollbackMethod": "restore_previous_meta",
+        "providerId": "wordpress",
+        "revisionId": "2026-10-20T14:04:30+00:00",
+        "timestamp": "2026-10-21T08:16:19.628Z"
+      }
+    ],
+    "rollbackGroups": [],
+    "executionTime": "8301ms",
+    "rollbackRequired": true,
+    "errors": []
+  },
+  "rollbackFile": "projects/seoforge-e2e/execution/1792570579629-rollback.json"
+}

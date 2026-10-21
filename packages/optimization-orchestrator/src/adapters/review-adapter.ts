@@ -6,9 +6,12 @@ import type { OptimizationContext } from "../context.js";
 import {
   createReviewSession,
   applyPolicy,
+  decideItem,
+  completeSession,
+  saveReviewSession,
   REVIEW_POLICIES,
 } from "@forge/review-engine";
-import type { ReviewPolicyName } from "@forge/review-engine";
+import type { ReviewPolicyName, ReviewSession } from "@forge/review-engine";
 import type { ContentPatch } from "@forge/content-generation";
 
 /**
@@ -17,6 +20,15 @@ import type { ContentPatch } from "@forge/content-generation";
 export interface ReviewAdapterOptions {
   policy?: ReviewPolicyName;
   createdBy?: string;
+  /** When set, sessions are persisted under `<rootDir>/<project>/reviews`. */
+  rootDir?: string;
+  /**
+   * Explicit CLI approval (`optimize --apply`). Only this flag turns pending
+   * items into APPROVE; policy auto-approval remains independent.
+   */
+  autoApproveAll?: boolean;
+  /** Mark the session completed (required before apply/execution). */
+  complete?: boolean;
 }
 
 /**
@@ -26,7 +38,7 @@ export interface ReviewAdapterOptions {
  * Writes: reviewSession to context
  *
  * Deterministic — applies review policy, creates review session with items.
- * No AI, no providers, no side effects.
+ * No AI, no providers, no writes to the target site.
  */
 export function createReviewEngine(options: ReviewAdapterOptions = {}): Engine {
   return {
@@ -50,10 +62,36 @@ export function createReviewEngine(options: ReviewAdapterOptions = {}): Engine {
         policy,
       });
 
-      const reviewed = applyPolicy(session);
+      let reviewed = applyPolicy(session);
+
+      if (options.autoApproveAll) {
+        for (const item of reviewed.items) {
+          if (item.decision === undefined) {
+            reviewed = decideItem(reviewed, item.id, "APPROVE", "cli:--apply");
+          }
+        }
+      }
+
+      if (options.complete) {
+        reviewed = completeSession(reviewed);
+      }
+
       context.reviewSession = reviewed;
+
+      if (options.rootDir) {
+        await saveReviewSession(options.rootDir, reviewed);
+      }
 
       return context;
     },
+  };
+}
+
+/** Narrow helper for callers that already hold a session object. */
+export function summarizeDecisions(session: ReviewSession): Record<string, number> {
+  return {
+    total: session.items.length,
+    approved: session.items.filter((item) => item.decision === "APPROVE").length,
+    pending: session.items.filter((item) => item.decision === undefined).length,
   };
 }

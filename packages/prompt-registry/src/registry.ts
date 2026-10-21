@@ -4,6 +4,26 @@ function unique(values: readonly string[] = []): string[] {
   return [...new Set(values)];
 }
 
+/**
+ * Render `{{variable}}` placeholders in a prompt template.
+ *
+ * This is the single rendering contract shared by the registry and the AI
+ * engine. A missing variable is an error, never a silently empty string: a
+ * prompt that reaches a model with unrendered placeholders is a broken prompt.
+ */
+export function renderPromptTemplate(
+  template: string,
+  variables: Record<string, string | number | boolean> = {},
+): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
+    const value = variables[key];
+    if (value === undefined || value === null) {
+      throw new Error(`Prompt variable missing: ${key}`);
+    }
+    return String(value);
+  });
+}
+
 export class PromptRegistry {
   private prompts = new Map<string, PromptDefinition>();
 
@@ -68,13 +88,7 @@ export class PromptRegistry {
   }
 
   renderPrompt(prompt: PromptDefinition, variables: Record<string, string | number | boolean> = {}): string {
-    return prompt.template.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => {
-      const value = variables[key];
-      if (value === undefined || value === null) {
-        throw new Error(`Prompt variable missing: ${key}`);
-      }
-      return String(value);
-    });
+    return renderPromptTemplate(prompt.template, variables);
   }
 
   validate(prompt: PromptDefinition): PromptValidationResult {

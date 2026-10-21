@@ -1,6 +1,6 @@
 import { BaseAIProvider, createCapabilityMatrix, capabilitiesFromMatrix, makeProviderRequest, createGenerateResponse } from "./base.js";
 import type { AIProviderMetadata, GenerateRequest, GenerateResponse } from "../types.js";
-import { AuthenticationError, InvalidRequestError, ProviderUnavailableError } from "../errors.js";
+import { AuthenticationError, InvalidRequestError, ProviderUnavailableError, RateLimitError } from "../errors.js";
 
 export interface OpenAIConfig {
   readonly apiKey: string;
@@ -80,8 +80,11 @@ export class OpenAIProvider extends BaseAIProvider {
       const err = await response.json().catch(() => ({}));
       throw new InvalidRequestError((err as { error?: { message?: string } }).error?.message ?? "Bad request");
     }
+    if (response.status === 429 || response.status === 503) {
+      throw new RateLimitError(this.metadata.id);
+    }
     if (!response.ok) {
-      throw new ProviderUnavailableError("openai");
+      throw new ProviderUnavailableError(this.metadata.id);
     }
 
     const data = (await response.json()) as {
@@ -89,7 +92,7 @@ export class OpenAIProvider extends BaseAIProvider {
     };
     const content = data.choices?.[0]?.message?.content ?? "";
 
-    return createGenerateResponse(content, "openai", model);
+    return createGenerateResponse(content, this.metadata.id, model);
   }
 
   async health(): Promise<boolean> {

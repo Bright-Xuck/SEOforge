@@ -332,6 +332,37 @@ function parseBlock(
 
 // ─── Section Parsing ───────────────────────────────────────
 
+/**
+ * Recursively collect rendered widget blocks, descending through Elementor
+ * container wrappers (.e-con, .e-con-inner, legacy .elementor-container /
+ * .elementor-column) until actual widgets are reached.
+ */
+function collectWidgetBlocks(
+  $: CheerioAPI,
+  el: Cheerio<any>,
+  path: string[],
+  builderType: string,
+  out: DomBlock[],
+): void {
+  el.children().each((i, child) => {
+    const childEl = $(child);
+    const childClass = childEl.attr("class") ?? "";
+    if (childClass.includes("elementor-widget") || childClass.includes("wp-block")) {
+      out.push(parseBlock($, childEl, path, i, builderType));
+      return;
+    }
+    if (
+      builderType === "elementor" &&
+      (childClass.includes("e-con") ||
+        childClass.includes("elementor-container") ||
+        childClass.includes("elementor-column") ||
+        childClass.includes("elementor-section"))
+    ) {
+      collectWidgetBlocks($, childEl, path, builderType, out);
+    }
+  });
+}
+
 function parseSection(
   $: CheerioAPI,
   el: Cheerio<any>,
@@ -351,15 +382,11 @@ function parseSection(
   const kind = detectSectionKind(attrs, text);
   const id = generateStableId("sec", `${tagName}:${path.join(":")}:${attrs.map((a) => `${a.name}=${a.value}`).join(":")}`);
 
-  // Parse blocks within this section
+  // Parse blocks within this section. Elementor 3.x/4.x wraps widgets in
+  // nested containers (.e-con > .e-con-inner > .elementor-widget), so a
+  // direct-children scan silently produced zero blocks on modern pages.
   const blocks: DomBlock[] = [];
-  el.children().each((i, child) => {
-    const childEl = $(child);
-    const childClass = childEl.attr("class") ?? "";
-    if (childClass.includes("elementor-widget") || childClass.includes("wp-block")) {
-      blocks.push(parseBlock($, childEl, [...path, tagName], i, builderType));
-    }
-  });
+  collectWidgetBlocks($, el, [...path, tagName], builderType, blocks);
 
   return {
     id,
@@ -396,7 +423,12 @@ function parseRegion(
     const childEl = $(child);
     const childTag = childEl.prop("tagName")?.toLowerCase() ?? "";
     const childClass = childEl.attr("class") ?? "";
-    if (childTag === "section" || childClass.includes("elementor-section") || childClass.includes("elementor-container")) {
+    if (
+      childTag === "section" ||
+      childClass.includes("elementor-section") ||
+      childClass.includes("elementor-container") ||
+      childClass.includes("e-con")
+    ) {
       sections.push(parseSection($, childEl, [...path, tagName], i, builderType));
     }
   });

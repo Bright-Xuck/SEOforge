@@ -5,9 +5,11 @@ import { AnthropicProvider } from "./providers/anthropic.js";
 import { GeminiProvider } from "./providers/gemini.js";
 import { OpenRouterProvider } from "./providers/openrouter.js";
 import { OllamaProvider } from "./providers/ollama.js";
+import { ZAIProvider } from "./providers/zai.js";
+import { DEFAULT_ZAI_MODEL } from "./providers/zai.js";
 import type { AIProviderConfig } from "@forge/config";
 
-export type ProviderType = "openai" | "anthropic" | "gemini" | "openrouter" | "ollama";
+export type ProviderType = "openai" | "anthropic" | "gemini" | "openrouter" | "zai" | "ollama";
 
 export class ProviderFactory {
   private providers: Map<string, AIProvider> = new Map();
@@ -36,6 +38,7 @@ export class ProviderFactory {
     if (this.config.anthropicApiKey) result.push(this.getProvider("anthropic"));
     if (this.config.geminiApiKey) result.push(this.getProvider("gemini"));
     if (this.config.openrouterApiKey) result.push(this.getProvider("openrouter"));
+    if (this.config.zaiApiKey) result.push(this.getProvider("zai"));
     result.push(this.getProvider("ollama"));
     return result;
   }
@@ -50,10 +53,11 @@ export class ProviderFactory {
       anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
       geminiApiKey: process.env.GEMINI_API_KEY ?? "",
       openrouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
+      zaiApiKey: process.env.ZAI_API_KEY ?? "",
       ollamaBaseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
       ollamaModel: process.env.OLLAMA_MODEL ?? "llama3",
       defaultProvider: opts.provider,
-      defaultModel: opts.model ?? process.env.DEFAULT_MODEL ?? "gpt-4",
+      defaultModel: opts.model ?? process.env.DEFAULT_MODEL ?? (opts.provider === "zai" ? DEFAULT_ZAI_MODEL : "gpt-4"),
       temperature: parseFloat(process.env.TEMPERATURE ?? "0.7"),
       maxTokens: parseInt(process.env.MAX_TOKENS ?? "4096", 10),
       timeout: parseInt(process.env.TIMEOUT ?? "30000", 10),
@@ -73,7 +77,12 @@ export class ProviderFactory {
       { id: "anthropic", name: "Anthropic", status: process.env.ANTHROPIC_API_KEY ? "configured" : "missing key" },
       { id: "gemini", name: "Google Gemini", status: process.env.GEMINI_API_KEY ? "configured" : "missing key" },
       { id: "openrouter", name: "OpenRouter", status: process.env.OPENROUTER_API_KEY ? "configured" : "missing key" },
-      { id: "ollama", name: "Ollama", status: "always available" },
+      { id: "zai", name: "Z.ai", status: process.env.ZAI_API_KEY ? "configured" : "missing key" },
+      {
+        id: "ollama",
+        name: "Ollama",
+        status: "local endpoint (verify with `forge ai test ollama`)",
+      },
     ];
     return providers;
   }
@@ -105,6 +114,13 @@ export class ProviderFactory {
         if (!this.config.openrouterApiKey) throw new ProviderUnavailableError("openrouter");
         return new OpenRouterProvider({
           apiKey: this.config.openrouterApiKey,
+          model: this.config.defaultModel,
+          timeout: this.config.timeout,
+        });
+      case "zai":
+        if (!this.config.zaiApiKey) throw new ProviderUnavailableError("zai");
+        return new ZAIProvider({
+          apiKey: this.config.zaiApiKey,
           model: this.config.defaultModel,
           timeout: this.config.timeout,
         });

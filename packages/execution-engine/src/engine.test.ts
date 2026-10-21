@@ -2,7 +2,7 @@
 // Tests for execution engine.
 
 import { describe, it, expect, vi } from "vitest";
-import { execute, executeWithValidation, getRollbackOperations } from "./engine.js";
+import { execute, executeWithValidation, getRollbackOperations, rollbackExecution } from "./engine.js";
 import { RollbackStore } from "./rollback.js";
 import { ExecutionHistory } from "./history.js";
 import { PolicyEngine } from "./policies.js";
@@ -226,6 +226,42 @@ describe("Execution Engine", () => {
       expect(appliedOperation?.newValue.content).toBe(patchedElementor);
     });
 
+    it("skips later actions on the same resource after one fails", async () => {
+      const applySpy = vi.fn(async (operation: WriteOperation) => {
+        if (operation.id === "a1") throw new Error("PATCH_STALE: document changed");
+        return {
+          operationId: operation.id, providerId: "mock", resourceType: operation.resourceType, resourceId: operation.resourceId,
+          timestamp: new Date().toISOString(), oldValue: {}, newValue: operation.newValue, diffs: operation.diffs, summary: operation.summary,
+          preview: false, applied: true, message: "applied",
+        };
+      });
+      const provider = { ...mockProvider, applyWrite: applySpy };
+      const plan = createMockPlan([
+        createMockAction({
+          id: "a1",
+          type: "content.elementor-patch",
+          payload: { pageId: 6, patch: { target: { format: "elementor", elementId: "e1", settingsKey: "title" }, proposedContent: "New" } },
+          status: "approved",
+        }),
+        createMockAction({
+          id: "a2",
+          type: "content.elementor-patch",
+          payload: { pageId: 6, patch: { target: { format: "elementor", elementId: "e2", settingsKey: "editor" }, proposedContent: "New" } },
+          status: "approved",
+        }),
+      ]);
+
+      const result = await execute(plan, provider, {
+        dryRun: false,
+        domEngine: { resolve: async () => "{}" },
+        fetchResource: async () => "{}",
+      });
+
+      expect(result.failedActions).toEqual(["a1"]);
+      expect(result.skippedActions).toEqual(["a2"]);
+      expect(applySpy).toHaveBeenCalledTimes(1);
+    });
+
     it("runs the domEngine resolve path only for real (non-dry-run) execution", async () => {
       const fetchResource = vi.fn(async () => "{}");
       const domEngineResolve = vi.fn(async () => "{}");
@@ -266,6 +302,54 @@ describe("Execution Engine", () => {
 
       expect(result.execution.completedActions).toHaveLength(0);
       expect(result.execution.skippedActions).toHaveLength(1);
+    });
+  });
+
+  describe("rollbackExecution", () => {
+    it("reports restored and failed operations instead of echoing the input", async () => {
+      const rollbackWrite = vi.fn(async (resourceType: string, resourceId: string | number) => {
+        if (resourceId === 2) throw new Error("revision unavailable");
+        return {
+          operationId: `rollback-${resourceId}`,
+          providerId: "mock",
+          resourceType,
+          resourceId,
+          timestamp: new Date().toISOString(),
+          oldValue: {},
+          newValue: {},
+          diffs: [],
+          summary: { totalChanges: 0, changedFields: [], preview: false, rollbackSupported: true },
+          preview: false,
+          applied: true,
+          message: "rolled back",
+        };
+      });
+      const provider = { ...mockProvider, rollbackWrite };
+
+      const result = await rollbackExecution(
+        {
+          url: "https://example.com",
+          executedAt: new Date().toISOString(),
+          completedActions: ["a1", "a2"],
+          failedActions: [],
+          skippedActions: [],
+          rollbackPlan: [
+            { actionId: "a2", resourceType: "page", resourceId: 2, originalValue: {}, newValue: {}, rollbackMethod: "restore", providerId: "mock", timestamp: new Date().toISOString() },
+            { actionId: "a1", resourceType: "page", resourceId: 1, originalValue: {}, newValue: {}, rollbackMethod: "restore", providerId: "mock", timestamp: new Date().toISOString() },
+          ],
+          rollbackGroups: [],
+          executionTime: "0ms",
+          rollbackRequired: true,
+        },
+        provider as never,
+      );
+
+      expect(result.completedActions).toEqual(["a1"]);
+      expect(result.failedActions).toEqual(["a2"]);
+      expect(result.errors).toEqual([{ actionId: "a2", message: "revision unavailable" }]);
+      expect(result.rollbackPlan.map((operation) => operation.actionId)).toEqual(["a1"]);
+      expect(result.rollbackRequired).toBe(true);
+      expect(rollbackWrite).toHaveBeenCalledTimes(2);
     });
   });
 

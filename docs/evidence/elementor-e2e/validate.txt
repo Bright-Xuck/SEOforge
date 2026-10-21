@@ -1,0 +1,2 @@
+Valid: patch resolves and is compatible
+Affected widgets: e1f2a3b4 (heading)

@@ -16,7 +16,7 @@ export class RollbackStore {
   /**
    * Capture a rollback operation before simulated execution.
    */
-  capture(action: Action, originalValue: Record<string, unknown>): void {
+  capture(action: Action, originalValue: Record<string, unknown>, revisionId?: string): void {
     const operation: RollbackOperation = {
       actionId: action.id,
       resourceType: this.getResourceType(action.type),
@@ -25,6 +25,7 @@ export class RollbackStore {
       newValue: action.payload,
       rollbackMethod: this.getRollbackMethod(action.type),
       providerId: action.requiredProvider,
+      revisionId,
       timestamp: new Date().toISOString(),
     };
     this.operations.set(action.id, operation);
@@ -65,11 +66,15 @@ export class RollbackStore {
       "accessibility.add-alt": "clear_alt_text",
       "technical.add-jsonld": "remove_schema_markup",
       "content.update-content": "restore_previous_content",
+      "content.elementor-patch": "restore_elementor_document",
+      "seo.update-rank-math-meta": "restore_previous_meta",
     };
     return methods[actionType] ?? "manual_rollback";
   }
 
   private getResourceType(actionType: string): string {
+    if (actionType === "content.elementor-patch") return "elementor-document";
+    if (actionType === "seo.update-rank-math-meta") return "seo-meta";
     if (actionType.startsWith("accessibility.")) return "media";
     if (actionType.startsWith("technical.")) return "page";
     if (actionType.startsWith("content.")) return "page";

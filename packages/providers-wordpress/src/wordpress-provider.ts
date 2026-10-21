@@ -29,6 +29,8 @@ import type {
   ElementorDocumentWriteResult,
   ElementorSystemStatus,
 } from "./elementor-transport.js";
+import { SeoMetaTransport } from "./seo-meta-transport.js";
+import type { SeoMetaFields, SeoMetaRead, SeoMetaWriteResult } from "./seo-meta-transport.js";
 
 /**
  * WordPress provider metadata.
@@ -68,6 +70,7 @@ export class WordPressProvider {
 
   private readonly client: WordPressClient;
   private elementorTransport?: ElementorDocumentTransport;
+  private seoMetaTransport?: SeoMetaTransport;
 
   constructor(config: WordPressConnectionConfig) {
     this.client = new WordPressClient({
@@ -83,6 +86,14 @@ export class WordPressProvider {
   private getElementorTransport(): ElementorDocumentTransport {
     this.elementorTransport ??= new ElementorDocumentTransport(this.client);
     return this.elementorTransport;
+  }
+
+  /**
+   * Lazily-created Rank Math meta transport (companion endpoint).
+   */
+  private getSeoMetaTransport(): SeoMetaTransport {
+    this.seoMetaTransport ??= new SeoMetaTransport(this.client);
+    return this.seoMetaTransport;
   }
 
   /**
@@ -530,6 +541,9 @@ export class WordPressProvider {
     if (operation.resourceType === "elementor-document") {
       return this.applyElementorWrite(operation);
     }
+    if (operation.resourceType === "seo-meta") {
+      return this.applySeoMetaWrite(operation);
+    }
     const endpoint = this.getEndpoint(operation.resourceType, operation.resourceId);
     const current = await this.fetchResource(operation.resourceType, operation.resourceId);
     const updated = await this.client.put<Record<string, unknown>>(endpoint, operation.newValue);
@@ -634,11 +648,16 @@ export class WordPressProvider {
       modified: current.modified,
     });
 
-    // Verification: the re-read must contain the exact written data.
-    if (!writeResult.reRead || writeResult.reRead.data !== data) {
+    // Verification is performed server-side by the companion endpoint: it
+    // re-reads the document and compares it structurally (whitespace, key
+    // order and Elementor's default `isInner:false` normalisation are not
+    // content changes). The transport throws when `verified` is false, so a
+    // raw string comparison here would reject legitimate writes whose JSON
+    // serialisation differs. Require only a written, re-readable document.
+    if (!writeResult.written || !writeResult.reRead) {
       throw new ElementorTransportError(
         "ELEMENTOR_INVALID_RESPONSE",
-        "Verification failed: re-read Elementor document does not match the written data.",
+        "Verification failed: the companion endpoint did not return a written, re-readable Elementor document.",
       );
     }
 
@@ -659,6 +678,59 @@ export class WordPressProvider {
   }
 
   /**
+   * Read whitelisted Rank Math fields via the companion endpoint.
+   */
+  async readSeoMeta(postId: number | string): Promise<SeoMetaRead> {
+    return this.getSeoMetaTransport().read(postId);
+  }
+
+  /**
+   * Write whitelisted Rank Math fields with server-side verification.
+   */
+  async updateSeoMeta(postId: number | string, fields: SeoMetaFields): Promise<SeoMetaWriteResult> {
+    return this.getSeoMetaTransport().write(postId, fields);
+  }
+
+  private async applySeoMetaWrite(operation: WriteOperation): Promise<WriteResult> {
+    if (operation.mode === "preview" || operation.mode === "dry-run") {
+      return this.createResult(
+        operation.resourceType,
+        operation.resourceId,
+        operation.oldValue,
+        operation.newValue,
+        true,
+        false,
+        operation.revisionId,
+        operation,
+      );
+    }
+
+    const payload = operation.newValue as Record<string, unknown>;
+    const fields = (payload.fields ?? payload.seoMeta ?? payload.meta) as SeoMetaFields | undefined;
+    if (!fields || typeof fields !== "object") {
+      throw new Error("SEO meta write operation is missing a fields payload.");
+    }
+
+    const transport = this.getSeoMetaTransport();
+    const before = await transport.read(operation.resourceId);
+    const writeResult = await transport.write(operation.resourceId, fields);
+    if (!writeResult.verified) {
+      throw new Error("Verification failed: Rank Math meta re-read does not match the written values.");
+    }
+
+    return this.createResult(
+      operation.resourceType,
+      operation.resourceId,
+      { seoMeta: before.fields },
+      { seoMeta: writeResult.new, written: writeResult.written },
+      false,
+      true,
+      writeResult.modified,
+      operation,
+    );
+  }
+
+  /**
    * Rollback a write operation.
    */
   async rollbackWrite(
@@ -667,6 +739,22 @@ export class WordPressProvider {
     originalValue: Record<string, unknown>,
     revisionId?: string,
   ): Promise<WriteResult> {
+    if (resourceType === "seo-meta") {
+      const fields = (originalValue.seoMeta ?? originalValue) as SeoMetaFields;
+      const restored = await this.getSeoMetaTransport().write(resourceId, fields);
+      if (!restored.verified) {
+        throw new Error("Rollback verification failed: Rank Math meta was not restored.");
+      }
+      return this.createResult(resourceType, resourceId, { seoMeta: restored.old }, { seoMeta: restored.new }, false, true, revisionId);
+    }
+    if (resourceType === "elementor-document") {
+      const data = typeof originalValue.elementor_data === "string" ? originalValue.elementor_data : null;
+      if (data === null) {
+        throw new Error("Elementor rollback is missing original elementor_data.");
+      }
+      const restored = await this.getElementorTransport().writeDocument(resourceId, data);
+      return this.createResult(resourceType, resourceId, {}, { elementor_data: restored.reRead?.data }, false, true, revisionId);
+    }
     const endpoint = this.getEndpoint(resourceType, resourceId);
     const updated = await this.client.put<Record<string, unknown>>(endpoint, originalValue);
     return this.createResult(resourceType, resourceId, updated, originalValue, false, true, revisionId);

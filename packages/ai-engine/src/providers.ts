@@ -8,4 +8,5 @@ export {
   GeminiProvider,
   OpenRouterProvider,
   OllamaProvider,
+  ZAIProvider,
 } from "./providers/index.js";

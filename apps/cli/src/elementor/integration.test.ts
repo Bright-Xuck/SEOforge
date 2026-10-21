@@ -116,6 +116,17 @@ describe.skipIf(!enabled)("Elementor real-site integration (opt-in, Phase 9)", (
 
     // 8. Apply for real (provider-backed mutation).
     const applied = await bridge.apply(pageId, patch, { dryRun: false });
+    if (!applied.applied) {
+      // Real-site diagnostics only on failure (never prints credentials).
+      console.error("apply failed:", JSON.stringify({
+        errorCode: applied.errorCode,
+        message: applied.message,
+        resolution: applied.resolution,
+        verification: applied.verification,
+        fingerprintBefore: applied.fingerprintBefore,
+        fingerprintAfter: applied.fingerprintAfter,
+      }, null, 2));
+    }
     expect(applied.applied).toBe(true);
     if (!applied.rollbackPayload) throw new Error("apply must return a rollback payload");
     expect(applied.fingerprintBefore).toBe(inspection.fingerprint);
@@ -140,5 +151,5 @@ describe.skipIf(!enabled)("Elementor real-site integration (opt-in, Phase 9)", (
     expect(restoredTitle?.normalizedText).toBe(originalText);
     // The mapping was at least attempted (informational guard).
     expect(mappingMatched).toBeGreaterThanOrEqual(0);
-  });
+  }, 120_000);
 });

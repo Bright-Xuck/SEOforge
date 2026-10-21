@@ -49,6 +49,7 @@ export function buildPatch(
     createdAt: new Date().toISOString(),
     target: options.target,
     semanticIntent: options.semanticIntent,
+    quality: generated.quality,
   };
 }
 

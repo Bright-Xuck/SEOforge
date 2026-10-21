@@ -8,6 +8,34 @@ Forge is a layered, deterministic-first platform for analyzing, generating, revi
 
 ---
 
+## Quickstart
+
+```powershell
+pnpm install
+pnpm build
+Copy-Item .env.example .env   # then fill in your local WordPress + AI values
+pnpm forge doctor
+pnpm forge ai test zai --model glm-4.5-flash
+pnpm forge wp elementor doctor 6
+```
+
+A safe first run reads the real page, builds a review session, and writes nothing:
+
+```powershell
+pnpm forge optimize default --url http://127.0.0.1:8080 --page 6 --provider zai --model glm-4.5-flash --keyword "accounting software" --dry-run --json
+```
+
+Only use `--apply` after reviewing the dry-run. See [`docs/installation.md`](docs/installation.md)
+for prerequisites, the companion plugin, environment precedence, troubleshooting, and the
+preview → review → apply → verify → rollback workflow.
+
+**AI content quality:** generated sections carry a deterministic `quality` report covering
+grounded numeric claims, concrete usefulness, generic fluff, audience/keyword fit,
+readability, and prohibited brand language. Ungrounded numeric claims invalidate a patch;
+softer quality problems become warnings that force manual review.
+
+---
+
 ## Architecture at a Glance
 
 ```
@@ -90,11 +118,11 @@ packages/
 
 docs/
   architecture.md              # Unified architecture document
-  cli.md                       # CLI reference
   coding_standards.md
   decisions.md                 # Architecture Decision Records
   dependency-graph.md          # Package dependency rules
   development-workflow.md
+  installation.md              # Install, configure, verify, troubleshoot
   packages.md                  # Package responsibility catalog
   project-structure.md
   roadmap.md
@@ -229,6 +257,14 @@ planning only — nothing is generated, linked, or written.
 | `forge review apply <sessionId>` | Apply approved session to execution engine (`--dry-run`) |
 | `forge review rollback <sessionId>` | Rollback a previously applied session |
 
+### Configuration and Providers
+
+| Command | Description |
+|---|---|
+| `forge doctor` | Offline configuration check (Node, `.env`, WordPress, AI keys, Ollama URL, `projects/`; `--json`; no network calls) |
+| `forge connect wordpress` | Connection wizard (instructions) |
+| `forge provider` | Show provider info |
+
 ### WordPress Provider
 
 | Command | Description |
@@ -250,21 +286,23 @@ planning only — nothing is generated, linked, or written.
 Elementor commands accept `<site> <username> <password>` positionally or the
 `FORGE_WP_SITE_URL` / `FORGE_WP_USERNAME` / `FORGE_WP_APPLICATION_PASSWORD` environment
 variables with just the page.
-| `forge connect wordpress` | Connection wizard (instructions) |
-| `forge provider` | Show provider info |
 
 ### AI Provider Management
 
 | Command | Description |
 |---|---|
-| `forge ai providers` | List configured providers (`--json`) |
-| `forge ai models [provider]` | List models for a provider (`--json`) |
-| `forge ai test [provider]` | Health check (`--model`) |
-| `forge ai benchmark [provider]` | Latency benchmark |
+| `forge ai providers` | List all providers and configured/missing status (`--json`) |
+| `forge ai models [provider]` | Show a provider's capability matrix (`--provider`, `--json`) |
+| `forge ai test [provider]` | Health check (`--provider`, `--model`, `--json`; exits non-zero on failure) |
+| `forge ai benchmark [provider]` | Latency benchmark (`--provider`, `--model`, `--json`) |
 | `forge ai cost` | Cost tracking (`--provider`, `--project`, `--month`) |
 | `forge ai prompt [promptId]` | List/show prompts (`--json`) |
 | `forge ai logs` | Provider logs (`--provider`, `--limit`, `--json`) |
 | `forge ai history` | Prompt execution history (`--project`, `--limit`, `--json`) |
+
+`[provider]` and `--provider` are aliases. Passing both with different values fails with an
+actionable error. Missing credentials fail with the environment variable to set, never a raw
+provider stack trace.
 
 ### DOM Engine (Sprint 23)
 

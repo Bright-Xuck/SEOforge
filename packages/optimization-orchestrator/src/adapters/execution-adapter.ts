@@ -6,6 +6,8 @@ import type { OptimizationContext } from "../context.js";
 import { execute } from "@forge/execution-engine";
 import type { ExecutionResult } from "@forge/execution-engine";
 import type { WriteProvider } from "@forge/core";
+import type { ReviewSession } from "@forge/review-engine";
+import { buildExecutionPlanFromReview } from "./review-to-execution.js";
 
 /**
  * Options for creating the execution engine adapter.
@@ -14,6 +16,10 @@ import type { WriteProvider } from "@forge/core";
 export interface ExecutionAdapterOptions {
   provider?: WriteProvider;
   dryRun?: boolean;
+  /** Resolve a content patch against raw provider content (Elementor/Gutenberg). */
+  domEngine?: { resolve: (rawContent: string, patch: unknown) => Promise<string> };
+  /** Read the raw provider content a patch must be resolved against. */
+  fetchResource?: (resourceType: string, resourceId: string | number) => Promise<string>;
 }
 
 /**
@@ -30,7 +36,22 @@ export function createExecutionEngine(options: ExecutionAdapterOptions = {}): En
     type: "execution",
     async execute(ctx: Record<string, unknown>): Promise<Record<string, unknown>> {
       const context = ctx as OptimizationContext;
-      const plan = context.executionPlan as any;
+      let plan = context.executionPlan as any;
+
+      // The composer produces bundles/dependencies, not executable actions.
+      // When no actionable plan exists, translate the reviewed session into
+      // actions. Only items the reviewer approved can become actions.
+      if (!plan || !Array.isArray(plan.actions) || plan.actions.length === 0) {
+        const session = context.reviewSession as ReviewSession | undefined;
+        const pageId = context.pageId ?? context.target?.pageId;
+        if (session && typeof pageId === "number") {
+          plan = buildExecutionPlanFromReview(session, {
+            pageId,
+            url: context.pageUrl ?? context.project,
+          });
+          context.executionPlan = plan;
+        }
+      }
 
       if (!plan) {
         // No execution plan — skip
@@ -40,13 +61,20 @@ export function createExecutionEngine(options: ExecutionAdapterOptions = {}): En
       const dryRun = options.dryRun ?? true;
       const provider = options.provider;
 
-      // Build a minimal execution plan from the composed plan
+      // Normalize to a real ExecutionPlan. Composed plans deliberately have no
+      // actions, so never fabricate an empty plan from them.
       const executionPlan = {
-        url: context.project,
-        generatedAt: new Date().toISOString(),
+        url: plan.url ?? context.pageUrl ?? context.project,
+        generatedAt: plan.generatedAt ?? new Date().toISOString(),
         actions: plan.actions ?? [],
         approvalQueue: plan.approvalQueue ?? [],
-        summary: plan.summary ?? { total: 0, automatable: 0, requiresApproval: 0, byRisk: {} },
+        summary:
+          plan.summary ?? {
+            total: (plan.actions ?? []).length,
+            automatable: (plan.actions ?? []).filter((a: { automatable?: boolean }) => a.automatable).length,
+            requiresApproval: (plan.actions ?? []).filter((a: { requiresApproval?: boolean }) => a.requiresApproval).length,
+            byRisk: { safe: 0, moderate: 0, high: 0, critical: 0 },
+          },
         estimatedDuration: plan.estimatedDuration ?? "0m",
         riskSummary: plan.riskSummary ?? { safe: 0, moderate: 0, high: 0, critical: 0 },
       };
@@ -55,12 +83,23 @@ export function createExecutionEngine(options: ExecutionAdapterOptions = {}): En
 
       if (!provider) {
         // No provider — dry run only
-        result = await execute(executionPlan as any, null as any, { dryRun: true, stopOnBlocked: true });
+        result = await execute(executionPlan as any, null as any, {
+          dryRun: true,
+          stopOnBlocked: true,
+          domEngine: options.domEngine,
+          fetchResource: options.fetchResource,
+        });
       } else {
-        result = await execute(executionPlan as any, provider, { dryRun, stopOnBlocked: true });
+        result = await execute(executionPlan as any, provider, {
+          dryRun,
+          stopOnBlocked: true,
+          domEngine: options.domEngine,
+          fetchResource: options.fetchResource,
+        });
       }
 
       context.executionHistory = [result];
+      context.executionResult = result;
 
       return context;
     },

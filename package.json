@@ -7,9 +7,12 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
+    "forge": "node apps/cli/dist/index.js",
     "test": "vitest run",
     "lint": "eslint .",
     "check:deps": "node scripts/audit-unused-deps.mjs --strict",
+    "release:check": "pnpm typecheck && pnpm test && pnpm build",
+    "elementor:e2e": "node scripts/elementor-e2e.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "turbo typecheck",

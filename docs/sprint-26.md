@@ -33,7 +33,7 @@ Remote Verification
 Rollback if required
 ```
 
-SEO Forge does NOT use Elementor MCP. The integration is:
+SEO Forge's deterministic write path does NOT depend on Elementor MCP. The integration is:
 
 ```
 SEO Forge CLI
@@ -265,3 +265,54 @@ guessed.
 - The `memory.ts` writer stores under the conventional `projects/` directory;
   the persistence semantics (merge vs overwrite) belong to the existing
   memory-engine storage layer and were not changed here.
+
+## 6. Live validation (2026-10-20)
+
+The Sprint 26 bridge was exercised against a real local WordPress 7.1.3 + Elementor 4.3.5
+site (MariaDB 11.4.8, PHP 8.3.35, bridge 0.2.0), not a mocked provider. The reproducible
+script is `scripts/elementor-e2e.mjs` (`pnpm elementor:e2e`); the full report and sanitized
+artifacts are in [elementor-live-integration.md](elementor-live-integration.md) and
+[evidence/elementor-e2e/](evidence/elementor-e2e/README.md).
+
+Validated chain:
+
+```
+doctor -> inspect -> preview -> validate -> dry-run apply
+       -> real apply -> document re-read -> live HTTP verification
+       -> rollback -> document + live HTML restoration
+```
+
+Result on page 6:
+
+- 5 widgets inventoried; UniversalPage mapping `5 matched, 0 unmatched` via `data-id`.
+- Fingerprints: `8qz5ct` (before) -> `ng7qr7` (after apply) -> `8qz5ct` (after rollback).
+- Applied heading contained an em dash (U+2014); the rendered HTML contained it and no
+  literal `u2014`, proving the JSON-escape round-trip.
+- Dry-run performed zero writes; real apply returned HTTP 200 on the rendered page; rollback
+  restored the exact original document and rendered heading.
+
+Live-only defects fixed:
+
+1. `wp_unslash()` on `_elementor_data` read/write/verification removed JSON escape
+   backslashes, turning U+2014 into `u2014`.
+2. `doctor <page>` treated the page ID as the site URL and reported a false failure.
+3. Elementor drops `isInner: false` on save, so server-side structural verification had to
+   normalize it on both sides.
+4. Rollback after a post-write transport error now accepts the pre-write or intended
+   post-write fingerprint.
+5. UniversalPage mapping returned 0 blocks for Elementor 4 container markup
+   (`.e-con > .e-con-inner > .elementor-widget`); the builder now descends recursively.
+6. Preview now normalizes WordPress `title.rendered` instead of printing `[object Object]`.
+7. `apply --json --output` now writes the rollback payload in JSON mode.
+8. Dry-run uses `process.exitCode` instead of an abrupt `process.exit()` to avoid a libuv
+   shutdown assertion.
+
+Official Elementor MCP was also probed live. The default WordPress MCP adapter exposed only
+`core/get-site-info`, `core/get-user-info`, and `core/get-environment-info`; Elementor's
+site MCP exposure is off by default. The Elementor proxy could read the legacy V3 structure,
+but `include_content` returned empty `settings`, and `manage-elements` returned HTTP 422
+`elementor_v3_not_supported`. V4/atomic MCP tools require the Atomic Editor experiment.
+
+Decision: the companion bridge remains the primary deterministic write path; official
+Elementor MCP is an optional complement. See
+[ADR-055](decisions.md#adr-055-companion-bridge-is-the-deterministic-elementor-write-path-elementor-mcp-is-optional).

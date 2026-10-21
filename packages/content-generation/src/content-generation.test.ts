@@ -7,6 +7,7 @@ import { validateGeneratedSection } from "./validation/validator.js";
 import { buildProjectContext } from "./context/project-context.js";
 import { PromptBuilder } from "./prompt/builder.js";
 import { generateContent } from "./generate.js";
+import { sectionPromptDefinitions } from "./prompts/section-prompts.js";
 import type { GeneratedSection, ValidationReport } from "./types.js";
 import type { ContentPatch } from "./patch/types.js";
 import type { AIEngine } from "@forge/ai-engine";
@@ -136,6 +137,41 @@ describe("PromptBuilder", () => {
     expect(vars.targetKeywords).toBe("shoes");
     expect(vars.brand).toBe("Acme");
   });
+
+  it("prefers the brand audience over the page-level audience", () => {
+    const builder = new PromptBuilder();
+    const ctx = {
+      pageDNA: {} as PageDNA,
+      section: { kind: "hero" } as SectionInfo,
+      knowledge: {} as KnowledgeGraph,
+      memory: {} as MemorySummaryLike,
+      audience: { level: "enterprise" } as AudienceProfile,
+      intent: { primary: "commercial" } as SearchIntent,
+      tone: "confident",
+      brand: { companyName: "Acme", audiences: ["small businesses", "freelancers"] } as BrandProfile,
+      existingSection: "old",
+      targetKeywords: ["accounting software"],
+      missingTopics: [],
+    };
+
+    const vars = builder.buildVariables(ctx);
+    expect(vars.audience).toBe("small businesses");
+    expect(vars.brandAudience).toBe("small businesses, freelancers");
+  });
+});
+
+describe("section prompt catalog", () => {
+  it("publishes the audience-aware version and rule", () => {
+    const prompts = sectionPromptDefinitions();
+    expect(prompts.length).toBeGreaterThan(0);
+    for (const prompt of prompts) {
+      expect(prompt.versions[0]?.version).toBe("1.1.0");
+      expect(prompt.template).toContain("Do not contradict it");
+    }
+    const hero = prompts.find((prompt) => prompt.id === "section-hero");
+    expect(hero?.template).toContain("max 12 words");
+    expect(hero?.template).toContain("{{audience}}");
+  });
 });
 
 describe("generateContent (mock engine)", () => {
@@ -166,7 +202,10 @@ describe("generateContent (mock engine)", () => {
 
     expect(result.patches.length).toBe(1);
     expect(result.generated.length).toBe(1);
-    expect(result.patches[0].proposedContent).toBe("Generated hero text that is long enough to pass validation checks.");
+    expect(result.patches[0]!.proposedContent).toBe("Generated hero text that is long enough to pass validation checks.");
     expect(result.validation.valid).toBe(true);
+    expect(result.patches[0]!.quality).toBeDefined();
+    expect(result.patches[0]!.quality?.accurate).toBe(true);
+    expect(result.patches[0]!.quality?.checks).toHaveLength(6);
   });
 });

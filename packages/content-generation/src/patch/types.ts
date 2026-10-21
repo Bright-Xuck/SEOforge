@@ -4,6 +4,7 @@
 // Sprint 21: extended with optional target and semanticIntent for DOM-aware patching.
 
 import type { ValidationReport } from "../types.js";
+import type { ContentQualityEvaluation } from "../quality/types.js";
 
 /**
  * How a patch applies to the target section.
@@ -33,6 +34,14 @@ export interface ElementorPatchTarget {
   readonly format: "elementor";
   readonly elementId: string;
   readonly settingsKey: string;
+  /** WordPress post/page id that owns the Elementor document. */
+  readonly pageId?: number;
+  /** Widget type observed at generation time (re-checked before write). */
+  readonly expectedWidgetType?: string;
+  /** Elementor document fingerprint observed at generation time. */
+  readonly sourceFingerprint?: string;
+  /** Whether the control stores rich text HTML. */
+  readonly richText?: boolean;
 }
 
 export interface GutenbergPatchTarget {
@@ -47,7 +56,25 @@ export interface GenericHtmlPatchTarget {
   readonly resolvedSelector: unknown;
 }
 
-export type PatchTarget = ElementorPatchTarget | GutenbergPatchTarget | GenericHtmlPatchTarget;
+/**
+ * Rank Math post meta target. Metadata proposals travel through the same
+ * review/compose/execute pipeline as content patches, so they need a target
+ * that identifies the exact plugin field rather than a DOM selector.
+ */
+export interface RankMathPatchTarget {
+  readonly format: "rank-math";
+  readonly pageId: number;
+  /** Whitelisted Rank Math meta key, e.g. `rank_math_title`. */
+  readonly field: string;
+  /** Plain field name used in review output, e.g. `title`. */
+  readonly label: string;
+}
+
+export type PatchTarget =
+  | ElementorPatchTarget
+  | GutenbergPatchTarget
+  | GenericHtmlPatchTarget
+  | RankMathPatchTarget;
 
 /**
  * A self-contained patch describing a proposed content change.
@@ -73,6 +100,10 @@ export interface ContentPatch {
   readonly createdAt: string;
   readonly target?: PatchTarget;
   readonly semanticIntent?: SemanticIntent;
+  /** Deterministic usefulness/accuracy evaluation (Sprint 29). */
+  readonly quality?: ContentQualityEvaluation;
+  /** Document fingerprint captured when the patch was created (stale guard). */
+  readonly sourceFingerprint?: string;
 }
 
 /**

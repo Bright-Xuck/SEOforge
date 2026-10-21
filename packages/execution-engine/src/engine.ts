@@ -61,9 +61,14 @@ export async function execute(
   const completedActions: string[] = [];
   const failedActions: string[] = [];
   const skippedActions: string[] = [];
+  const errors: Array<{ actionId: string; message: string }> = [];
+  // Once an action fails on a resource, later actions for that same resource
+  // were planned against the same pre-batch state and must not run blind.
+  const failedResources = new Set<string>();
 
   // Process each action
   for (const action of plan.actions) {
+    let resourceKey: string | undefined;
     try {
       if (opts.dryRun) {
         rollbackStore.capture(action, {});
@@ -94,6 +99,21 @@ export async function execute(
         continue;
       }
 
+      resourceKey = `${inferResourceType(action.type)}:${inferResourceId(action)}`;
+      if (failedResources.has(resourceKey)) {
+        skippedActions.push(action.id);
+        history.record({
+          actionId: action.id,
+          startedAt: new Date().toISOString(),
+          status: "cancelled",
+          providerId: provider.id,
+          duration: action.estimatedDuration,
+          result: "skipped",
+          rollbackAvailable: false,
+        });
+        continue;
+      }
+
       let operation = createWriteOperation(action);
       if (opts.domEngine && action.payload.patch) {
         const rawContent = await opts.fetchResource?.(operation.resourceType, operation.resourceId);
@@ -104,7 +124,7 @@ export async function execute(
       }
       const result = await provider.applyWrite(operation);
       completedActions.push(action.id);
-      rollbackStore.capture(action, result.oldValue);
+      rollbackStore.capture(action, result.oldValue, result.revisionId);
       history.record({
         actionId: action.id,
         startedAt: result.timestamp,
@@ -114,8 +134,13 @@ export async function execute(
         result: "success",
         rollbackAvailable: result.summary.rollbackSupported,
       });
-    } catch {
+    } catch (error) {
       failedActions.push(action.id);
+      if (resourceKey !== undefined) failedResources.add(resourceKey);
+      errors.push({
+        actionId: action.id,
+        message: error instanceof Error ? error.message : String(error),
+      });
       history.record({
         actionId: action.id,
         startedAt: new Date().toISOString(),
@@ -141,6 +166,7 @@ export async function execute(
     rollbackGroups: [],
     executionTime,
     rollbackRequired: rollbackPlan.length > 0,
+    errors,
   };
 }
 
@@ -170,6 +196,8 @@ function createWriteOperation(action: Action): WriteOperation {
 }
 
 function inferResourceType(actionType: string): string {
+  if (actionType === "content.elementor-patch") return "elementor-document";
+  if (actionType === "seo.update-rank-math-meta") return "seo-meta";
   if (actionType.startsWith("accessibility.")) return "media";
   if (actionType.startsWith("technical.")) return "page";
   if (actionType.startsWith("content.")) return "page";
@@ -225,14 +253,39 @@ export async function rollbackExecution(
   result: ExecutionResult,
   provider: WriteProvider,
 ): Promise<ExecutionResult> {
-  const rollbackPlan: RollbackOperation[] = [];
+  const restored: RollbackOperation[] = [];
+  const restoredActions: string[] = [];
+  const failedActions: string[] = [];
+  const errors: Array<{ actionId: string; message: string }> = [];
+
   for (const operation of result.rollbackPlan) {
-    await provider.rollbackWrite(operation.resourceType, operation.resourceId, operation.originalValue, operation.revisionId);
-    rollbackPlan.push(operation);
+    try {
+      await provider.rollbackWrite(
+        operation.resourceType,
+        operation.resourceId,
+        operation.originalValue,
+        operation.revisionId,
+      );
+      restored.push(operation);
+      restoredActions.push(operation.actionId);
+    } catch (error) {
+      failedActions.push(operation.actionId);
+      errors.push({
+        actionId: operation.actionId,
+        message: error instanceof Error ? error.message : "Unknown rollback error",
+      });
+    }
   }
+
   return {
     ...result,
-    rollbackPlan,
-    rollbackRequired: false,
+    completedActions: restoredActions,
+    failedActions,
+    skippedActions: [],
+    // A partial rollback still needs operator attention, so keep the flag set
+    // when any operation could not be restored.
+    rollbackRequired: failedActions.length > 0,
+    rollbackPlan: restored,
+    errors: errors.length > 0 ? errors : undefined,
   };
 }

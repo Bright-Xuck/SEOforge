@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Forge Elementor Bridge
- * Description: Minimal optional companion endpoint for SEO Forge. Exposes a health/capability endpoint (GET /wp-json/forge/v1/system) and controlled Elementor document reads/writes (GET/PUT /wp-json/forge/v1/elementor/documents/{id}) so Forge can safely patch Elementor source data.
- * Version: 0.2.0
+ * Description: Minimal optional companion endpoint for SEO Forge. Exposes a health/capability endpoint (GET /wp-json/forge/v1/system), controlled Elementor document reads/writes (GET/PUT /wp-json/forge/v1/elementor/documents/{id}), and whitelisted Rank Math SEO meta reads/writes (GET/POST /wp-json/forge/v1/seo-meta/{id}) so Forge can safely patch Elementor source data and search metadata.
+ * Version: 0.3.0
  * Author: SEO Forge
  * License: GPL-2.0-or-later
  *
@@ -88,6 +88,25 @@ add_action('rest_api_init', function () {
         'permission_callback' => 'forge_elementor_can_edit',
         'args'     => array(
             'id' => array('validate_callback' => 'forge_elementor_validate_id'),
+        ),
+    ));
+    // ── Whitelisted Rank Math SEO meta ───────────────────────────────────
+    register_rest_route('forge/v1', '/seo-meta/(?P<id>\d+)', array(
+        array(
+            'methods'  => WP_REST_Server::READABLE,
+            'callback' => 'forge_seo_meta_read',
+            'permission_callback' => 'forge_elementor_can_edit',
+            'args'     => array(
+                'id' => array('validate_callback' => 'forge_elementor_validate_id'),
+            ),
+        ),
+        array(
+            'methods'  => WP_REST_Server::EDITABLE,
+            'callback' => 'forge_seo_meta_write',
+            'permission_callback' => 'forge_elementor_can_edit',
+            'args'     => array(
+                'id' => array('validate_callback' => 'forge_elementor_validate_id'),
+            ),
         ),
     ));
 });
@@ -220,9 +239,14 @@ function forge_elementor_read_document(WP_REST_Request $request)
     }
 
     $data = get_post_meta($post_id, '_elementor_data', true);
-    // _elementor_data is stored with slashes by WordPress; normalize for JSON transport.
-    if (is_string($data)) {
-        $data = wp_unslash($data);
+    // Sprint 26 fix: do NOT wp_unslash() this value. Elementor stores
+    // wp_slash(wp_json_encode(...)) through update_metadata(), which unslashes
+    // one level before the DB write. The stored value therefore keeps its JSON
+    // escapes (\u2014, \", ...). Calling wp_unslash() here removed the backslash
+    // from every JSON escape and corrupted non-ASCII text (an em dash became
+    // the literal string "u2014").
+    if (!is_string($data)) {
+        $data = '';
     }
 
     return new WP_REST_Response(array(
@@ -266,7 +290,9 @@ function forge_elementor_write_document(WP_REST_Request $request)
     if (!is_array($params)) {
         return forge_elementor_error('invalid_json', 'Request body must be a JSON object.', 400);
     }
-    $data = isset($params['data']) ? wp_unslash((string) $params['data']) : '';
+    // REST JSON params are already decoded; do not wp_unslash() them or JSON
+    // escapes such as \u2014 lose their backslash before json_decode() runs.
+    $data = isset($params['data']) ? (string) $params['data'] : '';
     if ($data === '') {
         return forge_elementor_error('empty_data', 'The write payload is empty.', 400);
     }
@@ -338,9 +364,9 @@ function forge_elementor_write_document(WP_REST_Request $request)
     // An HTTP 200 alone is never success — the client fails closed when the
     // stored document does not structurally match what was written.
     $re_read = get_post_meta($post_id, '_elementor_data', true);
-    if (is_string($re_read)) {
-        $re_read = wp_unslash($re_read);
-    }
+    // Same as the read endpoint: the raw meta value is valid JSON with its
+    // escapes intact. Unslashing it here would make verification fail only on
+    // documents that contain non-ASCII characters.
     $verified = is_string($re_read) && $re_read !== '' && forge_elementor_json_equivalent($re_read, wp_json_encode($decoded));
 
     return new WP_REST_Response(array(
@@ -415,6 +441,13 @@ function forge_elementor_normalize($value)
         if ($is_list) {
             return array_map('forge_elementor_normalize', $value);
         }
+        // Elementor's native Document::save() drops default `isInner: false`
+        // from nested widgets during its sanitization pass. That is a
+        // serialization detail, not a content change, so a false isInner is
+        // normalized away on both sides before structural comparison.
+        if (array_key_exists('isInner', $value) && $value['isInner'] === false) {
+            unset($value['isInner']);
+        }
         ksort($value);
         $out = array();
         foreach ($value as $k => $v) {
@@ -423,4 +456,179 @@ function forge_elementor_normalize($value)
         return $out;
     }
     return $value;
+}
+
+/**
+ * Whitelisted SEO meta fields. Deliberately small: Forge can propose a ranking
+ * title, description, focus keyword, canonical URL, and robots directive — and
+ * nothing else. Arbitrary post meta is never writable through this endpoint.
+ */
+function forge_seo_meta_fields()
+{
+    return array(
+        'title'       => 'rank_math_title',
+        'description' => 'rank_math_description',
+        'focusKeyword' => 'rank_math_focus_keyword',
+        'canonical'   => 'rank_math_canonical_url',
+        'robots'      => 'rank_math_robots',
+    );
+}
+
+function forge_seo_meta_plugin()
+{
+    if (defined('RANK_MATH_VERSION') || class_exists('\RankMath')) {
+        return 'rank-math';
+    }
+    if (defined('WPSEO_VERSION')) {
+        return 'yoast';
+    }
+    if (defined('SEOPRESS_VERSION')) {
+        return 'seopress';
+    }
+    return 'none';
+}
+
+function forge_seo_meta_snapshot($post_id)
+{
+    $out = array();
+    foreach (forge_seo_meta_fields() as $field => $meta_key) {
+        $value = get_post_meta($post_id, $meta_key, true);
+        $out[$field] = $value === '' ? null : $value;
+    }
+    return $out;
+}
+
+/**
+ * GET /wp-json/forge/v1/seo-meta/{id}
+ */
+function forge_seo_meta_read(WP_REST_Request $request)
+{
+    $post_id = absint($request['id']);
+    $post = get_post($post_id);
+    if (!$post || !in_array($post->post_type, array('page', 'post'), true)) {
+        return forge_elementor_error('page_not_found', 'No readable page/post exists for this id.', 404);
+    }
+    return new WP_REST_Response(array(
+        'postId' => $post_id,
+        'plugin' => forge_seo_meta_plugin(),
+        'fields' => forge_seo_meta_snapshot($post_id),
+        'modified' => forge_elementor_modified_iso($post_id),
+    ), 200);
+}
+
+/**
+ * POST /wp-json/forge/v1/seo-meta/{id}
+ *
+ * Body: { "fields": { "title": "...", "description": "..." } }
+ * Only whitelisted fields are accepted. Values are sanitized, written, then
+ * re-read and compared — HTTP 200 alone is never treated as success.
+ */
+function forge_seo_meta_write(WP_REST_Request $request)
+{
+    $post_id = absint($request['id']);
+    $post = get_post($post_id);
+    if (!$post || !in_array($post->post_type, array('page', 'post'), true)) {
+        return forge_elementor_error('page_not_found', 'No writable page/post exists for this id.', 404);
+    }
+    if (forge_seo_meta_plugin() !== 'rank-math') {
+        return forge_elementor_error('seo_plugin_not_supported', 'Rank Math is not active on this site.', 409);
+    }
+
+    $body = $request->get_json_params();
+    $fields = isset($body['fields']) && is_array($body['fields']) ? $body['fields'] : null;
+    if ($fields === null || empty($fields)) {
+        return forge_elementor_error('invalid_payload', 'Expected { fields: { ... } } with at least one whitelisted field.', 400);
+    }
+
+    $whitelist = forge_seo_meta_fields();
+    $old = forge_seo_meta_snapshot($post_id);
+    $written = array();
+
+    foreach ($fields as $field => $value) {
+        if (!array_key_exists($field, $whitelist)) {
+            return forge_elementor_error('field_not_allowed', 'Field is not whitelisted: ' . $field, 400);
+        }
+
+        if ($value === null) {
+            delete_post_meta($post_id, $whitelist[$field]);
+            $written[$field] = null;
+            continue;
+        }
+
+        switch ($field) {
+            case 'title':
+                $clean = sanitize_text_field((string) $value);
+                if (strlen($clean) > 200) {
+                    return forge_elementor_error('invalid_value', 'Title exceeds 200 characters.', 400);
+                }
+                break;
+            case 'description':
+                $clean = sanitize_text_field((string) $value);
+                if (strlen($clean) > 400) {
+                    return forge_elementor_error('invalid_value', 'Description exceeds 400 characters.', 400);
+                }
+                break;
+            case 'focusKeyword':
+                $clean = sanitize_text_field((string) $value);
+                if (strlen($clean) > 200) {
+                    return forge_elementor_error('invalid_value', 'Focus keyword exceeds 200 characters.', 400);
+                }
+                break;
+            case 'canonical':
+                $clean = esc_url_raw((string) $value);
+                if ($clean !== '' && !wp_http_validate_url($clean)) {
+                    return forge_elementor_error('invalid_value', 'Canonical URL is not a valid URL.', 400);
+                }
+                break;
+            case 'robots':
+                $allowed = array('index', 'noindex', 'follow', 'nofollow', 'noarchive', 'nosnippet', 'noimageindex');
+                $list = is_array($value) ? $value : explode(',', (string) $value);
+                $clean = array();
+                foreach ($list as $directive) {
+                    $directive = strtolower(trim((string) $directive));
+                    if ($directive === '') {
+                        continue;
+                    }
+                    if (!in_array($directive, $allowed, true)) {
+                        return forge_elementor_error('invalid_value', 'Unsupported robots directive: ' . $directive, 400);
+                    }
+                    $clean[] = $directive;
+                }
+                break;
+            default:
+                return forge_elementor_error('field_not_allowed', 'Field is not whitelisted: ' . $field, 400);
+        }
+
+        update_post_meta($post_id, $whitelist[$field], $clean);
+        $written[$field] = $clean;
+    }
+
+    // Server-side verification: re-read every written field.
+    $current = forge_seo_meta_snapshot($post_id);
+    $verified = true;
+    foreach ($written as $field => $expected) {
+        $actual = $current[$field];
+        if ($expected === null) {
+            if ($actual !== null) {
+                $verified = false;
+            }
+        } elseif (is_array($expected)) {
+            $a = is_array($actual) ? $actual : array();
+            if ($a !== $expected) {
+                $verified = false;
+            }
+        } elseif ((string) $actual !== (string) $expected) {
+            $verified = false;
+        }
+    }
+
+    return new WP_REST_Response(array(
+        'postId' => $post_id,
+        'plugin' => 'rank-math',
+        'written' => array_keys($written),
+        'verified' => $verified,
+        'old' => $old,
+        'new' => $current,
+        'modified' => forge_elementor_modified_iso($post_id),
+    ), 200);
 }

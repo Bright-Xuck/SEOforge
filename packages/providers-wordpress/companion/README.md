@@ -166,3 +166,18 @@ separated from normal CI.
 - This plugin is **not executed by CI** (no PHP runtime in the repo toolchain). It is validated
   by code review, the deterministic TypeScript transport tests, and the opt-in integration test.
 - The plugin does not modify Elementor core; it only uses documented hooks/APIs where available.
+
+## Live validation
+
+A real WordPress 7.1.3 + Elementor 4.3.5 run (page 6, five legacy widgets) proved read,
+preview, dry-run, apply, live-HTML verification, and rollback. The run also caught two
+transport-level details that synthetic JSON missed:
+
+- `_elementor_data` must **not** be passed through `wp_unslash()`. Elementor already stores
+  valid JSON (with `\u2014`-style escapes) after `update_metadata()`; unslashing corrupts
+  non-ASCII text.
+- Elementor drops `isInner: false` during its save sanitization, so server-side structural
+  verification normalizes that serialization detail on both sides.
+
+See [`docs/elementor-live-integration.md`](../../../docs/elementor-live-integration.md) and
+the reproducible script [`scripts/elementor-e2e.mjs`](../../../scripts/elementor-e2e.mjs).

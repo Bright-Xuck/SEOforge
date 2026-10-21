@@ -1,4 +1,5 @@
 import { ProviderCapabilityError, ProviderUnavailableError } from "./errors.js";
+import { resolveRequestPrompt } from "./prompt-render.js";
 import type { AIProvider, AIProviderCapability, AIProviderCapabilities, GenerateRequest, GenerateResponse } from "./types.js";
 
 export class AIEngine {
@@ -8,7 +9,7 @@ export class AIEngine {
     if (!(await this.health())) {
       throw new ProviderUnavailableError(this.provider.metadata.id);
     }
-    return this.provider.generate(request);
+    return this.provider.generate(resolveRequestPrompt(request));
   }
 
   async health(): Promise<boolean> {

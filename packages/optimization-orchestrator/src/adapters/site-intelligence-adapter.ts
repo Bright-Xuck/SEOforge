@@ -5,7 +5,7 @@
 
 import type { Engine } from "../types.js";
 import type { OptimizationContext } from "../context.js";
-import { analyzeSite } from "@forge/content-intelligence";
+import { analyzeSite, rankPagePriorities } from "@forge/content-intelligence";
 import type { SiteIntelligenceReport } from "@forge/content-intelligence";
 
 /**
@@ -13,7 +13,7 @@ import type { SiteIntelligenceReport } from "@forge/content-intelligence";
  *
  * Reads:  websiteSnapshots (+ optional knowledge/memory/universalPages) from context
  * Writes: siteIntelligence, siteOpportunities, refreshCandidates,
- *         internalLinkOpportunities, topicCoverageGaps to context
+ *         internalLinkOpportunities, topicCoverageGaps, pagePriorities to context
  *
  * Deterministic — no AI, no providers, no side effects. The orchestrator can
  * consume these opportunities and pass them into the existing workflow.
@@ -40,6 +40,7 @@ export function createSiteIntelligenceEngine(): Engine {
       context.siteOpportunities = report.opportunities;
       context.refreshCandidates = report.refreshCandidates;
       context.internalLinkOpportunities = report.internalLinkOpportunities;
+      context.pagePriorities = rankPagePriorities(report);
       context.topicCoverageGaps = report.clusters
         .filter((cluster) => cluster.missingCoverage.length > 0)
         .map((cluster) => ({

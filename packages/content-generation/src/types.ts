@@ -15,6 +15,7 @@ import type {
 } from "@forge/knowledge-engine";
 import type { BrandProfile } from "@forge/core";
 import type { MissionContext } from "@forge/mission-engine";
+import type { ContentQualityEvaluation } from "./quality/types.js";
 
 /**
  * Aggregated project context for generation.
@@ -95,6 +96,8 @@ export interface GeneratedSection {
   readonly confidence: GenerationConfidence;
   readonly warnings: GenerationWarnings;
   readonly estimatedTokenCost: number;
+  /** Deterministic usefulness/accuracy evaluation (Sprint 29). */
+  readonly quality?: ContentQualityEvaluation;
 }
 
 /**

@@ -1,5 +1,7 @@
 export { OpenAIProvider } from "./openai.js";
 export type { OpenAIConfig } from "./openai.js";
+export { ZAIProvider } from "./zai.js";
+export type { ZAIConfig } from "./zai.js";
 export { AnthropicProvider } from "./anthropic.js";
 export type { AnthropicConfig } from "./anthropic.js";
 export { GeminiProvider } from "./gemini.js";

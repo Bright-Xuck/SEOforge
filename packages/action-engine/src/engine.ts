@@ -20,7 +20,6 @@ interface MutableRiskSummary {
  */
 export function generateExecutionPlan(report: RecommendationReport): ExecutionPlan {
   const actions: Action[] = [];
-  const approvalQueue: string[] = [];
 
   // Use mutable intermediate type for calculation
   const mutableRisk: MutableRiskSummary = { safe: 0, moderate: 0, high: 0, critical: 0 };
@@ -31,10 +30,6 @@ export function generateExecutionPlan(report: RecommendationReport): ExecutionPl
 
     // Count risk levels on mutable object
     mutableRisk[action.risk] += 1;
-
-    if (action.requiresApproval) {
-      approvalQueue.push(action.id);
-    }
   }
 
   // Convert to readonly type for output
@@ -45,22 +40,43 @@ export function generateExecutionPlan(report: RecommendationReport): ExecutionPl
     critical: mutableRisk.critical,
   };
 
+  return buildExecutionPlan(actions, report.url, riskSummary);
+}
+
+/**
+ * Assemble an ExecutionPlan from already-decided actions.
+ *
+ * Review → execution needs this: the review session is the plan source, so
+ * execution must not regenerate actions from a recommendation report (that was
+ * the Sprint 18/22 breakage — passing `{ actions }` where a
+ * RecommendationReport was expected). Statuses are preserved, so only actions
+ * explicitly approved by the reviewer can reach a real write.
+ */
+export function buildExecutionPlan(
+  actions: Action[],
+  url: string,
+  riskSummaryInput?: RiskSummary,
+): ExecutionPlan {
+  const computedRisk = { safe: 0, moderate: 0, high: 0, critical: 0 };
+  if (!riskSummaryInput) {
+    for (const action of actions) computedRisk[action.risk] += 1;
+  }
+  const riskSummary: RiskSummary = riskSummaryInput ?? computedRisk;
+
   const summary: ActionSummary = {
     total: actions.length,
-    automatable: actions.filter((a) => a.automatable).length,
-    requiresApproval: actions.filter((a) => a.requiresApproval).length,
+    automatable: actions.filter((action) => action.automatable).length,
+    requiresApproval: actions.filter((action) => action.requiresApproval).length,
     byRisk: riskSummary,
   };
 
-  const estimatedDuration = formatEstimatedDuration(calculateTotalMinutes(actions));
-
   return {
-    url: report.url,
+    url,
     generatedAt: new Date().toISOString(),
     actions,
-    approvalQueue,
+    approvalQueue: actions.filter((action) => action.requiresApproval).map((action) => action.id),
     summary,
-    estimatedDuration,
+    estimatedDuration: formatEstimatedDuration(calculateTotalMinutes(actions)),
     riskSummary,
   };
 }

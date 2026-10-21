@@ -1,0 +1,15 @@
+HTTP/1.1 422 Unprocessable Entity
+Host: 127.0.0.1:8080
+Date: Tue, 20 Oct 2026 13:54:18 GMT
+Connection: close
+X-Powered-By: PHP/8.3.35
+Content-Type: application/json; charset=UTF-8
+X-Robots-Tag: noindex
+Link: <http://127.0.0.1:8080/wp-json/>; rel="https://api.w.org/"
+X-Content-Type-Options: nosniff
+Access-Control-Expose-Headers: X-WP-Total, X-WP-TotalPages, Link
+Access-Control-Allow-Headers: Authorization, X-WP-Nonce, Content-Disposition, Content-MD5, Content-Type
+Allow: POST, GET
+Expires: Wed, 11 Jan 1984 05:00:00 GMT
+Cache-Control: no-cache, must-revalidate, max-age=0, no-store, private
+

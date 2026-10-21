@@ -1,0 +1,10 @@
+{
+  "postId": 6,
+  "originalData": "[{\"id\":\"a1b2c3d4\",\"elType\":\"container\",\"settings\":{\"flex_direction\":\"column\",\"content_width\":\"boxed\"},\"elements\":[{\"id\":\"e1f2a3b4\",\"elType\":\"widget\",\"settings\":{\"title\":\"Accounting Software for Small Businesses\",\"header_size\":\"h1\",\"align\":\"center\"},\"elements\":[],\"widgetType\":\"heading\"},{\"id\":\"c3d4e5f6\",\"elType\":\"widget\",\"settings\":{\"editor\":\"<p>Premium accounting software for modern businesses. Trusted by 2,000+ teams.<\\/p>\"},\"elements\":[],\"widgetType\":\"text-editor\"},{\"id\":\"f7a8b9c0\",\"elType\":\"widget\",\"settings\":{\"text\":\"Start Free Trial\",\"link\":{\"url\":\"https:\\/\\/example.test\\/signup\",\"is_external\":\"\",\"nofollow\":\"\"}},\"elements\":[],\"widgetType\":\"button\"}],\"isInner\":false},{\"id\":\"b2c3d4e5\",\"elType\":\"container\",\"settings\":{\"flex_direction\":\"row\"},\"elements\":[{\"id\":\"d4e5f6a7\",\"elType\":\"widget\",\"settings\":{\"icon_list\":[{\"text\":\"Automated bookkeeping\",\"selected_icon\":{\"value\":\"fas fa-check\",\"library\":\"fa-solid\"}},{\"text\":\"Real-time cash flow\",\"selected_icon\":{\"value\":\"fas fa-check\",\"library\":\"fa-solid\"}}]},\"elements\":[],\"widgetType\":\"icon-list\"},{\"id\":\"a7b8c9d0\",\"elType\":\"widget\",\"settings\":{\"color\":\"#dddddd\"},\"elements\":[],\"widgetType\":\"divider\"}],\"isInner\":false}]",
+  "originalFingerprint": "8qz5ct",
+  "originalModified": "2026-10-20T14:00:40+00:00",
+  "appliedFingerprint": "ng7qr7",
+  "appliedAt": "2026-10-20T14:04:05.467Z",
+  "patchId": "forge-e2e-1792505029779",
+  "executionId": "elementor-6-1792505044461"
+}

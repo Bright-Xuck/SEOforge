@@ -1,7 +1,7 @@
 // @forge/dom-engine
 // Patch engine: routes ContentPatch to the correct resolver by format.
 
-import type { ContentPatch, PatchApplyResult } from "../types.js";
+import type { ContentPatch, PatchApplyResult, ElementorPatchTarget } from "../types.js";
 import { applyPatch } from "../tree/tree-patcher.js";
 import { findNodeByPath } from "../tree/tree-node.js";
 import { renderStructuredPreview } from "../preview/structured-preview.js";
@@ -56,7 +56,7 @@ export async function applyContentPatch(
   }
 }
 
-function applyElementorPatch(rawContent: string, patch: ContentPatch, target: { format: "elementor"; elementId: string; settingsKey: string }): PatchApplyResult {
+function applyElementorPatch(rawContent: string, patch: ContentPatch, target: ElementorPatchTarget): PatchApplyResult {
   const document = parseElementorDocument(rawContent, {});
   if (!document) {
     return { success: false, patchedContent: rawContent, preview: { before: rawContent, after: rawContent, renderFidelity: "structured-diff", warnings: ["Invalid Elementor data"] }, warnings: ["Invalid Elementor data"] };
@@ -66,12 +66,12 @@ function applyElementorPatch(rawContent: string, patch: ContentPatch, target: { 
     id: patch.id,
     currentContent: patch.currentContent,
     proposedContent: patch.proposedContent,
-    target: { format: "elementor" as const, elementId: target.elementId, settingsKey: target.settingsKey },
+    target,
+    semanticIntent: patch.semanticIntent,
+    sourceFingerprint: patch.sourceFingerprint,
+    expectedWidgetType: target.expectedWidgetType,
   };
-  const expectedFingerprint =
-    typeof (patch as ContentPatch & { sourceFingerprint?: string }).sourceFingerprint === "string"
-      ? (patch as ContentPatch & { sourceFingerprint?: string }).sourceFingerprint
-      : undefined;
+  const expectedFingerprint = patch.sourceFingerprint;
 
   const resolution = resolveElementorPatch(document, patchLike, { expectedFingerprint });
   if (!resolution.ok) {

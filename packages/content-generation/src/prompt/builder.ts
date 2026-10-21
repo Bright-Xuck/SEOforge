@@ -43,15 +43,22 @@ export class PromptBuilder {
    * Used by the generator when calling engine.generate({ prompt, variables }).
    */
   buildVariables(context: PromptContext): Record<string, string> {
+    const brandVoice = context.knowledge.brandVoice ?? context.brand.tone;
     return {
       sectionKind: context.section.kind,
       existingSection: context.existingSection,
       targetKeywords: context.targetKeywords.join(", "),
+      primaryKeyword: context.targetKeywords[0] ?? "",
       missingTopics: context.missingTopics.join(", "),
       intent: context.intent.primary,
-      audience: context.audience.level,
+      audience: (context.brand.audiences ?? [])[0] ?? context.audience.level,
       tone: context.tone,
       brand: context.brand.companyName,
+      brandVoice,
+      brandStyle: context.brand.writingStyle,
+      brandAudience: (context.brand.audiences ?? []).join(", "),
+      brandProducts: [...(context.brand.products ?? []), ...(context.brand.services ?? [])].join(", "),
+      readingLevel: context.brand.readingLevel,
       knowledge: context.knowledge.brand ?? "",
       memory: context.memory.project,
     };

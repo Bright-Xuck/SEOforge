@@ -176,6 +176,10 @@ export { detectSiteOpportunities } from "./site/opportunities.js";
 // Internal link opportunities (output only)
 export { detectInternalLinkOpportunities } from "./site/internal-links.js";
 
+// Page priorities (ordered work queue derived from the site report)
+export { rankPagePriorities } from "./site/page-priority.js";
+export type { PagePriority, PagePriorityBand, PagePrioritySignals } from "./site/page-priority.js";
+
 // Content refresh detection
 export { detectRefreshCandidates } from "./site/refresh.js";
 

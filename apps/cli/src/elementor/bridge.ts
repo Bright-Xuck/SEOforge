@@ -541,8 +541,14 @@ export function createElementorBridge(provider: ElementorProviderLike) {
           modified: read.modified,
         });
       } catch (error) {
-        // Write failed — attempt rollback to the original document.
-        const rollback = await attemptRollback(provider, rollbackPayload, document.fingerprint);
+        // The transport may fail AFTER the write landed (e.g. the server-side
+        // structural verification rejected a save that Elementor normalized).
+        // Accept either the pre-write or the intended post-write fingerprint
+        // when deciding whether it is safe to restore the original.
+        const rollback = await attemptRollback(provider, rollbackPayload, [
+          document.fingerprint,
+          mutation.document.fingerprint,
+        ]);
         return {
           executionId,
           postId,
@@ -575,7 +581,7 @@ export function createElementorBridge(provider: ElementorProviderLike) {
       });
       const verified = reParsed !== null && reParsed.fingerprint === mutation.document.fingerprint;
       if (!verified) {
-        const rollback = await attemptRollback(provider, rollbackPayload, mutation.document.fingerprint);
+        const rollback = await attemptRollback(provider, rollbackPayload, [mutation.document.fingerprint]);
         return {
           executionId,
           postId,
@@ -761,7 +767,7 @@ function buildPreview(
 async function attemptRollback(
   provider: ElementorProviderLike,
   payload: ElementorRollbackPayload,
-  expectedCurrentFingerprint?: string,
+  expectedCurrentFingerprints?: string[],
 ): Promise<{ ok: boolean; message: string }> {
   try {
     const current = await provider.readElementorDocument(payload.postId);
@@ -769,10 +775,14 @@ async function attemptRollback(
     if (!currentDoc) {
       return { ok: false, message: "Rollback aborted: the remote document could not be parsed." };
     }
-    if (expectedCurrentFingerprint !== undefined && currentDoc.fingerprint !== expectedCurrentFingerprint) {
+    if (
+      expectedCurrentFingerprints !== undefined &&
+      expectedCurrentFingerprints.length > 0 &&
+      !expectedCurrentFingerprints.includes(currentDoc.fingerprint)
+    ) {
       return {
         ok: false,
-        message: `Rollback refused: the remote document changed during the operation (expected fingerprint ${expectedCurrentFingerprint}, found ${currentDoc.fingerprint}).`,
+        message: `Rollback refused: the remote document changed during the operation (expected one of ${expectedCurrentFingerprints.join(", ")}, found ${currentDoc.fingerprint}).`,
       };
     }
     await provider.updateElementorDocument(payload.postId, payload.originalData, {

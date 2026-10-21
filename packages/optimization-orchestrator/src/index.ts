@@ -56,9 +56,13 @@ export {
   createComposerEngine,
   createExecutionEngine,
   createDefaultEngines,
+  buildExecutionPlanFromReview,
+  isExecutablePatch,
 } from "./adapters/index.js";
 export type {
   ContentGenerationAdapterOptions,
   ReviewAdapterOptions,
   ExecutionAdapterOptions,
+  ReviewExecutionOptions,
+  SectionTarget,
 } from "./adapters/index.js";

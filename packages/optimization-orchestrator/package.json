@@ -23,6 +23,7 @@
     "@forge/review-engine": "workspace:*",
     "@forge/optimization-composer": "workspace:*",
     "@forge/execution-engine": "workspace:*",
+    "@forge/action-engine": "workspace:*",
     "@forge/ai-engine": "workspace:*",
     "@forge/knowledge-engine": "workspace:*",
     "@forge/prompt-registry": "workspace:*"

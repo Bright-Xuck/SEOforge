@@ -312,6 +312,9 @@ importers:
 
   packages/optimization-orchestrator:
     dependencies:
+      '@forge/action-engine':
+        specifier: workspace:*
+        version: link:../action-engine
       '@forge/ai-engine':
         specifier: workspace:*
         version: link:../ai-engine

@@ -10,6 +10,7 @@ import {
   scoreQuality,
   detectSections,
 } from "@forge/content-intelligence";
+import type { SectionInfo, SectionKind } from "@forge/content-intelligence";
 import { load } from "cheerio";
 
 /**
@@ -44,8 +45,30 @@ export function createContentIntelligenceEngine(): Engine {
       context.contentGraph = contentGraph;
 
       // Detect sections
-      const sections = detectSections(snapshot, $);
-      context.sections = sections;
+      const detected = detectSections(snapshot, $);
+      context.sections = detected;
+
+      // Merge document-derived sections (real editable widgets) into the page
+      // DNA inventory. These are authoritative for generation because they map
+      // 1:1 to a writable field; heuristic sections remain available for gaps.
+      const documentSections = (context.documentSections as SectionInfo[] | undefined) ?? [];
+      if (documentSections.length > 0) {
+        const presentKinds = new Set<SectionKind>([
+          ...detected.present,
+          ...documentSections.map((section) => section.kind),
+        ]);
+        const byId: Record<string, SectionInfo> = { ...detected.byId };
+        for (const section of documentSections) byId[section.id] = section;
+        context.pageDNA = {
+          ...pageDNA,
+          sectionInventory: {
+            sections: [...documentSections, ...detected.sections.filter((s) => s.present)],
+            present: [...presentKinds],
+            missing: detected.missing.filter((kind) => !presentKinds.has(kind)),
+            byId,
+          },
+        };
+      }
 
       // Detect gaps
       const gaps = detectGaps(snapshot, $);

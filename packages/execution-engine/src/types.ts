@@ -86,4 +86,6 @@ export interface ExecutionResult {
   readonly rollbackGroups: RollbackGroupSummary[];
   readonly executionTime: string;
   readonly rollbackRequired: boolean;
+  /** Per-action failure details; previously errors were swallowed entirely. */
+  readonly errors?: Array<{ readonly actionId: string; readonly message: string }>;
 }

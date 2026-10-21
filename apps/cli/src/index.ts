@@ -4,12 +4,13 @@
 // Forge command-line interface.
 
 import { Command } from "commander";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
 import { FORGE_NAME, FORGE_VERSION } from "@forge/shared";
+import { loadEnvFile } from "@forge/config";
 import { createWordPressProvider, WORDPRESS_PROVIDER_METADATA } from "@forge/providers-wordpress";
 import { WebsiteReadError } from "@forge/core";
 import { readWebsite } from "@forge/tools/website-reader";
-import { loadKnowledge, createProjectProfile, detectChanges } from "@forge/knowledge-engine";
+import { loadKnowledge, createProjectProfile, detectChanges, updateKnowledgeGraph } from "@forge/knowledge-engine";
 import { loadMemory, saveMemory } from "@forge/memory-engine";
 import {
   MissionPlanner,
@@ -38,7 +39,7 @@ import {
   PerformanceAgent,
   LearningAgent,
 } from "@forge/agent-engine";
-import { AIEngine, ProviderFactory } from "@forge/ai-engine";
+import { AIEngine, ProviderFactory, ProviderUnavailableError } from "@forge/ai-engine";
 import {
   SkillRegistry,
   skillPromptRegistry,
@@ -70,10 +71,10 @@ import {
 } from "@forge/pipeline-engine";
 import type { WebsiteSnapshot, WriteOperation, WriteMode } from "@forge/core";
 import { execute as executeExecution, rollbackExecution } from "@forge/execution-engine";
+import type { RollbackOperation } from "@forge/execution-engine";
 import { HomepageAnalyzer, HomepageDetector, HomepagePlanner, createReviewSessionFromHomepage } from "@forge/homepage-engine";
 import type { HomepageOptimizationPlan, HomepagePreviewItem } from "@forge/homepage-engine";
-import { decideItem, generateReport, computeMetrics, saveReviewSession, loadReviewSession, listReviewSessions, REVIEW_POLICIES, type ReviewSession, type ReviewPolicyName } from "@forge/review-engine";
-import type { ExecutionPlan } from "@forge/action-engine";
+import { decideItem, generateReport, computeMetrics, completeSession, createReviewSession, saveReviewSession, loadReviewSession, listReviewSessions, REVIEW_POLICIES, type ReviewSession, type ReviewPolicyName } from "@forge/review-engine";
 import {
   buildPageDNA,
   buildContentGraph,
@@ -85,7 +86,7 @@ import {
   analyzeSite,
   createSiteAnalysisMemoryEvent,
 } from "@forge/content-intelligence";
-import { buildUniversalPage } from "@forge/dom-engine";
+import { buildUniversalPage, applyContentPatch } from "@forge/dom-engine";
 import { createElementorBridge, ElementorBridgeError } from "./elementor/bridge.js";
 import type { ElementorRollbackPayload, ElementorPatchInput, ElementorPreviewResult, ElementorWriteResult, ElementorRollbackResult } from "./elementor/bridge.js";
 import {
@@ -94,7 +95,7 @@ import {
   recordElementorWriteEvent,
   recordElementorRollbackEvent,
 } from "./elementor/memory.js";
-import { generateContent, buildProjectContext } from "@forge/content-generation";
+import { generateContent, buildProjectContext, registerContentPrompts } from "@forge/content-generation";
 import {
   writeHero,
   writeBenefits,
@@ -123,10 +124,23 @@ import {
   listWorkflows,
   getWorkflow,
   createContentIntelligenceEngine,
+  createSiteIntelligenceEngine,
+  createContentGenerationEngine,
   createReviewEngine,
   createComposerEngine,
   createExecutionEngine,
+  buildExecutionPlanFromReview,
 } from "@forge/optimization-orchestrator";
+import { deriveElementorSections, pageUrlFor } from "./optimize/elementor-sections.js";
+
+// Load a local `.env` before any command reads process.env. Values already in
+// the shell/CI environment take precedence; the loader never logs values.
+const envFileResult = loadEnvFile(process.env.FORGE_ENV_FILE ?? ".env");
+if (envFileResult.errors.length > 0) {
+  for (const error of envFileResult.errors) {
+    process.stderr.write(`Warning: ${error}\n`);
+  }
+}
 
 const program = new Command();
 const skillRegistry = new SkillRegistry();
@@ -153,9 +167,10 @@ const providerRegistry = {
     { id: "anthropic", name: "Anthropic" },
     { id: "gemini", name: "Gemini" },
     { id: "openrouter", name: "OpenRouter" },
+    { id: "zai", name: "Z.ai" },
     { id: "ollama", name: "Ollama" },
   ],
-  exists: (id: string) => ["openai", "anthropic", "gemini", "openrouter", "ollama"].includes(id),
+  exists: (id: string) => ["openai", "anthropic", "gemini", "openrouter", "zai", "ollama"].includes(id),
 };
 
 function createPipelineRegistryAdapter() {
@@ -298,24 +313,139 @@ for (const agent of [
 }
 
 function createProvider(providerId?: string): AIEngine {
-  const provider = ProviderFactory.create({ provider: (providerId ?? "openai") as never });
+  const provider = ProviderFactory.create({ provider: resolveAiProviderId(providerId) as never });
   return new AIEngine(provider);
 }
 
-function createWordPressProviderFromEnv() {
-  const siteUrl = process.env.FORGE_WP_SITE_URL ?? "https://example.com";
-  const username = process.env.FORGE_WP_USERNAME ?? "forge";
-  const applicationPassword = process.env.FORGE_WP_APPLICATION_PASSWORD ?? "password";
-  return createWordPressProvider({ siteUrl, username, applicationPassword });
+const AI_PROVIDER_IDS = ["openai", "anthropic", "gemini", "openrouter", "zai", "ollama"] as const;
+const AI_PROVIDER_ENV: Record<string, string> = {
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  gemini: "GEMINI_API_KEY",
+  openrouter: "OPENROUTER_API_KEY",
+  zai: "ZAI_API_KEY",
+  ollama: "OLLAMA_BASE_URL",
+};
+
+function requireConfigValue(value: string | undefined, label: string): string {
+  if (!value || value.trim() === "") {
+    throw new Error(
+      `Missing configuration: ${label} is required. Add it to .env (copy .env.example) or pass the matching flag. Run "forge doctor" to check your setup.`,
+    );
+  }
+  return value.trim();
 }
 
-function resolveHomepageUrl(project: string): string {
-  return process.env.FORGE_HOME_URL ?? process.env.FORGE_WP_SITE_URL ?? `https://${project}.example.com`;
+function validateSiteUrl(value: string, label: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(
+      `${label} must be an absolute URL, for example http://127.0.0.1:8080.`,
+    );
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`${label} must use http or https.`);
+  }
+  return value.replace(/\/+$/, "");
+}
+
+function resolveWordPressConnection(options: {
+  url?: string;
+  username?: string;
+  appPassword?: string;
+} = {}): { siteUrl: string; username: string; applicationPassword: string } {
+  return {
+    siteUrl: validateSiteUrl(
+      requireConfigValue(
+        options.url ?? process.env.FORGE_WP_SITE_URL,
+        "WordPress site URL (FORGE_WP_SITE_URL or --url)",
+      ),
+      "WordPress site URL",
+    ),
+    username: requireConfigValue(
+      options.username ?? process.env.FORGE_WP_USERNAME,
+      "WordPress username (FORGE_WP_USERNAME or --username)",
+    ),
+    applicationPassword: requireConfigValue(
+      options.appPassword ?? process.env.FORGE_WP_APPLICATION_PASSWORD,
+      "WordPress application password (FORGE_WP_APPLICATION_PASSWORD or --app-password)",
+    ),
+  };
+}
+
+function createWordPressProviderFromEnv() {
+  return createWordPressProvider(resolveWordPressConnection());
+}
+
+function resolveHomepageUrl(): string {
+  const raw = process.env.FORGE_HOME_URL ?? process.env.FORGE_WP_SITE_URL;
+  return validateSiteUrl(
+    requireConfigValue(raw, "site URL (FORGE_HOME_URL or FORGE_WP_SITE_URL)"),
+    "Forge site URL",
+  );
+}
+
+function resolveAiProviderId(providerArg?: string, providerOption?: string): string {
+  if (providerArg && providerOption && providerArg !== providerOption) {
+    throw new Error(
+      `Conflicting AI providers: positional "${providerArg}" and --provider "${providerOption}". Pass only one.`,
+    );
+  }
+  const providerId =
+    providerOption ??
+    providerArg ??
+    process.env.DEFAULT_PROVIDER ??
+    detectConfiguredAiProvider() ??
+    "ollama";
+  if (!AI_PROVIDER_IDS.includes(providerId as (typeof AI_PROVIDER_IDS)[number])) {
+    throw new Error(
+      `Unknown AI provider "${providerId}". Supported providers: ${AI_PROVIDER_IDS.join(", ")}.`,
+    );
+  }
+  return providerId;
+}
+
+function aiProviderSetupMessage(providerId: string, error: unknown): string {
+  if (!(error instanceof ProviderUnavailableError)) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  if (providerId === "ollama") {
+    return `AI provider "ollama" is not reachable. Start Ollama and confirm OLLAMA_BASE_URL (currently ${process.env.OLLAMA_BASE_URL ?? "http://localhost:11434"}), then run "forge ai test ollama".`;
+  }
+  const envVar = AI_PROVIDER_ENV[providerId];
+  if (envVar && !aiProviderConfigured(providerId)) {
+    return `AI provider "${providerId}" is not configured. Set ${envVar} in .env or your environment, then run "forge ai test ${providerId}".`;
+  }
+  return `AI provider "${providerId}" is configured but unavailable. Check the credentials/model and run "forge ai test ${providerId}".`;
+}
+
+function failAiCommand(providerId: string, error: unknown, json?: boolean): never {
+  const message = aiProviderSetupMessage(providerId, error);
+  if (json) {
+    process.stdout.write(
+      JSON.stringify(
+        {
+          provider: providerId,
+          error: {
+            code: error instanceof ProviderUnavailableError ? "AI_PROVIDER_UNAVAILABLE" : "AI_COMMAND_FAILED",
+            message,
+          },
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+  } else {
+    process.stderr.write(`Error: ${message}\n`);
+  }
+  process.exit(1);
 }
 
 async function loadHomepageProjectContext(project: string) {
   const { resolved, rootDir, knowledge, memory, profile } = await loadProjectContext(project, "homepage");
-  const siteUrl = resolveHomepageUrl(resolved.project);
+  const siteUrl = resolveHomepageUrl();
   const snapshot = await readWebsite(siteUrl);
   const detector = new HomepageDetector();
   const context = detector.detectContext(resolved.project, snapshot, siteUrl, profile);
@@ -506,6 +636,174 @@ program
       );
       process.exit(1);
     }
+  });
+
+// Sprint 29: offline configuration/onboarding check. No network calls; live
+// checks stay in `forge ai test` and `forge wp elementor doctor`.
+program
+  .command("doctor")
+  .description("Check local Forge configuration (offline; no network calls)")
+  .option("--json", "Output result as JSON")
+  .action((options: { json?: boolean }) => {
+    const checks: {
+      id: string;
+      status: "pass" | "warn" | "fail";
+      label: string;
+      detail: string;
+    }[] = [];
+    const add = (id: string, status: "pass" | "warn" | "fail", label: string, detail: string) => {
+      checks.push({ id, status, label, detail });
+    };
+
+    const nodeMajor = Number(process.versions.node.split(".")[0]);
+    if (nodeMajor >= 20) {
+      add("node", "pass", "Node.js", `v${process.versions.node}`);
+    } else {
+      add("node", "fail", "Node.js", `v${process.versions.node} is too old; Forge requires Node.js 20 or newer.`);
+    }
+
+    if (envFileResult.errors.length > 0) {
+      add("env-file", "fail", "Environment file", envFileResult.errors.join(" "));
+    } else if (envFileResult.loaded) {
+      add(
+        "env-file",
+        "pass",
+        "Environment file",
+        `Loaded ${envFileResult.applied.length} variable(s) from ${envFileResult.path}; ${envFileResult.preserved.length} shell value(s) preserved.`,
+      );
+    } else {
+      add(
+        "env-file",
+        "warn",
+        "Environment file",
+        `No .env found at ${envFileResult.path}. Copy .env.example to .env or use shell environment variables.`,
+      );
+    }
+
+    const siteUrl = process.env.FORGE_WP_SITE_URL;
+    if (!siteUrl) {
+      add("wp-site", "fail", "WordPress site", "FORGE_WP_SITE_URL is not set. Add it to .env (copy .env.example).");
+    } else {
+      try {
+        validateSiteUrl(siteUrl, "FORGE_WP_SITE_URL");
+        add("wp-site", "pass", "WordPress site", siteUrl);
+      } catch (error) {
+        add("wp-site", "fail", "WordPress site", error instanceof Error ? error.message : String(error));
+      }
+    }
+
+    const username = process.env.FORGE_WP_USERNAME;
+    if (!username) {
+      add("wp-username", "fail", "WordPress user", "FORGE_WP_USERNAME is not set.");
+    } else {
+      add("wp-username", "pass", "WordPress user", username);
+    }
+
+    const applicationPassword = process.env.FORGE_WP_APPLICATION_PASSWORD;
+    if (!applicationPassword) {
+      add(
+        "wp-password",
+        "fail",
+        "WordPress application password",
+        "FORGE_WP_APPLICATION_PASSWORD is not set. Never commit this value.",
+      );
+    } else {
+      add("wp-password", "pass", "WordPress application password", "set (value never displayed)");
+    }
+
+    const homeUrl = process.env.FORGE_HOME_URL;
+    if (homeUrl) {
+      try {
+        validateSiteUrl(homeUrl, "FORGE_HOME_URL");
+        add("home-url", "pass", "Homepage URL override", homeUrl);
+      } catch (error) {
+        add("home-url", "fail", "Homepage URL override", error instanceof Error ? error.message : String(error));
+      }
+    }
+
+    const configuredProviders = AI_PROVIDER_IDS.filter(
+      (providerId) => providerId !== "ollama" && aiProviderConfigured(providerId),
+    );
+    if (configuredProviders.length > 0) {
+      add("ai", "pass", "AI providers", `Configured: ${configuredProviders.join(", ")}`);
+    } else {
+      add(
+        "ai",
+        "warn",
+        "AI providers",
+        "No API key configured. AI section generation is disabled; deterministic metadata-only optimization still works.",
+      );
+    }
+
+    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
+    try {
+      const parsed = new URL(ollamaBaseUrl);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("protocol");
+      add("ollama-url", "pass", "Ollama URL", ollamaBaseUrl);
+    } catch {
+      add("ollama-url", "fail", "Ollama URL", `OLLAMA_BASE_URL is not a valid http(s) URL: ${ollamaBaseUrl}`);
+    }
+
+    try {
+      const rootDir = "projects";
+      mkdirSync(rootDir, { recursive: true });
+      const probe = `${rootDir}/.forge-doctor-probe`;
+      writeFileSync(probe, "ok", "utf8");
+      unlinkSync(probe);
+      add("projects", "pass", "Runtime storage", `${rootDir} is writable`);
+    } catch (error) {
+      add(
+        "projects",
+        "fail",
+        "Runtime storage",
+        `Cannot write to projects/: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    const errors = checks.filter((check) => check.status === "fail");
+    const warnings = checks.filter((check) => check.status === "warn");
+    const ok = errors.length === 0;
+    const readyForWrites =
+      ok &&
+      Boolean(siteUrl) &&
+      Boolean(username) &&
+      Boolean(applicationPassword);
+
+    if (options.json) {
+      process.stdout.write(
+        JSON.stringify(
+          {
+            ok,
+            readyForWrites,
+            node: process.versions.node,
+            cwd: process.cwd(),
+            envFile: {
+              path: envFileResult.path,
+              loaded: envFileResult.loaded,
+              applied: envFileResult.applied.length,
+              preserved: envFileResult.preserved.length,
+              errors: envFileResult.errors.length,
+            },
+            checks,
+          },
+          null,
+          2,
+        ) + "\n",
+      );
+      if (!ok) process.exitCode = 1;
+      return;
+    }
+
+    for (const check of checks) {
+      const marker = check.status === "pass" ? "✓" : check.status === "warn" ? "!" : "✗";
+      process.stdout.write(`${marker} ${check.label}: ${check.detail}\n`);
+    }
+    process.stdout.write(
+      `\n${ok ? "Configuration looks usable." : "Configuration has errors."} Writes ready: ${readyForWrites ? "yes" : "no"}. ` +
+        `${warnings.length} warning(s), ${errors.length} error(s).\n`,
+    );
+    process.stdout.write('Next: "forge ai test <provider>" and "forge wp elementor doctor <page>".\n');
+    if (!ok) process.exitCode = 1;
   });
 
 // WordPress provider commands
@@ -895,12 +1193,25 @@ elementorCommand
   .description("Check WordPress/Elementor health: reachability, auth, Elementor availability/version, target document writability")
   .action(async (site: string | undefined, username: string | undefined, password: string | undefined, pageArg: string | undefined, options: { json?: boolean }) => {
     try {
-      const credentials = resolveElementorCredentials(site, username, password);
+      // Doctor accepts the same calling conventions as the other Elementor
+      // commands: four positionals, or page-only + FORGE_WP_* environment
+      // variables, or environment variables only (site-wide health check).
+      // Sprint 26 fix: without this normalization, `doctor <page>` treated the
+      // page id as the site URL and reported a false ELEMENTOR_NOT_INSTALLED.
+      const provided = [site, username, password, pageArg].filter((value) => value !== undefined);
+      const pageValue = provided.length === 0
+        ? { site, username, password, page: undefined }
+        // Preserve the historical `doctor <site>` form for a site-wide check.
+        // A single non-URL positional is still the page form (`doctor 42`).
+        : provided.length === 1 && /^https?:\/\//i.test(provided[0] as string)
+          ? { site: provided[0] as string, username, password, page: undefined }
+          : normalizeElementorArgs({ site, username, password, page: pageArg }).page;
+      const credentials = resolveElementorCredentials(pageValue.site, pageValue.username, pageValue.password);
       const provider = createWordPressProvider(credentials);
       const bridge = createElementorBridge(provider);
       let postId: number | undefined;
-      if (pageArg !== undefined) {
-        postId = await resolveElementorPageId(provider, pageArg);
+      if (pageValue.page !== undefined) {
+        postId = await resolveElementorPageId(provider, pageValue.page);
       }
       const health = await bridge.checkHealth(postId);
       if (options.json) {
@@ -1009,7 +1320,17 @@ elementorCommand
         return;
       }
       const page = await provider.getPage(pageId);
-      process.stdout.write(renderElementorPreview(page?.title ?? `Page ${pageId}`, preview));
+      // WordPress REST returns title as { rendered: "..." } even though the
+      // shared WordPressPage type declares string. Normalize at the display
+      // boundary so the preview never prints "[object Object]".
+      const rawTitle = page?.title as unknown;
+      const pageTitle =
+        typeof rawTitle === "string"
+          ? rawTitle
+          : typeof (rawTitle as { rendered?: unknown } | undefined)?.rendered === "string"
+            ? ((rawTitle as { rendered: string }).rendered)
+            : `Page ${pageId}`;
+      process.stdout.write(renderElementorPreview(pageTitle, preview));
       if (!preview.compatible) process.exit(1);
     } catch (error) {
       fail(error);
@@ -1074,6 +1395,11 @@ elementorCommand
       const result = await bridge.apply(pageId, patch, { dryRun });
       if (options.json) {
         process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+        // --output is a file side effect, not human output: honor it in JSON
+        // mode too (without appending a message that would corrupt stdout).
+        if (options.output && result.rollbackPayload) {
+          writeFileSync(options.output, JSON.stringify(result.rollbackPayload, null, 2) + "\n");
+        }
       } else {
         process.stdout.write(result.message + "\n");
         if (result.mutation) {
@@ -1099,7 +1425,11 @@ elementorCommand
           siteUrl: credentials.siteUrl,
         }),
       );
-      if (!result.applied) process.exit(1);
+      // Use exitCode rather than an abrupt process.exit(): a dry-run exits
+      // non-zero by contract, but the HTTP keep-alive sockets and memory
+      // handles must be allowed to close or Node 24 can abort while tearing
+      // down a still-open handle (observed as a libuv assertion).
+      if (!result.applied) process.exitCode = 1;
     } catch (error) {
       fail(error);
     }
@@ -1345,54 +1675,114 @@ homepageCommand
 executionCommand
   .command("rollback")
   .option("--project <project>", "Project ID")
+  .option("--from <file>", "Rollback artifact written by optimize")
+  .option("--url <url>", "Site URL (defaults to FORGE_WP_SITE_URL)")
+  .option("--username <user>", "WordPress username (defaults to FORGE_WP_USERNAME)")
+  .option("--app-password <password>", "WordPress application password (defaults to FORGE_WP_APPLICATION_PASSWORD)")
   .option("--resource-type <type>", "Resource type", "page")
   .option("--resource-id <id>", "Resource ID", "1")
   .option("--revision-id <id>", "Revision ID")
   .option("--field <field>", "Field name", "title")
   .option("--value <value>", "Original value", "Rolled back value")
   .option("--json", "Output result as JSON")
-  .action(async (options: { project?: string; resourceType?: string; resourceId?: string; revisionId?: string; field?: string; value?: string; json?: boolean }) => {
-    const provider = createWordPressProviderFromEnv();
-    const operation = createWordPressWriteOperation(
-      "execution.rollback",
-      options.resourceType ?? "page",
-      options.resourceId ?? "1",
-      options.field ?? "title",
-      parseJsonValue(options.value),
-      "apply",
-      options.revisionId,
-    );
-    const result = await rollbackExecution(
-      {
-        url: options.project ?? "default",
-        executedAt: new Date().toISOString(),
-        completedActions: [],
-        failedActions: [],
-        skippedActions: [],
-        rollbackPlan: [
+  .action(async (options: { project?: string; from?: string; url?: string; username?: string; appPassword?: string; resourceType?: string; resourceId?: string; revisionId?: string; field?: string; value?: string; json?: boolean }) => {
+    try {
+      const provider = createWordPressProvider(
+        resolveWordPressConnection({
+          url: options.url,
+          username: options.username,
+          appPassword: options.appPassword,
+        }),
+      );
+
+      if (options.from) {
+        const artifact = JSON.parse(readFileSync(options.from, "utf8")) as {
+          url?: string;
+          pageUrl?: string;
+          project?: string;
+          dryRun?: boolean;
+          execution?: { rollbackPlan?: unknown[] };
+          rollbackPlan?: unknown[];
+        };
+        if (artifact.dryRun === true) {
+          throw new Error(
+            `Artifact ${options.from} is a dry-run preview and contains no original values to restore.`,
+          );
+        }
+        const operations = artifact.execution?.rollbackPlan ?? artifact.rollbackPlan ?? [];
+        if (!Array.isArray(operations) || operations.length === 0) {
+          throw new Error("Rollback artifact contains no rollback operations.");
+        }
+
+        // Undo in reverse order (last write first) so later operations cannot
+        // overwrite the restored state of earlier ones.
+        const result = await rollbackExecution(
           {
-            actionId: operation.id,
-            resourceType: operation.resourceType,
-            resourceId: operation.resourceId,
-            originalValue: operation.oldValue,
-            newValue: operation.newValue,
-            rollbackMethod: "manual_rollback",
-            providerId: provider.id,
-            revisionId: operation.revisionId,
-            timestamp: operation.timestamp,
+            url: artifact.pageUrl ?? artifact.url ?? artifact.project ?? "default",
+            executedAt: new Date().toISOString(),
+            completedActions: [],
+            failedActions: [],
+            skippedActions: [],
+            rollbackPlan: [...operations].reverse() as RollbackOperation[],
+            executionTime: "0ms",
+            rollbackGroups: [],
+            rollbackRequired: true,
           },
-        ],
-        executionTime: "0ms",
-        rollbackGroups: [],
-        rollbackRequired: true,
-      },
-      provider,
-    );
-    if (options.json) {
-      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
-      return;
+          provider,
+        );
+
+        if (options.json) {
+          process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+          return;
+        }
+        process.stdout.write(`Rollback from ${options.from}: ${result.rollbackPlan.length} operation(s) restored\n`);
+        return;
+      }
+
+      const operation = createWordPressWriteOperation(
+        "execution.rollback",
+        options.resourceType ?? "page",
+        options.resourceId ?? "1",
+        options.field ?? "title",
+        parseJsonValue(options.value),
+        "apply",
+        options.revisionId,
+      );
+      const result = await rollbackExecution(
+        {
+          url: options.project ?? "default",
+          executedAt: new Date().toISOString(),
+          completedActions: [],
+          failedActions: [],
+          skippedActions: [],
+          rollbackPlan: [
+            {
+              actionId: operation.id,
+              resourceType: operation.resourceType,
+              resourceId: operation.resourceId,
+              originalValue: operation.oldValue,
+              newValue: operation.newValue,
+              rollbackMethod: "manual_rollback",
+              providerId: provider.id,
+              revisionId: operation.revisionId,
+              timestamp: operation.timestamp,
+            },
+          ],
+          executionTime: "0ms",
+          rollbackGroups: [],
+          rollbackRequired: true,
+        },
+        provider,
+      );
+      if (options.json) {
+        process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+        return;
+      }
+      process.stdout.write(`Execution rollback finished for ${options.project ?? "default"}\n`);
+    } catch (error) {
+      process.stderr.write(`Error: ${error instanceof Error ? error.message : "Unknown error"}\n`);
+      process.exit(1);
     }
-    process.stdout.write(`Execution rollback finished for ${options.project ?? "default"}\n`);
   });
 
 // Sprint 6: Connection management commands
@@ -1995,7 +2385,7 @@ const contentCommand = program.command("content").description("Deterministic con
 
 async function loadContentContext(project: string) {
   const { resolved } = await loadProjectContext(project, "content");
-  const siteUrl = resolveHomepageUrl(resolved.project);
+  const siteUrl = resolveHomepageUrl();
   const snapshot = await readWebsite(siteUrl);
   const $ = (await import("cheerio")).load(snapshot.rawHtml || "");
   return { resolved, siteUrl, snapshot, $ };
@@ -2006,7 +2396,7 @@ async function loadContentContext(project: string) {
 // parser). Site Content Intelligence consumes these snapshots + structures.
 async function loadSiteContext(project: string, options: { depth?: number; limit?: number } = {}) {
   const { resolved, knowledge, memory } = await loadProjectContext(project, "content:site");
-  const siteUrl = resolveHomepageUrl(resolved.project);
+  const siteUrl = resolveHomepageUrl();
   let rootUrl = siteUrl;
   try {
     rootUrl = new URL(siteUrl).origin + "/";
@@ -2346,7 +2736,7 @@ async function runGenerate(sectionKinds: string[], options: {
 }) {
   const project = options.project ?? "default";
   const { resolved, knowledge, profile } = await loadProjectContext(project, "generate");
-  const siteUrl = resolveHomepageUrl(resolved.project);
+  const siteUrl = resolveHomepageUrl();
   const snapshot = await readWebsite(siteUrl);
   const $ = (await import("cheerio")).load(snapshot.rawHtml || "");
   const dna = buildPageDNA(snapshot, $);
@@ -2607,9 +2997,13 @@ reviewCommand
   .description("Apply an approved, completed review session (no --force; hands off to Execution Engine)")
   .argument("<sessionId>", "Review session ID")
   .option("--project <project>", "Project ID", "default")
-  .option("--dry-run", "Dry-run the execution (provider decides)", true)
+  .option("--url <url>", "Site URL (defaults to FORGE_WP_SITE_URL)")
+  .option("--username <user>", "WordPress username (defaults to FORGE_WP_USERNAME)")
+  .option("--app-password <password>", "WordPress application password (defaults to FORGE_WP_APPLICATION_PASSWORD)")
+  .option("--apply", "Write changes (default is dry-run)")
+  .option("--dry-run", "Force dry-run even with --apply")
   .option("--json", "Output result as JSON")
-  .action(async (sessionId: string, options: { project?: string; dryRun?: boolean; json?: boolean }) => {
+  .action(async (sessionId: string, options: { project?: string; url?: string; username?: string; appPassword?: string; apply?: boolean; dryRun?: boolean; json?: boolean }) => {
     const rootDir = resolveRootDir();
     const session = await loadReviewSession(rootDir, options.project ?? "default", sessionId);
     if (!session) {
@@ -2618,7 +3012,7 @@ reviewCommand
     }
     // DECISION 2: verify completion + policy before handing off to Execution Engine.
     if (session.status !== "completed") {
-      process.stderr.write(`Cannot apply: review session ${sessionId} is not completed (status: ${session.status}).\n`);
+      process.stderr.write(`Cannot apply: review session ${sessionId} is not completed (status: ${session.status}). Use "forge review complete ${sessionId}".\n`);
       return;
     }
     const pending = session.items.filter((item) => item.decision === undefined);
@@ -2631,48 +3025,195 @@ reviewCommand
       process.stderr.write(`Cannot apply: ${rejected.length} item(s) rejected. Resolve before applying.\n`);
       return;
     }
-    const approved = session.items.filter((item) => item.decision === "APPROVE");
-    const provider = createWordPressProviderFromEnv();
-    const executionPlan = buildExecutionPlanFromSession(session, approved);
-    const dryRun = options.dryRun ?? true;
-    const result = dryRun
-      ? await executeExecution(executionPlan, provider, { dryRun: true, stopOnBlocked: true })
-      : await executeExecution(executionPlan, provider, { dryRun: false, stopOnBlocked: true });
-    if (options.json) {
-      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+    const approved = session.items.filter((item) => item.decision === "APPROVE" || item.decision === "EDIT");
+    const connection = resolveWordPressConnection({
+      url: options.url,
+      username: options.username,
+      appPassword: options.appPassword,
+    });
+    const siteUrl = connection.siteUrl;
+    const provider = createWordPressProvider(connection);
+    const executionPlan = buildExecutionPlanFromReview(session, {
+      url: siteUrl,
+      pageId: inferPageIdFromSession(session),
+    });
+    if (executionPlan.actions.length === 0) {
+      process.stderr.write("No executable actions: session has no elementor or Rank Math targets.\n");
       return;
     }
-    process.stdout.write(`Applied review session ${sessionId} (${approved.length} approved items) ${dryRun ? "dry-run" : "for real"}.\n`);
+    const dryRun = !options.apply || options.dryRun === true;
+    const result = await executeExecution(executionPlan, provider, {
+      dryRun,
+      stopOnBlocked: true,
+      domEngine: {
+        resolve: async (rawContent, patch) => {
+          const applied = await applyContentPatch(rawContent, patch as never);
+          if (!applied.success) throw new Error(applied.warnings.join("; ") || "patch resolution failed");
+          return applied.patchedContent;
+        },
+      },
+      fetchResource: async (resourceType, resourceId) => {
+        if (resourceType === "elementor-document") {
+          return (await provider.readElementorDocument(resourceId)).data;
+        }
+        throw new Error(`No raw content resolver for resource type "${resourceType}".`);
+      },
+    });
+
+    const dir = `projects/${options.project ?? "default"}/execution`;
+    mkdirSync(dir, { recursive: true });
+    const rollbackFile = `${dir}/${Date.now()}-rollback.json`;
+    writeFileSync(
+      rollbackFile,
+      JSON.stringify(
+        {
+          project: options.project ?? "default",
+          siteUrl,
+          sessionId,
+          dryRun,
+          executedAt: new Date().toISOString(),
+          execution: result,
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    if (options.json) {
+      process.stdout.write(JSON.stringify({ result, rollbackFile }, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(
+      `Applied review session ${sessionId} (${approved.length} approved items) ${dryRun ? "dry-run" : "for real"}.\n`,
+    );
+    process.stdout.write(`Rollback artifact: ${rollbackFile}\n`);
   });
 
 reviewCommand
-  .command("rollback")
-  .description("Roll back a previously applied review session")
+  .command("complete")
+  .description("Mark a review session complete so it can be applied")
   .argument("<sessionId>", "Review session ID")
   .option("--project <project>", "Project ID", "default")
   .option("--json", "Output result as JSON")
   .action(async (sessionId: string, options: { project?: string; json?: boolean }) => {
-    const provider = createWordPressProviderFromEnv();
-    const result = await rollbackExecution(
-      {
-        url: options.project ?? "default",
-        executedAt: new Date().toISOString(),
-        completedActions: [],
-        failedActions: [],
-        skippedActions: [],
-        rollbackPlan: [],
-        executionTime: "0ms",
-        rollbackGroups: [],
-        rollbackRequired: true,
-      },
-      provider,
-    );
-    if (options.json) {
-      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+    const rootDir = resolveRootDir();
+    const session = await loadReviewSession(rootDir, options.project ?? "default", sessionId);
+    if (!session) {
+      process.stderr.write(`Review session not found: ${sessionId}\n`);
       return;
     }
-    process.stdout.write(`Rolled back review session ${sessionId} for ${options.project ?? "default"}.\n`);
+    const pending = session.items.filter((item) => item.decision === undefined);
+    if (pending.length > 0) {
+      process.stderr.write(`Cannot complete: ${pending.length} item(s) still undecided. Decide them first.\n`);
+      return;
+    }
+    const completed = completeSession(session);
+    await saveReviewSession(rootDir, completed);
+    if (options.json) {
+      process.stdout.write(JSON.stringify(completed, null, 2) + "\n");
+      return;
+    }
+    process.stdout.write(`Review session ${sessionId} marked completed.\n`);
   });
+
+reviewCommand
+  .command("rollback")
+  .description("Roll back a previously applied review session using its persisted execution artifact")
+  .argument("<sessionId>", "Review session ID")
+  .option("--project <project>", "Project ID", "default")
+  .option("--from <file>", "Explicit execution artifact (defaults to the latest apply for this session)")
+  .option("--url <url>", "Site URL (defaults to FORGE_WP_SITE_URL)")
+  .option("--username <user>", "WordPress username (defaults to FORGE_WP_USERNAME)")
+  .option("--app-password <password>", "WordPress application password (defaults to FORGE_WP_APPLICATION_PASSWORD)")
+  .option("--json", "Output result as JSON")
+  .action(async (sessionId: string, options: { project?: string; from?: string; url?: string; username?: string; appPassword?: string; json?: boolean }) => {
+    try {
+      const project = options.project ?? "default";
+      const file = options.from ?? findRollbackArtifact(project, sessionId);
+      if (!file) {
+        throw new Error(
+          `No applied execution artifact found for review session ${sessionId}. Pass --from <file> or run \"forge review apply ... --apply\" first.`,
+        );
+      }
+
+      const artifact = JSON.parse(readFileSync(file, "utf8")) as {
+        dryRun?: boolean;
+        execution?: { rollbackPlan?: RollbackOperation[] };
+      };
+      if (artifact.dryRun === true) {
+        throw new Error(`Artifact ${file} is a dry-run preview and contains no original values to restore.`);
+      }
+      const operations = artifact.execution?.rollbackPlan ?? [];
+      if (operations.length === 0) {
+        throw new Error(`Artifact ${file} contains no rollback operations.`);
+      }
+
+      const provider = createWordPressProvider(
+        resolveWordPressConnection({
+          url: options.url,
+          username: options.username,
+          appPassword: options.appPassword,
+        }),
+      );
+
+      const result = await rollbackExecution(
+        {
+          url: options.url ?? project,
+          executedAt: new Date().toISOString(),
+          completedActions: [],
+          failedActions: [],
+          skippedActions: [],
+          rollbackPlan: [...operations].reverse(),
+          executionTime: "0ms",
+          rollbackGroups: [],
+          rollbackRequired: true,
+        },
+        provider,
+      );
+
+      if (options.json) {
+        process.stdout.write(JSON.stringify({ file, result }, null, 2) + "\n");
+        return;
+      }
+      process.stdout.write(
+        `Rolled back review session ${sessionId} from ${file}: ${result.rollbackPlan.length} operation(s) restored.\n`,
+      );
+    } catch (error) {
+      process.stderr.write(`Error: ${error instanceof Error ? error.message : "Unknown error"}\n`);
+      process.exit(1);
+    }
+  });
+
+function findRollbackArtifact(project: string, sessionId: string): string | undefined {
+  const dir = `projects/${project}/execution`;
+  if (!existsSync(dir)) return undefined;
+  const files = readdirSync(dir)
+    .filter((name) => name.endsWith(".json"))
+    .sort()
+    .reverse();
+
+  for (const name of files) {
+    const file = `${dir}/${name}`;
+    try {
+      const artifact = JSON.parse(readFileSync(file, "utf8")) as {
+        sessionId?: string;
+        dryRun?: boolean;
+        execution?: { rollbackPlan?: unknown[] };
+      };
+      if (
+        artifact.sessionId === sessionId &&
+        artifact.dryRun !== true &&
+        (artifact.execution?.rollbackPlan?.length ?? 0) > 0
+      ) {
+        return file;
+      }
+    } catch {
+      // Ignore unreadable artifacts and keep looking.
+    }
+  }
+  return undefined;
+}
 
 async function requireSession(project: string, sessionId?: string): Promise<{ session: ReviewSession; rootDir: string }> {
   const rootDir = resolveRootDir();
@@ -2691,30 +3232,18 @@ async function requireSession(project: string, sessionId?: string): Promise<{ se
 }
 
 function createReviewSessionFromInput(project: string, patches: never[], policyName: ReviewPolicyName): ReviewSession {
-  const { createReviewSession } = require("@forge/review-engine");
   return createReviewSession({ projectId: project, createdBy: "cli", patches, policy: REVIEW_POLICIES[policyName] });
 }
 
-function buildExecutionPlanFromSession(_session: ReviewSession, approved: ReviewSession["items"]): ExecutionPlan {
-  const { generateExecutionPlan } = require("@forge/action-engine");
-  const actions = approved.map((item) => ({
-    id: item.id,
-    recommendationId: item.id,
-    findingId: item.id,
-    type: "content.update-content",
-    title: `Review: ${item.section}`,
-    description: `Apply approved review item ${item.id}`,
-    priority: item.severity === "critical" ? "critical" : item.severity === "high" ? "high" : item.severity === "medium" ? "medium" : "low",
-    risk: item.severity === "critical" ? "critical" : item.severity === "high" ? "high" : item.severity === "medium" ? "moderate" : "safe",
-    automatable: item.severity === "safe",
-    requiresApproval: item.severity !== "safe",
-    rollbackSupported: true,
-    estimatedDuration: "5m",
-    requiredProvider: "wordpress",
-    payload: { content: item.editedContent ?? item.after },
-    status: item.severity === "safe" ? "approved" : "pending",
-  } as never));
-  return generateExecutionPlan({ actions } as never);
+function inferPageIdFromSession(session: ReviewSession): number | undefined {
+  for (const item of session.items) {
+    const target = item.patch.target;
+    if (!target) continue;
+    if ((target.format === "elementor" || target.format === "rank-math") && typeof target.pageId === "number") {
+      return target.pageId;
+    }
+  }
+  return undefined;
 }
 
 generateCommand
@@ -3138,69 +3667,137 @@ aiCommand
 
 aiCommand
   .command("models")
-  .description("List available models for a provider")
+  .description("Show model/capability information for a provider")
   .argument("[provider]", "Provider ID (default: configured default)")
+  .option("--provider <provider>", "Provider ID (alias for [provider])")
   .option("--json", "Output as JSON")
-  .action(async (providerId: string | undefined, options: { json?: boolean }) => {
-    const provider = ProviderFactory.create({ provider: (providerId ?? "openai") as never });
-    const matrix = provider.capabilityMatrix?.() ?? {
-      supportsStreaming: false,
-      supportsSystemPrompts: false,
-      supportsJSON: false,
-      supportsVision: false,
-      supportsReasoning: false,
-      supportsFunctionCalling: false,
-      supportsLargeContext: false,
-      maxContextTokens: 4096,
-      maxOutputTokens: 1024,
-      costTier: "medium",
-      speedTier: "medium",
-    } as const;
-    if (options.json) {
-      process.stdout.write(JSON.stringify(matrix, null, 2) + "\n");
-      return;
+  .action(async (providerId: string | undefined, options: { provider?: string; json?: boolean }) => {
+    let resolvedProvider = providerId ?? options.provider ?? "unknown";
+    try {
+      resolvedProvider = resolveAiProviderId(providerId, options.provider);
+      const provider = ProviderFactory.create({ provider: resolvedProvider as never });
+      const matrix = provider.capabilityMatrix?.() ?? {
+        supportsStreaming: false,
+        supportsSystemPrompts: false,
+        supportsJSON: false,
+        supportsVision: false,
+        supportsReasoning: false,
+        supportsFunctionCalling: false,
+        supportsLargeContext: false,
+        maxContextTokens: 4096,
+        maxOutputTokens: 1024,
+        costTier: "medium",
+        speedTier: "medium",
+      } as const;
+      if (options.json) {
+        process.stdout.write(JSON.stringify({ provider: resolvedProvider, ...matrix }, null, 2) + "\n");
+        return;
+      }
+      process.stdout.write(`Provider: ${resolvedProvider}\n`);
+      process.stdout.write(`Streaming: ${matrix.supportsStreaming}\n`);
+      process.stdout.write(`JSON mode: ${matrix.supportsJSON}\n`);
+      process.stdout.write(`Vision: ${matrix.supportsVision}\n`);
+      process.stdout.write(`Max tokens: ${matrix.maxOutputTokens}\n`);
+    } catch (error) {
+      failAiCommand(resolvedProvider, error, options.json);
     }
-    process.stdout.write(`Provider: ${providerId ?? "default"}\n`);
-    process.stdout.write(`Streaming: ${matrix.supportsStreaming}\n`);
-    process.stdout.write(`JSON mode: ${matrix.supportsJSON}\n`);
-    process.stdout.write(`Vision: ${matrix.supportsVision}\n`);
-    process.stdout.write(`Max tokens: ${matrix.maxOutputTokens}\n`);
   });
 
 aiCommand
   .command("test")
   .description("Test an AI provider connection")
   .argument("[provider]", "Provider ID (default: configured default)")
+  .option("--provider <provider>", "Provider ID (alias for [provider])")
   .option("--model <model>", "Model name")
   .option("--json", "Output as JSON")
-  .action(async (providerId: string | undefined, options: { model?: string; json?: boolean }) => {
-    const provider = ProviderFactory.create({ provider: (providerId ?? "openai") as never, model: options.model });
-    const engine = new AIEngine(provider);
-    const healthy = await engine.health();
-    if (options.json) {
-      process.stdout.write(JSON.stringify({ provider: providerId ?? "default", healthy }, null, 2) + "\n");
-      return;
+  .action(async (providerId: string | undefined, options: { provider?: string; model?: string; json?: boolean }) => {
+    let resolvedProvider = providerId ?? options.provider ?? "unknown";
+    try {
+      resolvedProvider = resolveAiProviderId(providerId, options.provider);
+      const provider = ProviderFactory.create({ provider: resolvedProvider as never, model: options.model });
+      const engine = new AIEngine(provider);
+      const healthy = await engine.health();
+      if (options.json) {
+        process.stdout.write(
+          JSON.stringify(
+            healthy
+              ? { provider: resolvedProvider, healthy }
+              : {
+                  provider: resolvedProvider,
+                  healthy,
+                  error: {
+                    code: "AI_PROVIDER_UNAVAILABLE",
+                    message: aiProviderSetupMessage(
+                      resolvedProvider,
+                      new ProviderUnavailableError(resolvedProvider),
+                    ),
+                  },
+                },
+            null,
+            2,
+          ) + "\n",
+        );
+        if (!healthy) process.exitCode = 1;
+        return;
+      }
+      if (!healthy) {
+        process.stderr.write(
+          `Error: ${aiProviderSetupMessage(resolvedProvider, new ProviderUnavailableError(resolvedProvider))}\n`,
+        );
+        process.exitCode = 1;
+        return;
+      }
+      process.stdout.write(`Provider ${resolvedProvider}: ✓ healthy\n`);
+    } catch (error) {
+      failAiCommand(resolvedProvider, error, options.json);
     }
-    process.stdout.write(`Provider ${providerId ?? "default"}: ${healthy ? "✓ healthy" : "✗ unreachable"}\n`);
   });
 
 aiCommand
   .command("benchmark")
   .description("Run a quick benchmark against a provider")
   .argument("[provider]", "Provider ID (default: configured default)")
+  .option("--provider <provider>", "Provider ID (alias for [provider])")
   .option("--model <model>", "Model name")
   .option("--json", "Output as JSON")
-  .action(async (providerId: string | undefined, options: { model?: string; json?: boolean }) => {
-    const provider = ProviderFactory.create({ provider: (providerId ?? "openai") as never, model: options.model });
-    const engine = new AIEngine(provider);
-    const start = Date.now();
-    const healthy = await engine.health();
-    const latency = Date.now() - start;
-    if (options.json) {
-      process.stdout.write(JSON.stringify({ provider: providerId ?? "default", healthy, latencyMs: latency }, null, 2) + "\n");
-      return;
+  .action(async (providerId: string | undefined, options: { provider?: string; model?: string; json?: boolean }) => {
+    let resolvedProvider = providerId ?? options.provider ?? "unknown";
+    try {
+      resolvedProvider = resolveAiProviderId(providerId, options.provider);
+      const provider = ProviderFactory.create({ provider: resolvedProvider as never, model: options.model });
+      const engine = new AIEngine(provider);
+      const start = Date.now();
+      const healthy = await engine.health();
+      const latency = Date.now() - start;
+      if (options.json) {
+        process.stdout.write(
+          JSON.stringify(
+            healthy
+              ? { provider: resolvedProvider, healthy, latencyMs: latency }
+              : {
+                  provider: resolvedProvider,
+                  healthy,
+                  latencyMs: latency,
+                  error: {
+                    code: "AI_PROVIDER_UNAVAILABLE",
+                    message: aiProviderSetupMessage(
+                      resolvedProvider,
+                      new ProviderUnavailableError(resolvedProvider),
+                    ),
+                  },
+                },
+            null,
+            2,
+          ) + "\n",
+        );
+        if (!healthy) process.exitCode = 1;
+        return;
+      }
+      process.stdout.write(`Provider ${resolvedProvider}: ${healthy ? "✓" : "✗"} (${latency}ms)\n`);
+      if (!healthy) process.exitCode = 1;
+    } catch (error) {
+      failAiCommand(resolvedProvider, error, options.json);
     }
-    process.stdout.write(`Provider ${providerId ?? "default"}: ${healthy ? "✓" : "✗"} (${latency}ms)\n`);
   });
 
 aiCommand
@@ -3297,44 +3894,330 @@ const optimizeCommand = program.command("optimize").description("Run a full opti
 optimizeCommand
   .argument("[project]", "Project ID", "default")
   .option("--workflow <id>", "Workflow ID", "homepage-optimization")
-  .option("--dry-run", "Simulate without making changes", true)
-  .option("--provider <provider>", "AI provider")
+  .option("--url <url>", "Site URL (defaults to FORGE_WP_SITE_URL)")
+  .option("--page <id>", "WordPress page/post ID to optimize")
+  .option("--username <user>", "WordPress username (defaults to FORGE_WP_USERNAME)")
+  .option("--app-password <password>", "WordPress application password (defaults to FORGE_WP_APPLICATION_PASSWORD)")
+  .option("--brand <name>", "Brand name for generation context")
+  .option("--industry <industry>", "Industry for generation context")
+  .option("--keyword <term>", "Primary keyword for this page")
+  .option("--audience <audience>", "Primary audience")
+  .option("--policy <name>", "Review policy: strict, balanced, automatic, enterprise", "balanced")
+  .option("--provider <provider>", "AI provider (openai, anthropic, gemini, openrouter, zai, ollama)")
   .option("--model <model>", "Model name")
+  .option("--apply", "Approve reviewed items and write them to the site")
+  .option("--dry-run", "Force simulation even with --apply")
+  .option("--rollback-file <path>", "Where to write the rollback artifact")
   .option("--json", "Output result as JSON")
-  .action(async (project: string, options: { workflow?: string; dryRun?: boolean; provider?: string; model?: string; json?: boolean }) => {
+  .action(async (
+    projectArg: string,
+    options: {
+      workflow?: string;
+      url?: string;
+      page?: string;
+      username?: string;
+      appPassword?: string;
+      brand?: string;
+      industry?: string;
+      keyword?: string;
+      audience?: string;
+      policy?: string;
+      provider?: string;
+      model?: string;
+      apply?: boolean;
+      dryRun?: boolean;
+      rollbackFile?: string;
+      json?: boolean;
+    },
+  ) => {
     try {
+      const project = projectArg ?? "default";
+      const pageId = Number(options.page);
+      if (!Number.isInteger(pageId) || pageId <= 0) {
+        throw new Error("A WordPress page id is required: pass --page <id>.");
+      }
+      const connection = resolveWordPressConnection({
+        url: options.url,
+        username: options.username,
+        appPassword: options.appPassword,
+      });
+      const { siteUrl } = connection;
+
+      const apply = options.apply === true;
+      const dryRun = !apply || options.dryRun === true;
+      const pageUrl = pageUrlFor(siteUrl, pageId);
+
+      const provider = createWordPressProvider(connection);
+
+      // 1) Read the real rendered page (public HTML) and the real Elementor
+      //    source document. Section targets come from the document, not from
+      //    heuristics, so every generated patch has a writable destination.
+      const snapshot = await readWebsite(pageUrl);
+      const bridge = createElementorBridge(provider);
+      const inspect = await bridge.inspect(pageId, snapshot.rawHtml);
+      const derived = deriveElementorSections(inspect);
+
+      // 2) Read current Rank Math metadata (when the companion endpoint is
+      //    installed). This makes metadata patches skip no-op writes.
+      let seoMeta: { title?: string; description?: string } = {};
+      try {
+        const current = await provider.readSeoMeta(pageId);
+        seoMeta = {
+          title: current.fields.title ?? undefined,
+          description: current.fields.description ?? undefined,
+        };
+      } catch (error) {
+        process.stderr.write(
+          `Warning: Rank Math metadata could not be read (${error instanceof Error ? error.message : "unknown error"}). Metadata writes will be skipped.\n`,
+        );
+      }
+
+      // 3) Build real brand/knowledge context. CLI flags override stored
+      //    knowledge; nothing is invented by the workflow.
+      const rootDir = "projects";
+      const baseKnowledge = await loadKnowledge(rootDir, project);
+      const knowledge = updateKnowledgeGraph(baseKnowledge, {
+        brand: options.brand ?? baseKnowledge.brand,
+        industry: options.industry ?? baseKnowledge.industry,
+        targetAudience: options.audience ?? baseKnowledge.targetAudience,
+        primaryKeywords: options.keyword ? [options.keyword] : baseKnowledge.primaryKeywords,
+      });
+      const memory = await loadMemory(rootDir, project);
+      const memorySummary = memory.summarize(project);
+      const profile = createProjectProfile(knowledge, memorySummary);
+      const brand = buildBrandProfile({ knowledge, memory: memorySummary, projectId: project });
+
+      // 4) Configure AI only when a key actually exists. Without one, the run
+      //    is metadata-only — never fake section content.
+      const explicitProvider = options.provider;
+      const providerId = explicitProvider ?? detectConfiguredAiProvider();
+      const hasAi = providerId ? aiProviderConfigured(providerId) : false;
+      if (explicitProvider && !hasAi) {
+        throw new Error(
+          `AI provider "${explicitProvider}" is selected but no credentials are configured. Set the provider API key or omit --provider to run metadata-only.`,
+        );
+      }
+
+      let aiEngine: AIEngine | undefined;
+      let registry: PromptRegistry | undefined;
+      if (hasAi && providerId) {
+        aiEngine = new AIEngine(
+          ProviderFactory.create({ provider: providerId as never, model: options.model }),
+        );
+        registry = new PromptRegistry();
+        registerContentPrompts(registry);
+      } else {
+        process.stderr.write(
+          "No AI provider credentials found: running deterministic metadata-only optimization (no section copy is generated).\n",
+        );
+      }
+
+      const workflowId = options.workflow ?? "homepage-optimization";
       const orchestrator = new OptimizationOrchestrator({
-        workflowId: options.workflow ?? "homepage-optimization",
-        project: project ?? "default",
-        provider: options.provider,
+        workflowId,
+        project,
+        provider: providerId ?? "",
         model: options.model,
-        dryRun: options.dryRun ?? true,
+        dryRun,
+        apply,
+        configuration: { model: options.model },
+        initialContext: {
+          siteUrl,
+          pageUrl,
+          pageId,
+          pageType: "page",
+          target: {
+            pageUrl,
+            pageId,
+            title: inspect.title,
+            keyword: options.keyword ?? knowledge.primaryKeywords[0],
+          },
+          websiteSnapshot: snapshot,
+          websiteSnapshots: [snapshot],
+          universalPages: [buildUniversalPage(snapshot.rawHtml, pageUrl, inspect.title)],
+          documentSections: derived.sections,
+          sectionTargets: derived.targets,
+          knowledge,
+          memory: memorySummary,
+          brandProfile: brand,
+          seoMeta,
+          aiProvider: providerId,
+        },
       });
 
+      orchestrator.registerEngine("site-intelligence", createSiteIntelligenceEngine());
       orchestrator.registerEngine("content-intelligence", createContentIntelligenceEngine());
-      orchestrator.registerEngine("review", createReviewEngine());
+      orchestrator.registerEngine(
+        "content-generation",
+        createContentGenerationEngine({
+          engine: aiEngine,
+          registry,
+          knowledge,
+          memory: memorySummary,
+          profile,
+          brand,
+          skipAi: !hasAi,
+        }),
+      );
+      orchestrator.registerEngine(
+        "review",
+        createReviewEngine({
+          policy: (options.policy as ReviewPolicyName) ?? "balanced",
+          createdBy: "cli:optimize",
+          rootDir,
+          autoApproveAll: apply,
+          complete: apply,
+        }),
+      );
       orchestrator.registerEngine("composer", createComposerEngine());
-      orchestrator.registerEngine("execution", createExecutionEngine({ dryRun: options.dryRun ?? true }));
+      orchestrator.registerEngine(
+        "execution",
+        createExecutionEngine({
+          provider,
+          dryRun,
+          domEngine: {
+            resolve: async (rawContent, patch) => {
+              const result = await applyContentPatch(rawContent, patch as never);
+              if (!result.success) {
+                const detail = result.warnings.length > 0 ? result.warnings.join("; ") : "patch resolution failed";
+                throw new Error(detail);
+              }
+              return result.patchedContent;
+            },
+          },
+          fetchResource: async (resourceType, resourceId) => {
+            if (resourceType === "elementor-document") {
+              const document = await provider.readElementorDocument(resourceId);
+              return document.data;
+            }
+            throw new Error(`No raw content resolver for resource type "${resourceType}".`);
+          },
+        }),
+      );
 
       const result = await orchestrator.run();
+      const context = orchestrator.getContext();
+
+      const reviewSession = context.reviewSession as ReviewSession | undefined;
+      const executionResult = context.executionResult as
+        | {
+            completedActions: string[];
+            failedActions: string[];
+            skippedActions: string[];
+            rollbackPlan: unknown[];
+            errors?: Array<{ actionId: string; message: string }>;
+          }
+        | undefined;
+
+      // 5) Persist the rollback artifact whenever anything was attempted, so a
+      //    later `execution rollback --from` can restore the exact prior state.
+      let rollbackFile: string | undefined;
+      if (executionResult) {
+        const dir = `projects/${project}/execution`;
+        mkdirSync(dir, { recursive: true });
+        rollbackFile =
+          options.rollbackFile ?? `${dir}/${Date.now()}-rollback.json`;
+        writeFileSync(
+          rollbackFile,
+          JSON.stringify(
+            {
+              project,
+              siteUrl,
+              pageUrl,
+              pageId,
+              workflow: workflowId,
+              dryRun,
+              executedAt: new Date().toISOString(),
+              reviewSessionId: reviewSession?.sessionId,
+              metadataProposal: context.metadataProposal,
+              execution: executionResult,
+            },
+            null,
+            2,
+          ),
+          "utf8",
+        );
+      }
 
       if (options.json) {
-        process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+        process.stdout.write(
+          JSON.stringify(
+            {
+              result,
+              pageId,
+              pageUrl,
+              dryRun,
+              hasAi,
+              provider: providerId ?? null,
+              reviewSession,
+              execution: executionResult,
+              metadataProposal: context.metadataProposal,
+              pagePriorities: context.pagePriorities,
+              internalLinkOpportunities: context.internalLinkOpportunities,
+              rollbackFile,
+            },
+            null,
+            2,
+          ) + "\n",
+        );
         return;
       }
 
       process.stdout.write(`Workflow: ${result.workflow}\n`);
       process.stdout.write(`State: ${result.state}\n`);
+      process.stdout.write(`Target: page ${pageId} (${pageUrl})\n`);
+      process.stdout.write(`Mode: ${dryRun ? "preview (no writes)" : "APPLY"}\n`);
+      process.stdout.write(`Content: ${hasAi ? `AI (${providerId})` : "metadata-only"}\n`);
       process.stdout.write(`Duration: ${result.metrics.duration}ms\n`);
-      process.stdout.write(`Steps: ${Object.keys(result.metrics.stepDurations).length}\n`);
-      if (result.error) {
-        process.stdout.write(`Error: ${result.error.message}\n`);
+
+      if (reviewSession) {
+        const approved = reviewSession.items.filter((item) => item.decision === "APPROVE").length;
+        const pending = reviewSession.items.filter((item) => item.decision === undefined).length;
+        process.stdout.write(
+          `Review: ${reviewSession.sessionId} — ${reviewSession.items.length} item(s), ${approved} approved, ${pending} pending\n`,
+        );
       }
+
+      if (executionResult) {
+        process.stdout.write(
+          `Execution: ${executionResult.completedActions.length} completed, ${executionResult.failedActions.length} failed, ${executionResult.skippedActions.length} skipped\n`,
+        );
+        for (const failure of executionResult.errors ?? []) {
+          process.stdout.write(`  FAILED ${failure.actionId}: ${failure.message}\n`);
+        }
+      }
+
+      if (rollbackFile) process.stdout.write(`Rollback artifact: ${rollbackFile}\n`);
+      if (result.error) process.stdout.write(`Error: ${result.error.message}\n`);
     } catch (error) {
       process.stderr.write(`Error: ${error instanceof Error ? error.message : "Unknown error"}\n`);
       process.exit(1);
     }
   });
+
+function detectConfiguredAiProvider(): string | undefined {
+  const candidates = ["openai", "anthropic", "gemini", "openrouter", "zai"] as const;
+  return candidates.find((candidate) => aiProviderConfigured(candidate));
+}
+
+function aiProviderConfigured(providerId: string): boolean {
+  switch (providerId) {
+    case "openai":
+      return Boolean(process.env.OPENAI_API_KEY);
+    case "anthropic":
+      return Boolean(process.env.ANTHROPIC_API_KEY);
+    case "gemini":
+      return Boolean(process.env.GEMINI_API_KEY);
+    case "openrouter":
+      return Boolean(process.env.OPENROUTER_API_KEY);
+    case "zai":
+      return Boolean(process.env.ZAI_API_KEY);
+    case "ollama":
+      return true;
+    default:
+      return false;
+  }
+}
 
 const workflowCommand = program.command("workflow").description("Workflow management commands (Sprint 22B)");
 

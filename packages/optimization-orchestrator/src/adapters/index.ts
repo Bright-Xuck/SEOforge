@@ -4,12 +4,17 @@
 export { createContentIntelligenceEngine } from "./content-intelligence-adapter.js";
 export { createSiteIntelligenceEngine } from "./site-intelligence-adapter.js";
 export { createContentGenerationEngine } from "./content-generation-adapter.js";
-export type { ContentGenerationAdapterOptions } from "./content-generation-adapter.js";
+export type { ContentGenerationAdapterOptions, SectionTarget } from "./content-generation-adapter.js";
 export { createReviewEngine } from "./review-adapter.js";
 export type { ReviewAdapterOptions } from "./review-adapter.js";
 export { createComposerEngine } from "./composer-adapter.js";
 export { createExecutionEngine } from "./execution-adapter.js";
 export type { ExecutionAdapterOptions } from "./execution-adapter.js";
+export {
+  buildExecutionPlanFromReview,
+  isExecutablePatch,
+} from "./review-to-execution.js";
+export type { ReviewExecutionOptions } from "./review-to-execution.js";
 
 import type { Engine } from "../types.js";
 import { createContentIntelligenceEngine } from "./content-intelligence-adapter.js";

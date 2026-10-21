@@ -1,0 +1,11 @@
+Page: Forge Elementor E2E Staging Page
+Affected widgets: 1
+Section: root → container → widget
+Element: heading widget
+Elementor ID: e1f2a3b4
+Widget: heading
+Control: title (rich text)
+Current: "Accounting Software for Small Businesses"
+Proposed: "Accounting Software for Small Businesses — Forge E2E 1792505029779"
+Diff: "Accounting Software for Small Businesses" → "Accounting Software for Small Businesses — Forge E2E 1792505029779"
+Impact: safe deterministic text patch (preview only — nothing was written)

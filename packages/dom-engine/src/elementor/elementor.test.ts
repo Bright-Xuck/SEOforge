@@ -120,6 +120,42 @@ describe("UniversalPage ↔ Elementor mapping", () => {
     expect(byStrategy.some((e) => e.elementId === "button-1" && e.widgetType === "button")).toBe(true);
     expect(map.entries.every((e) => e.confidence >= 0.6)).toBe(true);
   });
+
+  it("maps widgets nested inside Elementor 4 containers (.e-con > .e-con-inner)", () => {
+    const doc = parse(JSON.stringify([
+      {
+        id: "container-1",
+        elType: "container",
+        settings: {},
+        elements: [
+          {
+            id: "modern-heading",
+            elType: "widget",
+            widgetType: "heading",
+            settings: { title: "Modern Elementor" },
+            elements: [],
+          },
+        ],
+      },
+    ]));
+    const html = `<!doctype html><html><body>
+      <div data-elementor-type="wp-page" class="elementor elementor-6">
+        <div class="elementor-element e-con e-parent" data-id="container-1" data-element_type="container">
+          <div class="e-con-inner">
+            <div class="elementor-element elementor-widget elementor-widget-heading" data-id="modern-heading" data-widget_type="heading.default">
+              <h1>Modern Elementor</h1>
+            </div>
+          </div>
+        </div>
+      </div>
+    </body></html>`;
+    const page = buildUniversalPage(html, "https://example.com", "Modern");
+    const map = mapUniversalPageToElementor(page, doc);
+    expect(map.entries).toHaveLength(1);
+    expect(map.entries[0]?.elementId).toBe("modern-heading");
+    expect(map.entries[0]?.strategy).toBe("data-id");
+    expect(map.unmatchedBlocks).toHaveLength(0);
+  });
 });
 
 describe("Patch resolution", () => {

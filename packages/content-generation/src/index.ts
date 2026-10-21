@@ -13,6 +13,14 @@ export { generateContent } from "./generate.js";
 export { runGenerator, registeredSectionKinds } from "./generators/registry.js";
 export type { SectionGeneratorInput } from "./generators/types.js";
 export { generateSection } from "./generators/orchestrator.js";
+export { evaluateContentQuality } from "./quality/evaluator.js";
+export type {
+  ContentQualityCheck,
+  ContentQualityEvaluation,
+  ContentQualityInput,
+  ContentQualityMetrics,
+  ContentQualityStatus,
+} from "./quality/types.js";
 
 // Sprint 20 — Content Brief
 export { buildContentBrief } from "./brief/builder.js";
@@ -30,7 +38,26 @@ export { checkProhibitedWords } from "./brand/prohibited.js";
 export type { ProhibitedWordsResult } from "./brand/prohibited.js";
 
 // Sprint 20 — Prompts
+export {
+  CONTENT_PROMPT_VARIABLES,
+  registerContentPrompts,
+  sectionPromptDefinitions,
+  writerPromptDefinitions,
+} from "./prompts/section-prompts.js";
 export { PromptComposer } from "./prompts/composer.js";
+export {
+  METADATA_FIELD_KEYS,
+  RANK_MATH_DESCRIPTION,
+  RANK_MATH_FOCUS_KEYWORD,
+  RANK_MATH_TITLE,
+  buildMetadataProposal,
+  metadataProposalToPatches,
+} from "./metadata/proposal.js";
+export type {
+  MetadataField,
+  MetadataProposal,
+  MetadataProposalInput,
+} from "./metadata/proposal.js";
 export { resolveVariable, resolveAllVariables, renderTemplate } from "./prompts/variables.js";
 export type { PromptVariables } from "./prompts/variables.js";
 export { createPromptTemplate, mergeTemplates } from "./prompts/templates.js";

@@ -28,14 +28,44 @@ export interface OptimizationContext {
   pipelineResult?: unknown;
 
   // ─── Content Intelligence (deterministic) ───
+  /** Absolute URL of the page under optimization. */
+  siteUrl?: string;
+  pageUrl?: string;
+  /** WordPress post/page id when the target is a provider document. */
+  pageId?: number;
+  pageType?: string;
+  /** Explicit optimization target for this run (single page). */
+  target?: {
+    readonly pageUrl: string;
+    readonly pageId?: number;
+    readonly title?: string;
+    readonly keyword?: string;
+  };
+  /** Current Rank Math SEO fields read before generation. */
+  seoMeta?: { readonly title?: string; readonly description?: string };
+  /** Deterministic metadata proposal built during generation. */
+  metadataProposal?: unknown;
   websiteSnapshot?: unknown;
   analysisReport?: unknown;
   pageDNA?: unknown;
   contentGraph?: unknown;
   contentSnapshot?: unknown;
   sections?: unknown;
+  /**
+   * Sections derived from the real provider document (Elementor widget
+   * inventory). When present these are the generation targets; heuristic
+   * detection still runs for Page DNA/gap/quality context.
+   */
+  documentSections?: unknown[];
   gaps?: unknown;
   qualityScores?: unknown;
+  /**
+   * Section id → concrete provider target (Elementor element + settings key,
+   * current content, widget type, document fingerprint). Populated by the
+   * caller from the real document inventory; consumed by the generation
+   * adapter to enrich patches before review.
+   */
+  sectionTargets?: unknown[];
 
   // ─── Site-level Content Intelligence (Sprint 24, deterministic) ───
   websiteSnapshots?: unknown[];
@@ -45,6 +75,8 @@ export interface OptimizationContext {
   refreshCandidates?: unknown[];
   internalLinkOpportunities?: unknown[];
   topicCoverageGaps?: unknown[];
+  /** Ordered page work queue derived from the site report (Sprint 28). */
+  pagePriorities?: unknown[];
 
   // ─── AI Generation ───
   generatedPatches?: unknown[];
@@ -62,6 +94,7 @@ export interface OptimizationContext {
   executionPlan?: unknown;
   validationReport?: unknown;
   executionHistory?: unknown[];
+  executionResult?: unknown;
 
   // ─── Knowledge & Memory ───
   knowledge?: unknown;

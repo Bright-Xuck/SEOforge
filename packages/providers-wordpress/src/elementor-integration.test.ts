@@ -41,7 +41,7 @@ describe.skipIf(!enabled)("Elementor real-provider integration (opt-in)", () => 
     expect(status.elementorSupported).toBe(true);
     // Credentials are never echoed in the payload.
     expect(JSON.stringify(status)).not.toContain(applicationPassword);
-  });
+  }, 60_000);
 
   it("reads an Elementor document from the companion endpoint and parses its JSON", async () => {
     const provider = new WordPressProvider({ siteUrl, username, applicationPassword });
@@ -50,5 +50,5 @@ describe.skipIf(!enabled)("Elementor real-provider integration (opt-in)", () => 
     expect(read.data.length).toBeGreaterThan(0);
     const parsed = JSON.parse(read.data) as unknown;
     expect(Array.isArray(parsed)).toBe(true);
-  });
+  }, 60_000);
 });

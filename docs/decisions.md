@@ -60,6 +60,7 @@
 | 052 | DOM Engine Ä‚Ë˜Ã¢Â‚Å¹Ã¢Â€Â Universal Page Model | Current |
 | 053 | Site-level topical intelligence belongs in @forge/content-intelligence | Current |
 | 054 | Elementor write bridge lives in dom-engine + providers-wordpress + CLI (no new engine, no MCP) | Current |
+| 055 | Companion bridge is the deterministic Elementor write path; Elementor MCP is optional | Current |
 
 ---
 
@@ -727,3 +728,65 @@
 - Generic packages must not know WordPress REST endpoints, `_elementor_data` meta names, Elementor widget internals, or WordPress post IDs. dom-engine knows Elementor JSON structure and widget settings (format knowledge); providers-wordpress knows endpoints and meta names (provider knowledge).
 - All writes still pass through the existing Review → Optimization Composer → Execution Engine → Provider chain; there is no AI → WordPress or Generation → WordPress path.
 - Stale patches are rejected (`PATCH_STALE`); dry-run performs zero remote mutations; writes are verified by re-read; rollback restores the exact original document.
+
+---
+
+## ADR-055: Companion bridge is the deterministic Elementor write path; Elementor MCP is optional
+
+**Status:** Current
+**Date:** Sprint 26 live validation (2026-10-20)
+
+**Context:** Sprint 25/26 established the Forge Elementor Bridge (companion WordPress plugin + typed provider transport + CLI composition root). Sprint 26 also validated the path against a real WordPress 7.1.3 + Elementor 4.3.5 site. During that validation the official Elementor MCP surfaces were tested directly: the default WordPress MCP adapter exposed only core abilities, and the Elementor MCP proxy could read legacy V3 structure but rejected legacy V3 widget edits with HTTP 422 `elementor_v3_not_supported`. Elementor's V4/atomic MCP tools are gated by the Atomic Editor experiment, and site-level MCP exposure is off by default. See [Elementor Live Integration - Validation Report](elementor-live-integration.md) and its [evidence](evidence/elementor-e2e/README.md).
+
+**Decision:** SEO Forge's primary, deterministic Elementor write path remains the companion bridge:
+
+```
+CLI -> WordPress provider -> forge/v1 companion endpoint -> Elementor document save
+```
+
+The official Elementor MCP is an **optional complement**, not a dependency of the core write pipeline. It may be used for read-only structure discovery today, and for V4/atomic-element editing in the future through an adapter behind the existing provider abstraction.
+
+**Rationale:**
+
+1. **It is the only path that edits the legacy V3 widgets SEO Forge currently supports.** The live test read and wrote a real `_elementor_data` document, preserved a U+2014 em dash through the save round-trip, verified the rendered HTML, and rolled back to the exact original fingerprint. The official MCP proxy cannot edit that legacy V3 heading.
+2. **The bridge carries SEO Forge's safety contract.** Preview, approval, optimistic concurrency, server-side structural verification, client-side re-read verification, and document-level rollback are part of the bridge. An MCP call alone has none of those semantics.
+3. **No external agent/server dependency.** The provider abstraction keeps SEO Forge independent of whichever coding agent or MCP client is in use. The MCP exposure/settings are site-specific and off by default.
+4. **V4 is a future adapter, not a rewrite.** If atomic editing becomes a requirement, implement it behind the provider contract (or as an additional adapter) while keeping the deterministic bridge for legacy documents. Do not make the core packages import Elementor MCP directly.
+
+**Consequences:**
+
+- Keep the companion plugin as the supported production integration for legacy Elementor pages.
+- Document MCP as optional and experimental for this product until V4 atomic editing is explicitly supported end to end.
+- Any future MCP adapter must preserve preview, approval, verification, rollback, and credential-isolation guarantees; it must not bypass the provider boundary.
+- Revisit this ADR when dom-engine gains V4 atomic-element schemas and a live V4 write/rollback proof exists.
+
+---
+
+## ADR-056: Sprint 28 wires the existing engines; metadata is a ContentPatch, not a second pipeline
+
+**Status:** Current
+**Date:** Sprint 28 (2026-10-21)
+
+**Context:** The engines existed but the end-to-end path was incomplete: generation had no registered section prompts, the composer produced bundles rather than executable actions, Rank Math fields were not reachable through wp/v2, and the CLI could not seed a real page context. The goal was one real optimization workflow on a live WordPress page, without adding a parallel pipeline.
+
+**Decision:**
+
+1. **Metadata is a patch.** A deterministic metadata proposal is translated into one `ContentPatch` per changed Rank Math field (`rank_math_title`, `rank_math_description`). Those patches use the same review → composer → execution → verification → rollback chain as rich-text patches. There is no separate metadata approval or execution path.
+2. **Rank Math uses a companion endpoint.** The provider owns a whitelisted `GET/POST /wp-json/forge/v1/seo-meta/{id}` transport because Rank Math stores its fields in private post meta that wp/v2 does not expose. The companion reads, sanitizes, writes, and re-reads for verification.
+3. **Review → execution lives in one seam.** The Optimization Composer intentionally emits bundles/dependencies, not provider actions. `buildExecutionPlanFromReview` is the single translation from approved review items to `Action` objects. Only `APPROVE`/`EDIT` items become actions, and only those actions are marked `approved`.
+4. **The CLI is the composition root.** `forge optimize` reads the real page and Elementor document, derives section targets from the widget inventory, seeds knowledge/brand/metadata into the orchestrator context, and registers the existing engines. No new engine is introduced.
+5. **Explicit approval stays explicit.** `--apply` is the CLI approval signal. Without it the run is preview/dry-run. `review apply` additionally requires a completed, fully decided session. AI never approves.
+6. **No fake AI output.** If no provider credentials are present, the run is metadata-only and says so. It never substitutes deterministic copy for the AI section-writing step.
+7. **Dry-run artifacts are not rollback artifacts.** They contain no captured original values, so both rollback commands reject them.
+
+**Rationale:** The pre-existing architecture already had the correct boundaries: parsing in dom-engine, provider specifics in providers-wordpress, decisions in review-engine, planning in action-engine, and orchestration in the orchestrator. Sprint 28 fills the seams between them instead of duplicating any of those responsibilities. Treating metadata as a patch keeps one safety contract and one rollback model.
+
+**Consequences:**
+
+- A metadata write and a rich-text write produce the same review item shape, execution action shape, and rollback operation shape.
+- The composer cannot be used directly as an execution plan; the review translation is required.
+- Metadata rollback currently captures the full prior Rank Math snapshot per action. A full rollback restores the correct final state; per-field precision is a follow-up.
+- `forge optimize` currently seeds a single page snapshot. Full-site page priorities need a crawl/sitemap input; the ranking function already supports multiple pages.
+- The Elementor content-write E2E is live-verified with Z.ai `glm-4.5-flash`: a reviewed preview batch of three Elementor patches and two Rank Math patches applied through the same execution path and rolled back to baseline. The model is configurable; `glm-4.7-flash` was intermittently overloaded during the sprint.
+- One review session can contain multiple Elementor patches for the same page. The document fingerprint is kept on the first Elementor action per page; later actions rely on their own `currentContent` and widget-type checks. If an action fails on a resource, later actions for that resource are skipped.
+- Elementor write verification is structural and server-side. The client does not compare raw JSON strings, so Elementor's re-serialization (key order, whitespace, default `isInner:false`) is not mistaken for a failed write.

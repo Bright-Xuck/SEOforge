@@ -10,6 +10,13 @@ export {
   ELEMENTOR_COMPANION_PATH,
   ELEMENTOR_SYSTEM_PATH,
 } from "./elementor-transport.js";
+export { SeoMetaTransport, SEO_META_COMPANION_PATH } from "./seo-meta-transport.js";
+export type {
+  SeoMetaField,
+  SeoMetaFields,
+  SeoMetaRead,
+  SeoMetaWriteResult,
+} from "./seo-meta-transport.js";
 export type {
   ElementorTransportErrorCode,
   ElementorDocumentRead,

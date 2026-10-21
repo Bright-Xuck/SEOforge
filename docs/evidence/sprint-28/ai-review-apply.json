@@ -1,0 +1,167 @@
+{
+  "result": {
+    "url": "http://127.0.0.1:8080",
+    "executedAt": "2026-10-21T09:15:47.130Z",
+    "completedActions": [
+      "action-patch-elementor-e1f2a3b4-title-1",
+      "action-patch-elementor-c3d4e5f6-editor-2",
+      "action-patch-elementor-f7a8b9c0-text-3",
+      "action-patch-metadata-title-1",
+      "action-patch-metadata-description-2"
+    ],
+    "failedActions": [],
+    "skippedActions": [],
+    "rollbackPlan": [
+      {
+        "actionId": "action-patch-elementor-e1f2a3b4-title-1",
+        "resourceType": "elementor-document",
+        "resourceId": 6,
+        "originalValue": {
+          "elementor_data": "[{\"id\":\"a1b2c3d4\",\"elType\":\"container\",\"settings\":{\"flex_direction\":\"column\",\"content_width\":\"boxed\"},\"elements\":[{\"id\":\"e1f2a3b4\",\"elType\":\"widget\",\"settings\":{\"title\":\"Accounting Software for Small Businesses\",\"header_size\":\"h1\",\"align\":\"center\"},\"elements\":[],\"widgetType\":\"heading\"},{\"id\":\"c3d4e5f6\",\"elType\":\"widget\",\"settings\":{\"editor\":\"<p>Premium accounting software for modern businesses. Trusted by 2,000+ teams.<\\/p>\"},\"elements\":[],\"widgetType\":\"text-editor\"},{\"id\":\"f7a8b9c0\",\"elType\":\"widget\",\"settings\":{\"text\":\"Start Free Trial\",\"link\":{\"url\":\"https:\\/\\/example.test\\/signup\",\"is_external\":\"\",\"nofollow\":\"\"}},\"elements\":[],\"widgetType\":\"button\"}],\"isInner\":false},{\"id\":\"b2c3d4e5\",\"elType\":\"container\",\"settings\":{\"flex_direction\":\"row\"},\"elements\":[{\"id\":\"d4e5f6a7\",\"elType\":\"widget\",\"settings\":{\"icon_list\":[{\"text\":\"Automated bookkeeping\",\"selected_icon\":{\"value\":\"fas fa-check\",\"library\":\"fa-solid\"}},{\"text\":\"Real-time cash flow\",\"selected_icon\":{\"value\":\"fas fa-check\",\"library\":\"fa-solid\"}}]},\"elements\":[],\"widgetType\":\"icon-list\"},{\"id\":\"a7b8c9d0\",\"elType\":\"widget\",\"settings\":{\"color\":\"#dddddd\"},\"elements\":[],\"widgetType\":\"divider\"}],\"isInner\":false}]"
+        },
+        "newValue": {
+          "pageId": 6,
+          "expectedFingerprint": "8qz5ct",
+          "patch": {
+            "id": "patch-elementor-e1f2a3b4-title-1",
+            "sectionId": "elementor-e1f2a3b4-title",
+            "currentContent": "Accounting Software for Small Businesses",
+            "proposedContent": "Small Business Accounting Software Simplified",
+            "target": {
+              "format": "elementor",
+              "elementId": "e1f2a3b4",
+              "settingsKey": "title",
+              "pageId": 6,
+              "expectedWidgetType": "heading",
+              "sourceFingerprint": "8qz5ct",
+              "richText": true
+            },
+            "sourceFingerprint": "8qz5ct",
+            "expectedWidgetType": "heading"
+          }
+        },
+        "rollbackMethod": "restore_elementor_document",
+        "providerId": "wordpress",
+        "revisionId": "40",
+        "timestamp": "2026-10-21T09:15:07.594Z"
+      },
+      {
+        "actionId": "action-patch-elementor-c3d4e5f6-editor-2",
+        "resourceType": "elementor-document",
+        "resourceId": 6,
+        "originalValue": {
+          "elementor_data": "[{\"id\":\"a1b2c3d4\",\"elType\":\"container\",\"settings\":{\"flex_direction\":\"column\",\"content_width\":\"boxed\"},\"elements\":[{\"id\":\"e1f2a3b4\",\"elType\":\"widget\",\"settings\":{\"title\":\"Small Business Accounting Software Simplified\",\"header_size\":\"h1\",\"align\":\"center\"},\"elements\":[],\"widgetType\":\"heading\"},{\"id\":\"c3d4e5f6\",\"elType\":\"widget\",\"settings\":{\"editor\":\"<p>Premium accounting software for modern businesses. Trusted by 2,000+ teams.<\\/p>\"},\"elements\":[],\"widgetType\":\"text-editor\"},{\"id\":\"f7a8b9c0\",\"elType\":\"widget\",\"settings\":{\"text\":\"Start Free Trial\",\"link\":{\"url\":\"https:\\/\\/example.test\\/signup\",\"is_external\":\"\",\"nofollow\":\"\"}},\"elements\":[],\"widgetType\":\"button\"}],\"isInner\":false},{\"id\":\"b2c3d4e5\",\"elType\":\"container\",\"settings\":{\"flex_direction\":\"row\"},\"elements\":[{\"id\":\"d4e5f6a7\",\"elType\":\"widget\",\"settings\":{\"icon_list\":[{\"text\":\"Automated bookkeeping\",\"selected_icon\":{\"value\":\"fas fa-check\",\"library\":\"fa-solid\"}},{\"text\":\"Real-time cash flow\",\"selected_icon\":{\"value\":\"fas fa-check\",\"library\":\"fa-solid\"}}]},\"elements\":[],\"widgetType\":\"icon-list\"},{\"id\":\"a7b8c9d0\",\"elType\":\"widget\",\"settings\":{\"color\":\"#dddddd\"},\"elements\":[],\"widgetType\":\"divider\"}],\"isInner\":false}]"
+        },
+        "newValue": {
+          "pageId": 6,
+          "patch": {
+            "id": "patch-elementor-c3d4e5f6-editor-2",
+            "sectionId": "elementor-c3d4e5f6-editor",
+            "currentContent": "Premium accounting software for modern businesses. Trusted by 2,000+ teams.",
+            "proposedContent": "Save time and grow your business\n\n<p>Our accounting software helps small businesses manage finances efficiently, so you can focus on what matters most.</p>\n<ul>\n  <li>Trusted by 2,000+ teams to handle financial tasks accurately.</li>\n  <li>Automate invoicing and payments to reduce manual work.</li>\n  <li>Track expenses and income in real-time for clear insights.</li>\n  <li>Generate reports quickly without complex spreadsheets.</li>\n</ul>",
+            "target": {
+              "format": "elementor",
+              "elementId": "c3d4e5f6",
+              "settingsKey": "editor",
+              "pageId": 6,
+              "expectedWidgetType": "text-editor",
+              "sourceFingerprint": "8qz5ct",
+              "richText": true
+            },
+            "expectedWidgetType": "text-editor"
+          }
+        },
+        "rollbackMethod": "restore_elementor_document",
+        "providerId": "wordpress",
+        "revisionId": "41",
+        "timestamp": "2026-10-21T09:15:21.127Z"
+      },
+      {
+        "actionId": "action-patch-elementor-f7a8b9c0-text-3",
+        "resourceType": "elementor-document",
+        "resourceId": 6,
+        "originalValue": {
+          "elementor_data": "[{\"id\":\"a1b2c3d4\",\"elType\":\"container\",\"settings\":{\"flex_direction\":\"column\",\"content_width\":\"boxed\"},\"elements\":[{\"id\":\"e1f2a3b4\",\"elType\":\"widget\",\"settings\":{\"title\":\"Small Business Accounting Software Simplified\",\"header_size\":\"h1\",\"align\":\"center\"},\"elements\":[],\"widgetType\":\"heading\"},{\"id\":\"c3d4e5f6\",\"elType\":\"widget\",\"settings\":{\"editor\":\"Save time and grow your business\\n\\n<p>Our accounting software helps small businesses manage finances efficiently, so you can focus on what matters most.<\\/p>\\n<ul>\\n  <li>Trusted by 2,000+ teams to handle financial tasks accurately.<\\/li>\\n  <li>Automate invoicing and payments to reduce manual work.<\\/li>\\n  <li>Track expenses and income in real-time for clear insights.<\\/li>\\n  <li>Generate reports quickly without complex spreadsheets.<\\/li>\\n<\\/ul>\"},\"elements\":[],\"widgetType\":\"text-editor\"},{\"id\":\"f7a8b9c0\",\"elType\":\"widget\",\"settings\":{\"text\":\"Start Free Trial\",\"link\":{\"url\":\"https:\\/\\/example.test\\/signup\",\"is_external\":\"\",\"nofollow\":\"\"}},\"elements\":[],\"widgetType\":\"button\"}],\"isInner\":false},{\"id\":\"b2c3d4e5\",\"elType\":\"container\",\"settings\":{\"flex_direction\":\"row\"},\"elements\":[{\"id\":\"d4e5f6a7\",\"elType\":\"widget\",\"settings\":{\"icon_list\":[{\"text\":\"Automated bookkeeping\",\"selected_icon\":{\"value\":\"fas fa-check\",\"library\":\"fa-solid\"}},{\"text\":\"Real-time cash flow\",\"selected_icon\":{\"value\":\"fas fa-check\",\"library\":\"fa-solid\"}}]},\"elements\":[],\"widgetType\":\"icon-list\"},{\"id\":\"a7b8c9d0\",\"elType\":\"widget\",\"settings\":{\"color\":\"#dddddd\"},\"elements\":[],\"widgetType\":\"divider\"}],\"isInner\":false}]"
+        },
+        "newValue": {
+          "pageId": 6,
+          "patch": {
+            "id": "patch-elementor-f7a8b9c0-text-3",
+            "sectionId": "elementor-f7a8b9c0-text",
+            "currentContent": "Start Free Trial",
+            "proposedContent": "Try Accounting Software Free",
+            "target": {
+              "format": "elementor",
+              "elementId": "f7a8b9c0",
+              "settingsKey": "text",
+              "pageId": 6,
+              "expectedWidgetType": "button",
+              "sourceFingerprint": "8qz5ct",
+              "richText": false
+            },
+            "expectedWidgetType": "button"
+          }
+        },
+        "rollbackMethod": "restore_elementor_document",
+        "providerId": "wordpress",
+        "revisionId": "42",
+        "timestamp": "2026-10-21T09:15:35.275Z"
+      },
+      {
+        "actionId": "action-patch-metadata-title-1",
+        "resourceType": "seo-meta",
+        "resourceId": 6,
+        "originalValue": {
+          "seoMeta": {
+            "title": "Forge Elementor E2E Staging Page",
+            "description": "Staging page used by Forge end-to-end tests.",
+            "focusKeyword": null,
+            "canonical": null,
+            "robots": []
+          }
+        },
+        "newValue": {
+          "pageId": 6,
+          "pageUrl": "http://127.0.0.1:8080",
+          "fields": {
+            "title": "Accounting Software: Forge Elementor E2E Staging Page"
+          }
+        },
+        "rollbackMethod": "restore_previous_meta",
+        "providerId": "wordpress",
+        "revisionId": "2026-10-21T09:15:30+00:00",
+        "timestamp": "2026-10-21T09:15:41.292Z"
+      },
+      {
+        "actionId": "action-patch-metadata-description-2",
+        "resourceType": "seo-meta",
+        "resourceId": 6,
+        "originalValue": {
+          "seoMeta": {
+            "title": "Accounting Software: Forge Elementor E2E Staging Page",
+            "description": "Staging page used by Forge end-to-end tests.",
+            "focusKeyword": null,
+            "canonical": null,
+            "robots": []
+          }
+        },
+        "newValue": {
+          "pageId": 6,
+          "pageUrl": "http://127.0.0.1:8080",
+          "fields": {
+            "description": "Accounting Software: Staging page used by Forge end-to-end tests. SEO Forge."
+          }
+        },
+        "rollbackMethod": "restore_previous_meta",
+        "providerId": "wordpress",
+        "revisionId": "2026-10-21T09:15:30+00:00",
+        "timestamp": "2026-10-21T09:15:47.129Z"
+      }
+    ],
+    "rollbackGroups": [],
+    "executionTime": "54150ms",
+    "rollbackRequired": true,
+    "errors": []
+  },
+  "rollbackFile": "projects/seoforge-e2e/execution/1792574147130-rollback.json"
+}

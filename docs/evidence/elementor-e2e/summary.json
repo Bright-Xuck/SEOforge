@@ -1,0 +1,182 @@
+{
+  "siteUrl": "http://127.0.0.1:8080",
+  "pageId": 6,
+  "outDir": "docs/evidence/elementor-e2e",
+  "steps": {
+    "doctor": {
+      "ok": true,
+      "checks": [
+        {
+          "id": "wordpress-reachable",
+          "label": "WordPress reachable (REST)",
+          "ok": true
+        },
+        {
+          "id": "authentication",
+          "label": "Authentication valid",
+          "ok": true
+        },
+        {
+          "id": "elementor-installed",
+          "label": "Elementor installed",
+          "ok": true,
+          "detail": "Elementor 4.3.5"
+        },
+        {
+          "id": "elementor-version",
+          "label": "Elementor version supported (>= 2.x)",
+          "ok": true,
+          "detail": "4.3.5"
+        },
+        {
+          "id": "bridge-plugin",
+          "label": "Forge bridge plugin",
+          "ok": true,
+          "detail": "v0.2.0"
+        },
+        {
+          "id": "page-exists",
+          "label": "Target page exists (id 6)",
+          "ok": true,
+          "detail": "Forge Elementor E2E Staging Page"
+        },
+        {
+          "id": "elementor-managed",
+          "label": "Target page is Elementor-managed",
+          "ok": true,
+          "detail": "edit mode: builder"
+        },
+        {
+          "id": "document-readable",
+          "label": "Document can be read",
+          "ok": true,
+          "detail": "fingerprint 8qz5ct"
+        },
+        {
+          "id": "document-writable",
+          "label": "Document can be safely written (version >= 2.x)",
+          "ok": true,
+          "detail": "layout: root, container, widget"
+        }
+      ],
+      "site": {
+        "plugin": "forge-elementor-bridge",
+        "pluginVersion": "0.2.0",
+        "generatedAt": "2026-10-20T15:03:35+01:00",
+        "wordpressVersion": "7.1.3",
+        "authenticated": true,
+        "elementorInstalled": true,
+        "elementorVersion": "4.3.5",
+        "minimumSupportedMajor": 2,
+        "elementorSupported": true,
+        "supportedWidgets": [
+          "heading",
+          "text-editor",
+          "button",
+          "image",
+          "text-path",
+          "icon",
+          "icon-list",
+          "video",
+          "divider",
+          "spacer"
+        ],
+        "unsupportedWidgets": [
+          "html",
+          "shortcode",
+          "template",
+          "loop-grid",
+          "loop-carousel",
+          "form",
+          "nav-menu",
+          "popup",
+          "google_maps",
+          "maps",
+          "lottie",
+          "code-highlight"
+        ]
+      },
+      "document": {
+        "postId": 6,
+        "fingerprint": "8qz5ct",
+        "elementorVersion": "4.3.5",
+        "modified": "2026-10-20T15:00:40+01:00",
+        "supported": true
+      }
+    },
+    "inspectBefore": {
+      "title": "Forge Elementor E2E Staging Page",
+      "fingerprint": "8qz5ct",
+      "widgetCount": 5,
+      "universalMapping": {
+        "entries": [
+          {
+            "universalBlockId": "blk-szifk4",
+            "elementId": "e1f2a3b4",
+            "widgetType": "heading",
+            "elType": "widget",
+            "strategy": "data-id",
+            "confidence": 1
+          },
+          {
+            "universalBlockId": "blk-imuq5q",
+            "elementId": "c3d4e5f6",
+            "widgetType": "text-editor",
+            "elType": "widget",
+            "strategy": "data-id",
+            "confidence": 1
+          },
+          {
+            "universalBlockId": "blk-5qx29y",
+            "elementId": "f7a8b9c0",
+            "widgetType": "button",
+            "elType": "widget",
+            "strategy": "data-id",
+            "confidence": 1
+          },
+          {
+            "universalBlockId": "blk-434q30",
+            "elementId": "d4e5f6a7",
+            "widgetType": "icon-list",
+            "elType": "widget",
+            "strategy": "data-id",
+            "confidence": 1
+          },
+          {
+            "universalBlockId": "blk-86bjug",
+            "elementId": "a7b8c9d0",
+            "widgetType": "divider",
+            "elType": "widget",
+            "strategy": "data-id",
+            "confidence": 1
+          }
+        ],
+        "unmatchedBlocks": []
+      },
+      "heading": {
+        "elementId": "e1f2a3b4",
+        "settingsKey": "title",
+        "currentText": "Accounting Software for Small Businesses"
+      }
+    },
+    "apply": {
+      "fingerprintBefore": "8qz5ct",
+      "fingerprintAfter": "ng7qr7",
+      "storedTitle": "Accounting Software for Small Businesses — Forge E2E 1792505029779"
+    },
+    "liveAfterApply": {
+      "status": 200,
+      "containsProposedTitle": true
+    },
+    "rollback": {
+      "fingerprintRestored": "8qz5ct",
+      "restoredTitle": "Accounting Software for Small Businesses",
+      "liveStatus": 200
+    }
+  },
+  "pass": true,
+  "patch": {
+    "file": "docs/evidence/elementor-e2e/patch.json",
+    "proposedTitle": "Accounting Software for Small Businesses — Forge E2E 1792505029779"
+  }
+}

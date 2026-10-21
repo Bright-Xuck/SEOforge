@@ -12,6 +12,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
     name: "Homepage Optimization",
     description: "Analyze, generate, review, compose, and execute homepage improvements",
     steps: [
+      { id: "site-intelligence", engine: "site-intelligence", phase: OptimizationState.Analysing },
       { id: "analyse", engine: "content-intelligence", phase: OptimizationState.Analysing },
       { id: "generate", engine: "content-generation", phase: OptimizationState.Generating },
       { id: "review", engine: "review", phase: OptimizationState.Reviewing },
@@ -24,6 +25,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
     name: "Blog Optimization",
     description: "Analyze, generate, review, compose, and execute blog section improvements",
     steps: [
+      { id: "site-intelligence", engine: "site-intelligence", phase: OptimizationState.Analysing },
       { id: "analyse", engine: "content-intelligence", phase: OptimizationState.Analysing },
       { id: "generate", engine: "content-generation", phase: OptimizationState.Generating },
       { id: "review", engine: "review", phase: OptimizationState.Reviewing },
@@ -36,6 +38,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
     name: "Landing Page Optimization",
     description: "Optimize landing page sections",
     steps: [
+      { id: "site-intelligence", engine: "site-intelligence", phase: OptimizationState.Analysing },
       { id: "analyse", engine: "content-intelligence", phase: OptimizationState.Analysing },
       { id: "generate", engine: "content-generation", phase: OptimizationState.Generating },
       { id: "review", engine: "review", phase: OptimizationState.Reviewing },
@@ -48,6 +51,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
     name: "Product Page Optimization",
     description: "Optimize product page sections",
     steps: [
+      { id: "site-intelligence", engine: "site-intelligence", phase: OptimizationState.Analysing },
       { id: "analyse", engine: "content-intelligence", phase: OptimizationState.Analysing },
       { id: "generate", engine: "content-generation", phase: OptimizationState.Generating },
       { id: "review", engine: "review", phase: OptimizationState.Reviewing },
@@ -60,6 +64,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
     name: "Category Optimization",
     description: "Optimize category page sections",
     steps: [
+      { id: "site-intelligence", engine: "site-intelligence", phase: OptimizationState.Analysing },
       { id: "analyse", engine: "content-intelligence", phase: OptimizationState.Analysing },
       { id: "generate", engine: "content-generation", phase: OptimizationState.Generating },
       { id: "review", engine: "review", phase: OptimizationState.Reviewing },
@@ -72,6 +77,7 @@ export const WORKFLOWS: Record<string, WorkflowDefinition> = {
     name: "Content Refresh",
     description: "Review existing content, compose improvements, and execute",
     steps: [
+      { id: "site-intelligence", engine: "site-intelligence", phase: OptimizationState.Analysing },
       { id: "analyse", engine: "content-intelligence", phase: OptimizationState.Analysing },
       { id: "review", engine: "review", phase: OptimizationState.Reviewing },
       { id: "compose", engine: "composer", phase: OptimizationState.Composing },

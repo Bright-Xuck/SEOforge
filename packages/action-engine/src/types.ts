@@ -25,7 +25,9 @@ export type ActionType =
   | "metadata.add-og"
   | "technical.add-jsonld"
   | "content.update-content"
-  | "content.add-internal-link";
+  | "content.add-internal-link"
+  | "content.elementor-patch"
+  | "seo.update-rank-math-meta";
 
 // Action status for approval queue
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
