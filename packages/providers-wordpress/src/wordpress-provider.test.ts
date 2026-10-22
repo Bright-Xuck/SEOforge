@@ -13,6 +13,19 @@ afterEach(() => {
 });
 
 describe("WordPressProvider write operations", () => {
+  it("verifies REST authentication with the canonical current-user endpoint", async () => {
+    const get = vi.spyOn(WordPressClient.prototype, "get").mockResolvedValue({
+      data: [{ id: 7, name: "Admin", slug: "admin" }],
+      totalItems: 1,
+      totalPages: 1,
+      currentPage: 1,
+    } as never);
+    const provider = new WordPressProvider(config);
+
+    await expect(provider.getCurrentUser()).resolves.toEqual({ id: 7, name: "Admin", slug: "admin" });
+    expect(get).toHaveBeenCalledWith("users/me");
+  });
+
   it("creates a write result for preview mode without mutating", async () => {
     const provider = new WordPressProvider(config);
     const result = await provider.previewWrite({

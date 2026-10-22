@@ -421,7 +421,7 @@ function aiProviderSetupMessage(providerId: string, error: unknown): string {
   return `AI provider "${providerId}" is configured but unavailable. Check the credentials/model and run "forge ai test ${providerId}".`;
 }
 
-function failAiCommand(providerId: string, error: unknown, json?: boolean): never {
+function failAiCommand(providerId: string, error: unknown, json?: boolean): void {
   const message = aiProviderSetupMessage(providerId, error);
   if (json) {
     process.stdout.write(
@@ -440,7 +440,7 @@ function failAiCommand(providerId: string, error: unknown, json?: boolean): neve
   } else {
     process.stderr.write(`Error: ${message}\n`);
   }
-  process.exit(1);
+  process.exitCode = 1;
 }
 
 async function loadHomepageProjectContext(project: string) {
@@ -560,7 +560,7 @@ program
       process.stderr.write(
         `Error: ${wre?.kind === "invalid-url" ? "Invalid URL" : error instanceof Error ? error.message : "Unknown error"}\n`,
       );
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 
@@ -587,7 +587,7 @@ program
       process.stderr.write(
         `Error: ${wre?.kind === "invalid-url" ? "Invalid URL" : error instanceof Error ? error.message : "Unknown error"}\n`,
       );
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 
@@ -611,7 +611,7 @@ program
       process.stderr.write(
         `Error: ${wre?.kind === "invalid-url" ? "Invalid URL" : error instanceof Error ? error.message : "Unknown error"}\n`,
       );
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 
@@ -634,7 +634,7 @@ program
       process.stderr.write(
         `Error: ${wre?.kind === "invalid-url" ? "Invalid URL" : error instanceof Error ? error.message : "Unknown error"}\n`,
       );
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 
@@ -700,6 +700,9 @@ program
     }
 
     const applicationPassword = process.env.FORGE_WP_APPLICATION_PASSWORD;
+    const applicationPasswordLooksValid =
+      typeof applicationPassword === "string" &&
+      /^[A-Za-z0-9]{24}$/.test(applicationPassword.replace(/\s+/g, ""));
     if (!applicationPassword) {
       add(
         "wp-password",
@@ -707,8 +710,23 @@ program
         "WordPress application password",
         "FORGE_WP_APPLICATION_PASSWORD is not set. Never commit this value.",
       );
+    } else if (!/^[A-Za-z0-9]{24}$/.test(applicationPassword.replace(/\s+/g, ""))) {
+      add(
+        "wp-password",
+        "warn",
+        "WordPress application password",
+        "set, but it does not look like a WordPress application password " +
+          "(24 letters/digits, optionally grouped with spaces). It may be a normal login " +
+          "password, which the REST API rejects. Create one under Users -> Profile -> " +
+          "Application Passwords. (Value never displayed.)",
+      );
     } else {
-      add("wp-password", "pass", "WordPress application password", "set (value never displayed)");
+      add(
+        "wp-password",
+        "pass",
+        "WordPress application password",
+        "set (24-character application-password format; value never displayed)",
+      );
     }
 
     const homeUrl = process.env.FORGE_HOME_URL;
@@ -763,18 +781,19 @@ program
     const errors = checks.filter((check) => check.status === "fail");
     const warnings = checks.filter((check) => check.status === "warn");
     const ok = errors.length === 0;
-    const readyForWrites =
+    const writeConfigPresent =
       ok &&
       Boolean(siteUrl) &&
       Boolean(username) &&
-      Boolean(applicationPassword);
+      applicationPasswordLooksValid;
 
     if (options.json) {
       process.stdout.write(
         JSON.stringify(
           {
             ok,
-            readyForWrites,
+            writeConfigPresent,
+            liveChecksRequired: true,
             node: process.versions.node,
             cwd: process.cwd(),
             envFile: {
@@ -799,10 +818,13 @@ program
       process.stdout.write(`${marker} ${check.label}: ${check.detail}\n`);
     }
     process.stdout.write(
-      `\n${ok ? "Configuration looks usable." : "Configuration has errors."} Writes ready: ${readyForWrites ? "yes" : "no"}. ` +
+      `\n${ok ? "Configuration looks usable." : "Configuration has errors."} Write credentials configured: ${writeConfigPresent ? "yes" : "no"}. ` +
         `${warnings.length} warning(s), ${errors.length} error(s).\n`,
     );
-    process.stdout.write('Next: "forge ai test <provider>" and "forge wp elementor doctor <page>".\n');
+    process.stdout.write(
+      "Live access is not checked by this offline command. " +
+        'Next: "forge ai test <provider>" and "forge wp elementor doctor <page>".\n',
+    );
     if (!ok) process.exitCode = 1;
   });
 
@@ -836,13 +858,13 @@ const wpCommand = program
             process.stdout.write("✓ Connected to WordPress site successfully\n");
           } else {
             process.stdout.write("✗ Failed to connect to WordPress site\n");
-            process.exit(1);
+            process.exitCode = 1;
           }
         } catch (error) {
           process.stderr.write(
             `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
           );
-          process.exit(1);
+          process.exitCode = 1;
         }
       }),
   )
@@ -877,7 +899,7 @@ const wpCommand = program
           process.stderr.write(
             `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
           );
-          process.exit(1);
+          process.exitCode = 1;
         }
       }),
   )
@@ -912,7 +934,7 @@ const wpCommand = program
           process.stderr.write(
             `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
           );
-          process.exit(1);
+          process.exitCode = 1;
         }
       }),
   );
@@ -936,7 +958,7 @@ program
       process.stderr.write(
         `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
       );
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 
@@ -960,7 +982,7 @@ program
       process.stderr.write(
         `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
       );
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 
@@ -1047,7 +1069,7 @@ wpCommand
   });
 
 // ─── Sprint 25/26: Elementor/WordPress write bridge ─────────────────────────
-// Requires the optional forge-elementor-bridge companion plugin (0.2.0+) on the
+// Requires the optional forge-elementor-bridge companion plugin (0.3.0) on the
 // site. All commands are safe by default: preview/validate/apply default to
 // dry-run (zero remote mutations). Only `apply --apply` performs a
 // provider-backed write, which is then re-read and verified structurally.
@@ -1120,13 +1142,13 @@ function normalizeElementorArgs(args: { site?: string; username?: string; passwo
  * Print a typed, actionable error and exit non-zero. Raw provider/HTTP errors
  * are never the primary CLI error surface (Sprint 26).
  */
-function fail(error: unknown): never {
+function fail(error: unknown): void {
   if (error instanceof ElementorBridgeError) {
     process.stderr.write(`Error [${error.code}]: ${error.message}\n`);
   } else {
     process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
   }
-  process.exit(1);
+  process.exitCode = 1;
 }
 
 async function resolveElementorPageId(provider: ReturnType<typeof createWordPressProvider>, pageArg: string): Promise<number> {
@@ -1164,7 +1186,7 @@ function writeRollbackOutput(output: string | undefined, rollbackPayload: Elemen
   }
 }
 
-const elementorCommand = wpCommand.command("elementor").description("Elementor document commands (requires the forge-elementor-bridge companion plugin v0.2.0+)")
+const elementorCommand = wpCommand.command("elementor").description("Elementor document commands (requires the forge-elementor-bridge companion plugin v0.3.0)")
   .addHelpText("after", `
 Safety model:
   inspect   read-only. Shows exactly what SEO Forge sees (fingerprint, widgets, editable controls).
@@ -1216,7 +1238,7 @@ elementorCommand
       const health = await bridge.checkHealth(postId);
       if (options.json) {
         process.stdout.write(JSON.stringify(health, null, 2) + "\n");
-        if (!health.ok) process.exit(1);
+        if (!health.ok) process.exitCode = 1;
         return;
       }
       process.stdout.write(`Forge Elementor health check${postId !== undefined ? ` (page ${postId})` : ""}:\n`);
@@ -1230,7 +1252,7 @@ elementorCommand
         process.stdout.write(`  Supported widgets: ${health.site.supportedWidgets.join(", ")}\n`);
         process.stdout.write(`  Unsupported widgets: ${health.site.unsupportedWidgets.join(", ")}\n`);
       }
-      if (!health.ok) process.exit(1);
+      if (!health.ok) process.exitCode = 1;
     } catch (error) {
       fail(error);
     }
@@ -1316,7 +1338,7 @@ elementorCommand
       const preview = await bridge.preview(pageId, patch);
       if (options.json) {
         process.stdout.write(JSON.stringify(preview, null, 2) + "\n");
-        if (!preview.compatible) process.exit(1);
+        if (!preview.compatible) process.exitCode = 1;
         return;
       }
       const page = await provider.getPage(pageId);
@@ -1331,7 +1353,7 @@ elementorCommand
             ? ((rawTitle as { rendered: string }).rendered)
             : `Page ${pageId}`;
       process.stdout.write(renderElementorPreview(pageTitle, preview));
-      if (!preview.compatible) process.exit(1);
+      if (!preview.compatible) process.exitCode = 1;
     } catch (error) {
       fail(error);
     }
@@ -1358,11 +1380,11 @@ elementorCommand
       const result = await bridge.validate(pageId, patch);
       if (options.json) {
         process.stdout.write(JSON.stringify(result, null, 2) + "\n");
-        if (!result.compatible) process.exit(1);
+        if (!result.compatible) process.exitCode = 1;
         return;
       }
       process.stdout.write(renderElementorValidation(result));
-      if (!result.compatible) process.exit(1);
+      if (!result.compatible) process.exitCode = 1;
     } catch (error) {
       fail(error);
     }
@@ -1475,7 +1497,7 @@ elementorCommand
           siteUrl: credentials.siteUrl,
         }),
       );
-      if (!result.restored) process.exit(1);
+      if (!result.restored) process.exitCode = 1;
     } catch (error) {
       fail(error);
     }
@@ -1781,7 +1803,7 @@ executionCommand
       process.stdout.write(`Execution rollback finished for ${options.project ?? "default"}\n`);
     } catch (error) {
       process.stderr.write(`Error: ${error instanceof Error ? error.message : "Unknown error"}\n`);
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 
@@ -1845,7 +1867,8 @@ program
       const connected = await provider.testConnection();
       if (!connected) {
         process.stdout.write("✗ Connection failed\n");
-        process.exit(1);
+        process.exitCode = 1;
+        return;
       }
 
       process.stdout.write("✓ Connected\n");
@@ -1886,7 +1909,7 @@ program
       process.stderr.write(
         `Error: ${error instanceof Error ? error.message : "Unknown error"}\n`,
       );
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 
@@ -1922,7 +1945,8 @@ pipelineCommand
     const pipeline = listDefaultPipelines().find((item) => item.id === id);
     if (!pipeline) {
       process.stderr.write(`Error: Pipeline not found: ${id}\n`);
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     if (options.json) {
       process.stdout.write(JSON.stringify(pipeline, null, 2) + "\n");
@@ -3181,7 +3205,7 @@ reviewCommand
       );
     } catch (error) {
       process.stderr.write(`Error: ${error instanceof Error ? error.message : "Unknown error"}\n`);
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 
@@ -4191,7 +4215,7 @@ optimizeCommand
       if (result.error) process.stdout.write(`Error: ${result.error.message}\n`);
     } catch (error) {
       process.stderr.write(`Error: ${error instanceof Error ? error.message : "Unknown error"}\n`);
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 
@@ -4260,7 +4284,7 @@ workflowCommand
       }
     } catch (error) {
       process.stderr.write(`Error: ${error instanceof Error ? error.message : "Unknown error"}\n`);
-      process.exit(1);
+      process.exitCode = 1;
     }
   });
 

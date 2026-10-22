@@ -64,6 +64,7 @@ export type ElementorBridgeErrorCode =
   | "PAGE_NOT_FOUND"
   | "NOT_ELEMENTOR_DOCUMENT"
   | "AUTHENTICATION_FAILED"
+  | "WORDPRESS_UNREACHABLE"
   | "DOCUMENT_UNAVAILABLE"
   | "DOCUMENT_STALE"
   | "UNSUPPORTED_WIDGET"
@@ -95,7 +96,7 @@ export function toBridgeError(error: unknown): ElementorBridgeError {
         return new ElementorBridgeError(
           "ELEMENTOR_NOT_INSTALLED",
           `The Forge Elementor bridge plugin is not installed or not reachable on this site. ` +
-            `Install packages/providers-wordpress/companion/forge-elementor-bridge.php (v0.2.0+) and activate it. (${error.message})`,
+            `Install packages/providers-wordpress/companion/forge-elementor-bridge.php (v0.3.0) and activate it. (${error.message})`,
         );
       case "AUTHENTICATION_FAILED":
         return new ElementorBridgeError("AUTHENTICATION_FAILED", `${error.message} Check the WordPress username/application password.`);
@@ -117,7 +118,20 @@ export function toBridgeError(error: unknown): ElementorBridgeError {
         return new ElementorBridgeError("DOCUMENT_UNAVAILABLE", `${error.message}`);
     }
   }
-  return new ElementorBridgeError("DOCUMENT_UNAVAILABLE", error instanceof Error ? error.message : String(error));
+  return new ElementorBridgeError("DOCUMENT_UNAVAILABLE", describeError(error));
+}
+
+/**
+ * Include the underlying fetch/DNS cause when Node reports only "fetch failed".
+ * Secrets are never part of these errors.
+ */
+function describeError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const cause = (error as { cause?: unknown }).cause;
+  if (cause instanceof Error && cause.message && cause.message !== error.message) {
+    return `${error.message}: ${cause.message}`;
+  }
+  return error.message;
 }
 
 /**
@@ -155,7 +169,9 @@ export interface ElementorProviderLike {
     data: string,
     expected?: { elementorVersion?: string; fingerprint?: string; modified?: string },
   ): Promise<ElementorDocumentWriteResult>;
-  /** Optional typed health source (companion plugin 0.2.0+). */
+  /** Optional canonical REST authentication check (WordPress /users/me). */
+  getCurrentUser?(): Promise<{ id: number; name: string; slug: string }>;
+  /** Optional typed health source (companion plugin 0.3.0). */
   getElementorSystemStatus?(): Promise<ElementorSystemStatus>;
 }
 
@@ -330,11 +346,51 @@ export function createElementorBridge(provider: ElementorProviderLike) {
       const checks: ElementorHealthCheck[] = [];
       let site: ElementorSystemStatus | undefined;
 
+      // Check REST authentication before the companion endpoint. If the bridge
+      // plugin is missing, its 404 would otherwise hide an invalid application
+      // password and the user would be sent to install a plugin they may not
+      // be able to authenticate against.
+      if (provider.getCurrentUser) {
+        try {
+          await provider.getCurrentUser();
+          checks.push({ id: "wordpress-reachable", label: "WordPress reachable (REST)", ok: true });
+          checks.push({ id: "authentication", label: "Authentication valid", ok: true });
+        } catch (error) {
+          const statusCode = (error as { statusCode?: unknown }).statusCode;
+          const rejected =
+            statusCode === 401 ||
+            statusCode === 403 ||
+            (error instanceof Error && /invalid credentials|not logged in|unauthorized|access denied/i.test(error.message));
+          checks.push(
+            rejected
+              ? {
+                  id: "authentication",
+                  label: "Authentication valid",
+                  ok: false,
+                  detail:
+                    "The WordPress REST API rejected the application password. " +
+                    "Regenerate it in Users -> Profile -> Application Passwords, confirm FORGE_WP_USERNAME, and update .env.",
+                  code: "AUTHENTICATION_FAILED",
+                }
+              : {
+                  id: "wordpress-reachable",
+                  label: "WordPress reachable (REST)",
+                  ok: false,
+                  detail: `Could not reach the WordPress REST API: ${describeError(error)}`,
+                  code: "WORDPRESS_UNREACHABLE",
+                },
+          );
+          return { ok: false, checks, site };
+        }
+      }
+
       if (provider.getElementorSystemStatus) {
         try {
           site = await provider.getElementorSystemStatus();
-          checks.push({ id: "wordpress-reachable", label: "WordPress reachable (REST)", ok: true });
-          checks.push({ id: "authentication", label: "Authentication valid", ok: true });
+          if (!checks.some((check) => check.id === "authentication")) {
+            checks.push({ id: "wordpress-reachable", label: "WordPress reachable (REST)", ok: true });
+            checks.push({ id: "authentication", label: "Authentication valid", ok: true });
+          }
           checks.push({
             id: "elementor-installed",
             label: "Elementor installed",
@@ -361,7 +417,7 @@ export function createElementorBridge(provider: ElementorProviderLike) {
           return { ok: false, checks, site };
         }
       } else {
-        checks.push({ id: "system", label: "Companion system endpoint", ok: false, detail: "Provider does not expose getElementorSystemStatus (update the bridge plugin to 0.2.0+)." });
+        checks.push({ id: "system", label: "Companion system endpoint", ok: false, detail: "Provider does not expose getElementorSystemStatus (update the bridge plugin to 0.3.0)." });
       }
 
       let documentSummary: ElementorHealthResult["document"];

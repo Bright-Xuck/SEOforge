@@ -16,14 +16,21 @@ pnpm build
 Copy-Item .env.example .env   # then fill in your local WordPress + AI values
 pnpm forge doctor
 pnpm forge ai test zai --model glm-4.5-flash
-pnpm forge wp elementor doctor 6
+pnpm forge wp elementor doctor 123   # replace 123 with your staging page id
 ```
+
+`forge doctor` is offline and only checks that configuration is present. It warns if the
+WordPress value is not a 24-character application password — do not use the normal login
+password. Create one under **Users → Profile → Application Passwords**.
 
 A safe first run reads the real page, builds a review session, and writes nothing:
 
 ```powershell
-pnpm forge optimize default --url http://127.0.0.1:8080 --page 6 --provider zai --model glm-4.5-flash --keyword "accounting software" --dry-run --json
+pnpm forge optimize default --url http://127.0.0.1:8080 --page 123 --provider zai --model glm-4.5-flash --keyword "accounting software" --dry-run --json
 ```
+
+Replace the local URL/page with your staging target. Verify the numeric id is a page or post
+(`/wp/v2/pages/<id>`), not a media attachment, before running against a live site.
 
 Only use `--apply` after reviewing the dry-run. See [`docs/installation.md`](docs/installation.md)
 for prerequisites, the companion plugin, environment precedence, troubleshooting, and the
@@ -523,7 +530,7 @@ Sprint 26 hardens (not expands) the Sprint 25 path against real WordPress/Elemen
   client-side *structural fingerprint* verification (which survives Elementor
   reformatting).
 - **Typed failures everywhere:** transport plugin-body codes → bridge taxonomy
-  (`ELEMENTOR_NOT_INSTALLED/AUTHENTICATION_FAILED/PAGE_NOT_FOUND/
+  (`ELEMENTOR_NOT_INSTALLED/AUTHENTICATION_FAILED/WORDPRESS_UNREACHABLE/PAGE_NOT_FOUND/
   NOT_ELEMENTOR_DOCUMENT/DOCUMENT_STALE/UNSUPPORTED_WIDGET/UNSUPPORTED_SETTING/
   WRITE_FAILED/VERIFICATION_FAILED/ROLLBACK_FAILED/...`), shown as
   `Error [CODE]: actionable message` — raw PHP/HTTP errors are never the primary surface.

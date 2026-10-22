@@ -49,7 +49,7 @@ export const ELEMENTOR_SYSTEM_PATH = "wp-json/forge/v1/system";
 
 /**
  * Typed health/capability status returned by `GET /wp-json/forge/v1/system`
- * (forge-elementor-bridge 0.2.0+).
+ * (forge-elementor-bridge 0.3.0).
  */
 export interface ElementorSystemStatus {
   readonly plugin: string;

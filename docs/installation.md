@@ -13,7 +13,7 @@ WordPress/Elementor page. It assumes the companion plugin and the live checks de
 | WordPress | 6.x or newer, with REST API access |
 | Elementor | Installed and active on the target page |
 | Rank Math | Installed and active (Forge's metadata contract) |
-| Forge companion plugin | `forge-elementor-bridge` 0.2.0+ on the WordPress site |
+| Forge companion plugin | `forge-elementor-bridge` 0.3.0 (this repository) on the WordPress site |
 | AI provider | Z.ai (`ZAI_API_KEY`) is the verified live provider; other providers are optional |
 
 Forge is a local CLI. Deterministic analysis and metadata-only optimization run without a
@@ -61,15 +61,19 @@ cp .env.example .env
 The important WordPress values are:
 
 ```dotenv
-FORGE_WP_SITE_URL=http://127.0.0.1:8080
+FORGE_WP_SITE_URL=https://your-staging-site.example
 FORGE_WP_USERNAME=your-wordpress-username
 FORGE_WP_APPLICATION_PASSWORD=your-application-password
-FORGE_HOME_URL=http://127.0.0.1:8080
-FORGE_WP_PAGE_ID=6
+FORGE_HOME_URL=https://your-staging-site.example
+FORGE_WP_PAGE_ID=123
 ```
 
+Replace `123` with the id of a real Elementor page (or post) on that site. A numeric id can
+also belong to a media attachment; never use an id you have not verified as a page.
+
 Create the application password in WordPress under **Users → Profile → Application
-Passwords**. Use a dedicated low-privilege account for staging where possible.
+Passwords**. Use a dedicated low-privilege account for staging where possible. A passing
+`forge doctor` only means the values are present; it does not prove the site accepts them.
 
 Precedence rules:
 
@@ -93,7 +97,11 @@ On the WordPress host:
 1. Create `wp-content/plugins/forge-elementor-bridge/`.
 2. Copy `forge-elementor-bridge.php` into that directory.
 3. Activate **Forge Elementor Bridge** in **Plugins**.
-4. Confirm the plugin reports version `0.2.0` or newer.
+4. Confirm the plugin reports version `0.3.0` (the version in this repository).
+
+The host must pass the `Authorization` header through to WordPress for application-password
+authentication. If `/wp-json/wp/v2/users/me` returns 401 with a freshly generated password,
+check the host/WAF/proxy configuration before assuming the password is wrong.
 
 For a local site served over plain HTTP, WordPress may reject application-password
 authentication unless it is told this is a local environment. Add this to `wp-config.php`
@@ -132,19 +140,30 @@ Start with the offline check:
 pnpm forge doctor
 ```
 
-`doctor` checks Node, `.env` loading, WordPress URL/credentials, AI provider keys, the
-Ollama URL, and that `projects/` is writable. It never prints secrets and makes no network
-calls.
+`doctor` checks Node, `.env` loading, WordPress URL/credential presence, AI provider keys,
+the Ollama URL, and that `projects/` is writable. It never prints secrets and makes no
+network calls. It also does not claim that live access works.
 
-Then run the live checks:
+Then run the live checks. The examples below use `123`; replace it with the real staging page
+id, not a media id:
 
 ```powershell
 pnpm forge ai test zai --model glm-4.5-flash
-pnpm forge wp elementor doctor 6
+pnpm forge wp elementor doctor 123
 ```
 
 `ai test` and `wp elementor doctor` are the only checks that contact a provider or the
-site. They exit non-zero on failure.
+site. They exit non-zero on failure. The doctor checks REST authentication before the
+companion endpoint, so an invalid application password is reported as
+`AUTHENTICATION_FAILED` instead of being hidden by a missing plugin.
+
+To confirm a page id without writing anything, open:
+
+```text
+https://your-staging-site.example/wp-json/wp/v2/pages/123
+```
+
+A page returns 200; an attachment or missing post returns 404 from the pages endpoint.
 
 ## 7. First safe dry-run
 
@@ -153,13 +172,13 @@ and writes nothing:
 
 ```powershell
 pnpm forge optimize default `
-  --url http://127.0.0.1:8080 `
-  --page 6 `
+  --url https://your-staging-site.example `
+  --page 123 `
   --provider zai `
   --model glm-4.5-flash `
-  --keyword "accounting software" `
+  --keyword "your target keyword" `
   --brand "Your Brand" `
-  --audience "small businesses" `
+  --audience "your audience" `
   --dry-run `
   --json
 ```
@@ -182,7 +201,7 @@ be executed.
 Only after reviewing the dry-run:
 
 ```powershell
-pnpm forge optimize default --url http://127.0.0.1:8080 --page 6 --provider zai --model glm-4.5-flash --keyword "accounting software" --apply
+pnpm forge optimize default --url https://your-staging-site.example --page 123 --provider zai --model glm-4.5-flash --keyword "your target keyword" --apply
 ```
 
 `--apply` explicitly approves the reviewed items and writes them. Execution re-reads and
@@ -226,7 +245,10 @@ Live suites require the `FORGE_WP_*` values described in
 | `AI provider "zai" is not configured` | Set `ZAI_API_KEY` in `.env` or the shell, then run `pnpm forge ai test zai`. |
 | `ai test` says unreachable | Check the key/model, network access, and provider status. For Ollama, start the local service and check `OLLAMA_BASE_URL`. |
 | `ELEMENTOR_NOT_INSTALLED` | Activate Elementor and the companion plugin; run `pnpm forge wp elementor doctor <page>`. |
-| `AUTHENTICATION_FAILED` | Recreate the WordPress application password and update `.env`. Local HTTP sites may need `WP_ENVIRONMENT_TYPE=local`. |
+| `AUTHENTICATION_FAILED` | Recreate the WordPress application password and update `.env`. Confirm `/wp-json/wp/v2/users/me` returns 200 with the same credentials; if it returns 401, check the username and whether the host strips `Authorization`. Local HTTP sites may need `WP_ENVIRONMENT_TYPE=local`. |
+| `forge doctor` warns that the password does not look like an application password | The value is probably the normal login password. Create a new one under **Users → Profile → Application Passwords** and paste the generated 24-character value into `FORGE_WP_APPLICATION_PASSWORD`. |
+| `WORDPRESS_UNREACHABLE` | Check DNS, TLS, and the site URL. The message now includes the underlying `fetch`/DNS cause. |
+| `PAGE_NOT_FOUND` or a 404 from `/wp/v2/pages/<id>` | The numeric id is not a page. Check `/wp/v2/media/<id>` too; a media attachment is not a valid Elementor target. Create or choose a real staging page. |
 | `PATCH_STALE` | The page changed after the review snapshot. Re-run the dry-run and review the new patch. |
 | `Rank Math metadata could not be read` | Confirm Rank Math is active and the companion endpoint is reachable. Content can still apply; metadata writes are skipped. |
 | No AI key | Metadata-only optimization runs. Add a provider key when you want generated section copy. |

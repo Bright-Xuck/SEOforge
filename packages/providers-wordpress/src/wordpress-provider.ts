@@ -97,6 +97,26 @@ export class WordPressProvider {
   }
 
   /**
+   * Verify REST authentication with the canonical current-user endpoint.
+   *
+   * This does not require plugin-management capabilities, so it is a safer
+   * live credential check than getSiteInfo() (which also reads themes and
+   * plugins). It throws a typed ProviderError on 401/403.
+   */
+  async getCurrentUser(): Promise<{ id: number; name: string; slug: string }> {
+    const result = await this.client.get<{ id?: unknown; name?: unknown; slug?: unknown }>("users/me");
+    const user = result.data[0];
+    if (!user || typeof user.id !== "number") {
+      throw new Error("NO_USER_RETURNED");
+    }
+    return {
+      id: user.id,
+      name: typeof user.name === "string" ? user.name : "",
+      slug: typeof user.slug === "string" ? user.slug : "",
+    };
+  }
+
+  /**
    * Test connection to WordPress site.
    */
   async testConnection(): Promise<boolean> {

@@ -85,6 +85,9 @@ function memoryProvider(initialData: string, version = "3.24.0"): ElementorProvi
         },
       };
     },
+    async getCurrentUser() {
+      return { id: 1, name: "Admin", slug: "admin" };
+    },
     async getElementorSystemStatus() {
       return {
         plugin: "forge-elementor-bridge",
@@ -140,6 +143,45 @@ describe("ElementorWriteBridge", () => {
     expect(labels).toContain("document-writable");
     expect(health.document?.supported).toBe(true);
     expect(health.site?.supportedWidgets).toContain("heading");
+  });
+
+  it("reports authentication failure before a missing companion endpoint", async () => {
+    const provider = memoryProvider(HERO_DOC);
+    provider.getCurrentUser = async () => {
+      throw Object.assign(new Error("Invalid credentials"), { statusCode: 401 });
+    };
+    let systemCalled = false;
+    provider.getElementorSystemStatus = async () => {
+      systemCalled = true;
+      throw new Error("companion endpoint should not be called after auth failure");
+    };
+
+    const bridge = createElementorBridge(provider);
+    const health = await bridge.checkHealth(5);
+
+    expect(health.ok).toBe(false);
+    const authentication = health.checks.find((check) => check.id === "authentication");
+    expect(authentication?.ok).toBe(false);
+    expect(authentication?.code).toBe("AUTHENTICATION_FAILED");
+    expect(health.checks.some((check) => check.id === "system")).toBe(false);
+    expect(systemCalled).toBe(false);
+  });
+
+  it("distinguishes an unreachable REST API from rejected credentials", async () => {
+    const provider = memoryProvider(HERO_DOC);
+    provider.getCurrentUser = async () => {
+      throw new TypeError("fetch failed", { cause: new Error("getaddrinfo EAI_AGAIN example.test") });
+    };
+
+    const bridge = createElementorBridge(provider);
+    const health = await bridge.checkHealth(5);
+
+    expect(health.ok).toBe(false);
+    const reachable = health.checks.find((check) => check.id === "wordpress-reachable");
+    expect(reachable?.ok).toBe(false);
+    expect(reachable?.code).toBe("WORDPRESS_UNREACHABLE");
+    expect(reachable?.detail).toContain("EAI_AGAIN");
+    expect(health.checks.some((check) => check.id === "authentication")).toBe(false);
   });
 
   it("preview resolves the exact target and performs zero remote writes", async () => {

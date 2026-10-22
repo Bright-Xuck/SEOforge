@@ -12,7 +12,7 @@ Tasks: 60 successful, 60 total
 
 pnpm test
 Test Files  80 passed | 2 skipped (82)
-Tests       498 passed | 4 skipped (502)
+Tests       501 passed | 4 skipped (505)
 
 pnpm build
 Tasks: 31 successful, 31 total
@@ -31,7 +31,7 @@ behavior.
 Observed:
 
 - process exit code `1`
-- `ok: false`, `readyForWrites: false`
+- `ok: false`, `writeConfigPresent: false`, `liveChecksRequired: true`
 - Node check passed
 - missing `.env` was a warning
 - missing `FORGE_WP_SITE_URL`, `FORGE_WP_USERNAME`, and
@@ -89,8 +89,10 @@ The content-generation integration test asserts that `quality` is attached to th
 contains all six checks. Review-to-execution tests assert that an invalid approved patch is
 skipped and a human-edited invalid patch can execute.
 
-## Pending
+## Live checks
 
-Live WordPress/Elementor/Rank Math and live Z.ai verification remain pending credentials.
-Follow the sequence in [`../installation.md`](../installation.md) and save sanitized results
-only.
+Live Z.ai verification passed. Live WordPress writes are currently blocked because the
+configured secret is not a WordPress application password, the companion plugin is missing,
+and there is no valid target page. `forge doctor` now warns when the password does not match
+the 24-character application-password format. See
+[`live-verification.md`](live-verification.md) for sanitized evidence and next steps.
